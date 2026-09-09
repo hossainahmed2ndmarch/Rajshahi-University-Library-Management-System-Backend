@@ -1,0 +1,49 @@
+// Model User 
+
+model User {
+  id       Int        @id @default(autoincrement())
+  email    String     @unique
+  phone    String     @unique
+  password String
+  role     UserRole   @default(MEMBER)
+  status   UserStatus @default(PENDING_APPROVAL)
+
+  // Profile Details
+  name             String
+  avatarUrl        String?
+  studentOrVoterId String  @unique
+  institution      String?
+  department       String?
+  session          String?
+
+  // Membership Payment & Window
+  paymentMethod       PaymentMethod?
+  isPaid              Boolean        @default(false)
+  membershipStartedAt DateTime?
+  membershipExpiresAt DateTime?
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relation Arrays (1:N)
+  booksAdded         Book[]          @relation("BooksAdded")
+  booksDonated       Book[]          @relation("BooksDonated")
+  borrows            Borrow[]        @relation("UserBorrows")
+  approvedBorrows    Borrow[]        @relation("ApprovedBorrows")
+  returnedBorrows    Borrow[]        @relation("ReturnedBorrows")
+  purchases          Purchase[]      @relation("UserPurchases")
+  approvedPurchaseBy Purchase[]      @relation("ApprovedPurchases")
+  donations          Donation[]      @relation("UserDonations")
+  receivedDonations  Donation[]      @relation("ReceivedDonations")
+  shifts             ShiftLog[]      @relation("UserShifts")
+  verifiedShifts     ShiftLog[]      @relation("VerifiedShifts")
+  bookReviews        BookReview[]
+  serviceReviews     ServiceReview[]
+  payments           Payment[]
+
+  @@index([role])
+  @@index([status])
+  @@index([membershipExpiresAt])
+  @@map("users")
+}

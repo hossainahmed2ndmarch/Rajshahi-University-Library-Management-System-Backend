@@ -1,0 +1,51 @@
+node_modules
+.env
+# dist
+build
+.log
+.logger
+
+
+/src/generated/prisma
+
+/src/generated/prisma
+
+/src/generated/prisma
+
+# Dependencies
+node_modules/
+
+# Build Outputs & Generated Code
+# dist/
+build/
+out/
+agents/
+*.tsbuildinfo
+.prisma/
+/prisma/generated/
+
+# Tests & Coverage
+__tests__/
+_test_/
+
+
+# AI Agents & IDE Cache
+.agents/
+.cursor/
+.claude/
+.postman/
+.windsurf/
+
+# Environment Files & Secrets
+.env
+.env.*
+!.env.example
+.env.keys
+
+# Logs & OS Files
+jest.config.js
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vaultlocal_data.sql

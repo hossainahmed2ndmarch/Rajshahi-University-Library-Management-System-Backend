@@ -1,0 +1,47 @@
+model Donation {
+  id              Int            @id @default(autoincrement())
+  donorName       String?
+  donorEmail      String?
+  contactPhone    String?
+
+  // Method & Status Tracking
+  method          DonationMethod @default(LIBRARY_DROP_OFF)
+  status          DonationStatus @default(PENDING)
+
+  // Anonymous Feature
+  isAnonymous     Boolean        @default(false)
+
+  // Optional Note/Message from Donator
+  donorNote       String?        @db.Text
+
+  // Donated Book Details
+  bookTitle       String?
+  author          String?
+  category        String?
+  quantity        Int            @default(1)
+
+  // Pickup Address 
+  pickupAddress   String?        @db.Text
+
+  // Relations to User 
+  donorId         Int?
+  donor           User?          @relation("UserDonations", fields: [donorId], references: [id], onDelete: SetNull)
+
+  receivedById    Int?
+  receivedBy      User?          @relation("ReceivedDonations", fields: [receivedById], references: [id], onDelete: SetNull)
+
+  // Auto-Cataloging Relation (Links donation to the generated Book entry)
+  catalogedBookId Int?
+  catalogedBook   Book?          @relation("CatalogedFromDonation", fields: [catalogedBookId], references: [id], onDelete: SetNull)
+
+  // Tracking Dates
+  scheduledAt     DateTime?
+  receivedAt      DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([donorId])
+  @@index([receivedById])
+  @@index([status])
+  @@map("donations")
+}

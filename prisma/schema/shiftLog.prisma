@@ -1,0 +1,36 @@
+// Shift-logs Model 
+
+model ShiftLog {
+ id Int @id @default(autoincrement())
+
+ // Shifter Relation
+ shifterId Int
+ shifter   User @relation("UserShifts", fields: [shifterId], references: [id], onDelete: Cascade)
+
+ // Timing
+ startTime DateTime  @default(now())
+ endTime   DateTime?
+
+ // Status
+ status ShiftStatus @default(ACTIVE)
+
+ // Cash Accountability 
+ openingCash   Float  @default(0.0)
+ cashCollected Float  @default(0.0)
+ closingCash   Float?
+
+ // Operational Logs
+ tasksCompleted String? @db.Text
+ handoverNotes  String? @db.Text
+
+ // Supervisor Verification
+ verifiedById Int?
+ verifiedBy   User? @relation("VerifiedShifts", fields: [verifiedById], references: [id], onDelete: SetNull)
+
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+ @@index([shifterId])
+ @@index([status])
+ @@map("shift_logs")
+}

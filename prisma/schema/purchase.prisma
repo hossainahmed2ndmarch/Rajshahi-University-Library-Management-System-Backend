@@ -1,0 +1,52 @@
+// Purchase Model 
+
+model Purchase {
+ id Int @id @default(autoincrement())
+
+ // Public tracking reference for Guests & Members
+ transactionId String @unique
+
+ // Optional User relation (NULL for Guests)
+ userId Int?
+ user   User? @relation("UserPurchases", fields: [userId], references: [id], onDelete: SetNull)
+
+ // Customer Contact Info (Required for Guests & Members)
+ customerName    String
+ customerEmail   String
+ customerPhone   String
+ shippingAddress String @db.Text
+
+ // Book Item Reference
+ bookId Int
+ book   Book @relation(fields: [bookId], references: [id])
+
+ // Order Details
+ quantity    Int   @default(1)
+ unitPrice   Float
+ totalAmount Float
+
+ // Status & Tracking Pipeline
+ orderStatus   OrderStatus   @default(PENDING)
+ paymentStatus PaymentStatus @default(PENDING)
+ paymentMethod PaymentMethod @default(CASH)
+
+ // Courier & Tracking Info
+ courierName    String?
+ trackingNumber String?
+
+ // Operational Stamps
+ shippedAt   DateTime?
+ deliveredAt DateTime?
+
+ approvedById Int?
+ approvedBy   User? @relation("ApprovedPurchases", fields: [approvedById], references: [id], onDelete: SetNull)
+
+ createdAt DateTime @default(now())
+ updatedAt DateTime @updatedAt
+
+ @@index([transactionId])
+ @@index([userId])
+ @@index([orderStatus])
+ @@index([paymentStatus])
+ @@map("purchases")
+}

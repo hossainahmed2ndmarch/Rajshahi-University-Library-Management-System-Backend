@@ -1,0 +1,79 @@
+// users
+enum UserRole {
+ SUPER_ADMIN
+ ADMIN
+ SHIFTER
+ MEMBER
+}
+
+enum UserStatus {
+  PENDING_PAYMENT
+  PENDING_APPROVAL
+  ACTIVE 
+  INACTIVE
+  BLOCKED
+}
+
+// Books
+enum BookType {
+  BORROW_ONLY
+  SELL_ONLY
+  HYBRID
+}
+
+// Borrow
+enum BorrowStatus {
+  PENDING
+  APPROVED
+  RETURNED
+  REJECTED
+  OVERDUE
+}
+
+// Purchase
+enum OrderStatus {
+  PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentMethod {
+ CASH
+ ONLINE
+}
+
+// Donation
+enum DonationMethod {
+ LIBRARY_DROP_OFF
+ PICKUP
+ COURIER
+}
+
+enum DonationStatus {
+ PENDING
+ APPROVED
+ SCHEDULED
+ RECEIVED
+ CATALOGED
+ REJECTED
+ CANCELLED
+}
+
+// Shift-Logs
+enum ShiftStatus {
+ SCHEDULED
+ ACTIVE
+ COMPLETED
+ CANCELLED
+}

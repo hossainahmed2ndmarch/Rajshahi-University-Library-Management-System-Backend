@@ -1,0 +1,51 @@
+// Book Model
+
+model Book {
+  id     Int @id @default(autoincrement())
+  title  String
+  author String
+
+  // Unique Global Identifiers
+  isbn         String @unique
+  locationCell String
+
+  // Categorization & Classification
+  category  String
+  publisher String?
+  pages     Int
+  type      BookType // BORROW_ONLY | SELL_ONLY | HYBRID
+
+  // Inventory & Pricing
+  buyPrice    Float? // Admin purchase/cost price — used for profit calculation
+  sellPrice   Float? // Customer-facing sell price (before discount)
+  discount    Float  @default(0) // Discount percentage (0–100)
+  borrowStock Int    @default(0)
+  sellStock   Int    @default(0)
+
+  coverImage  String?
+  images      String[] @default([])
+  description String? @db.Text
+  isArchived  Boolean @default(false)
+
+  // Relations
+  addedById Int? // Admin or Shifter who registered the book in system
+  addedBy   User?   @relation("BooksAdded", fields: [addedById], references: [id], onDelete: SetNull)
+
+  donatedById Int? // 
+  donatedBy   User?   @relation("BooksDonated", fields: [donatedById], references: [id], onDelete: SetNull)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Virtual Relations
+  borrows       Borrow[]
+  purchases     Purchase[]
+  donations     Donation[] @relation("CatalogedFromDonation")
+  reviews BookReview[]
+
+  @@index([type])
+  @@index([category])
+  @@index([isArchived])
+  @@map("books")
+}
