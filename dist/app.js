@@ -15,7 +15,7 @@ const routes_1 = __importDefault(require("./app/routes"));
 const app = (0, express_1.default)();
 // Allowed origins
 const allowedOrigins = [
-    'http://localhost:3000',
+    'http://localhost:5000',
     'http://localhost:5173',
     config_1.default.client_url,
 ].filter(Boolean);

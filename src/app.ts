@@ -12,7 +12,7 @@ const app: Application = express();
 
 // Allowed origins
 const allowedOrigins = [
-  'http://localhost:3000',
+  'http://localhost:5000',
   'http://localhost:5173',
   config.client_url,
 ].filter(Boolean);

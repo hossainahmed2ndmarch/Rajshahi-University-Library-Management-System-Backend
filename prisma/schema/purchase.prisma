@@ -44,7 +44,6 @@ model Purchase {
  createdAt DateTime @default(now())
  updatedAt DateTime @updatedAt
 
- @@index([transactionId])
  @@index([userId])
  @@index([orderStatus])
  @@index([paymentStatus])

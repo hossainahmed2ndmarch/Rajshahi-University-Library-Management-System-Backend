@@ -8,6 +8,7 @@ import { PaymentRoutes } from '../modules/Payment/payment.routes';
 import { DonationRoutes } from '../modules/Donation/donation.routes';
 import { ShiftLogRoutes } from '../modules/ShiftLog/shiftLog.routes';
 import { ReviewRoutes } from '../modules/Review/review.routes';
+import { ContactRoutes } from '../modules/Contact/contact.routes';
 
 const router = Router();
 
@@ -52,6 +53,10 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/reviews',
     route: ReviewRoutes,
+  },
+  {
+    path: '/contact',
+    route: ContactRoutes,
   },
 ];
 
