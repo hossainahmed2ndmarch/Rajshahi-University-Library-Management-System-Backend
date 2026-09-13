@@ -1,11 +1,20 @@
 import { BookType } from '@prisma/client';
 
+export type TAuthorRole = 'WRITER' | 'TRANSLATOR';
+
+export type TAuthorItem = {
+  name: string;
+  role: TAuthorRole;
+};
+
 export type TCreateBook = {
   title: string;
-  author: string;
+  author?: string;
+  authors?: TAuthorItem[];
   isbn: string;
   locationCell: string;
-  category: string;
+  category?: string;
+  categories?: string[];
   publisher?: string;
   pages: number;
   type: BookType;

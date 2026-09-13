@@ -1,17 +1,19 @@
 // Book Model
 
 model Book {
-  id     Int @id @default(autoincrement())
+  id     Int    @id @default(autoincrement())
   title  String
   author String
+  authors Json? // Structured authors: [{ name: string, role: "WRITER" | "TRANSLATOR" }]
 
   // Unique Global Identifiers
   isbn         String @unique
   locationCell String
 
   // Categorization & Classification
-  category  String
-  publisher String?
+  category   String
+  categories String[] @default([])
+  publisher  String?
   pages     Int
   type      BookType // BORROW_ONLY | SELL_ONLY | HYBRID
 

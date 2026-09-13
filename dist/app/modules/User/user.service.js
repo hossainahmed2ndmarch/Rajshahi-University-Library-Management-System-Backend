@@ -78,6 +78,13 @@ const registerMember = (payload) => __awaiter(void 0, void 0, void 0, function* 
                     : client_1.UserStatus.PENDING_APPROVAL;
         }
     }
+    // Auto-set INACTIVE if membership is already expired
+    if (membershipExpiresAt &&
+        new Date(membershipExpiresAt) < new Date() &&
+        initialStatus !== client_1.UserStatus.BLOCKED) {
+        initialStatus = client_1.UserStatus.INACTIVE;
+        isPaid = false;
+    }
     const newUser = yield db_1.default.user.create({
         data: {
             name: payload.name,
@@ -100,6 +107,19 @@ const registerMember = (payload) => __awaiter(void 0, void 0, void 0, function* 
     return userData;
 });
 const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
+    // Automatically sync expired memberships to INACTIVE status (unless blocked)
+    yield db_1.default.user.updateMany({
+        where: {
+            status: client_1.UserStatus.ACTIVE,
+            membershipExpiresAt: {
+                lt: new Date(),
+            },
+        },
+        data: {
+            status: client_1.UserStatus.INACTIVE,
+            isPaid: false,
+        },
+    });
     const userQuery = new queryBuilder_1.default(db_1.default.user, query, {
         searchableFields: ['name', 'email', 'phone', 'studentOrVoterId', 'department', 'institution'],
         filterableFields: ['role', 'status', 'department', 'session', 'paymentMethod', 'isPaid'],
@@ -126,6 +146,20 @@ const getUserByIdFromDB = (id) => __awaiter(void 0, void 0, void 0, function* ()
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
+    // Auto-sync status to INACTIVE if expired
+    if (user.status === client_1.UserStatus.ACTIVE &&
+        user.membershipExpiresAt &&
+        new Date(user.membershipExpiresAt) < new Date()) {
+        const updatedUser = yield db_1.default.user.update({
+            where: { id },
+            data: {
+                status: client_1.UserStatus.INACTIVE,
+                isPaid: false,
+            },
+        });
+        const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
+        return userData;
+    }
     const { password } = user, userData = __rest(user, ["password"]);
     return userData;
 });
@@ -142,6 +176,31 @@ const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void
             throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Shifters are not permitted to change user roles of members, others, or their own!');
         }
     }
+    // Check uniqueness if email, phone, or studentOrVoterId is modified
+    if (payload.email && payload.email !== user.email) {
+        const existing = yield db_1.default.user.findFirst({
+            where: { email: payload.email, id: { not: id } },
+        });
+        if (existing) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Email is already registered to another user!');
+        }
+    }
+    if (payload.phone && payload.phone !== user.phone) {
+        const existing = yield db_1.default.user.findFirst({
+            where: { phone: payload.phone, id: { not: id } },
+        });
+        if (existing) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Phone number is already registered to another user!');
+        }
+    }
+    if (payload.studentOrVoterId && payload.studentOrVoterId !== user.studentOrVoterId) {
+        const existing = yield db_1.default.user.findFirst({
+            where: { studentOrVoterId: payload.studentOrVoterId, id: { not: id } },
+        });
+        if (existing) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Student or Voter ID is already registered to another user!');
+        }
+    }
     const updateData = Object.assign({}, payload);
     if (payload.membershipStartedAt !== undefined) {
         updateData.membershipStartedAt = payload.membershipStartedAt
@@ -153,8 +212,28 @@ const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void
             ? new Date(payload.membershipExpiresAt)
             : null;
     }
-    // When status is set to ACTIVE, automatically update isPaid to true & set membership dates if missing
-    if (payload.status === client_1.UserStatus.ACTIVE) {
+    const effectiveExpiry = updateData.membershipExpiresAt !== undefined
+        ? updateData.membershipExpiresAt
+        : user.membershipExpiresAt;
+    const isExpired = effectiveExpiry && new Date(effectiveExpiry) < new Date();
+    // Status handling:
+    // 1. If explicitly set to BLOCKED, keep BLOCKED
+    // 2. If user is currently BLOCKED and no status change provided, stay BLOCKED
+    // 3. When membership is expired, status automatically becomes INACTIVE
+    // 4. When membership is active/renewed, status automatically becomes ACTIVE & isPaid = true
+    if (payload.status === client_1.UserStatus.BLOCKED) {
+        updateData.status = client_1.UserStatus.BLOCKED;
+    }
+    else if (user.status === client_1.UserStatus.BLOCKED && payload.status === undefined) {
+        updateData.status = client_1.UserStatus.BLOCKED;
+    }
+    else if (isExpired) {
+        updateData.status = client_1.UserStatus.INACTIVE;
+        updateData.isPaid = false;
+    }
+    else if (payload.status === client_1.UserStatus.ACTIVE ||
+        (user.status === client_1.UserStatus.INACTIVE && !isExpired && effectiveExpiry)) {
+        updateData.status = client_1.UserStatus.ACTIVE;
         updateData.isPaid = true;
         if (!user.membershipStartedAt && !updateData.membershipStartedAt) {
             const startDate = new Date();
@@ -179,9 +258,15 @@ const approveCashPaymentInDB = (userId, amount) => __awaiter(void 0, void 0, voi
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
     const now = new Date();
-    const expireDate = new Date(now.getTime());
-    expireDate.setFullYear(expireDate.getFullYear() + 1);
-    const membershipAmount = amount || 500;
+    let baseDate = now;
+    if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
+        baseDate = new Date(user.membershipExpiresAt);
+    }
+    const expireDate = new Date(baseDate.getTime());
+    // Pricing formula: 3 months = 100 Tk, 6 months = 200 Tk, 12 months = 400 Tk
+    const months = amount ? Math.max(3, Math.round((amount / 100) * 3)) : 12;
+    const membershipAmount = amount || (months / 3) * 100;
+    expireDate.setMonth(expireDate.getMonth() + months);
     const transactionId = `CASH-MEM-${user.id}-${Date.now()}`;
     const result = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         const updatedUser = yield tx.user.update({
@@ -190,7 +275,7 @@ const approveCashPaymentInDB = (userId, amount) => __awaiter(void 0, void 0, voi
                 status: client_1.UserStatus.ACTIVE,
                 isPaid: true,
                 paymentMethod: client_1.PaymentMethod.CASH,
-                membershipStartedAt: now,
+                membershipStartedAt: user.membershipStartedAt || now,
                 membershipExpiresAt: expireDate,
             },
         });
@@ -230,6 +315,27 @@ const updateMyProfileInDB = (userId, payload) => __awaiter(void 0, void 0, void 
         safeData.institution = payload.institution;
     if (payload.phone !== undefined)
         safeData.phone = payload.phone;
+    // A member can also update their Registered Email and Student / National Voter ID
+    if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
+        const emailExists = yield db_1.default.user.findFirst({
+            where: { email: payload.email.trim(), id: { not: userId } },
+        });
+        if (emailExists) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This email address is already in use by another member!');
+        }
+        safeData.email = payload.email.trim();
+    }
+    if (payload.studentOrVoterId !== undefined &&
+        payload.studentOrVoterId.trim() &&
+        payload.studentOrVoterId.trim() !== user.studentOrVoterId) {
+        const idExists = yield db_1.default.user.findFirst({
+            where: { studentOrVoterId: payload.studentOrVoterId.trim(), id: { not: userId } },
+        });
+        if (idExists) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This Student or Voter ID is already registered to another member!');
+        }
+        safeData.studentOrVoterId = payload.studentOrVoterId.trim();
+    }
     const updatedUser = yield db_1.default.user.update({
         where: { id: userId },
         data: safeData,
@@ -250,8 +356,20 @@ const renewMembershipInDB = (userId, payload) => __awaiter(void 0, void 0, void 
         baseDate = new Date(user.membershipExpiresAt);
     }
     const expireDate = new Date(baseDate.getTime());
-    expireDate.setMonth(expireDate.getMonth() + 6); // 6 months extension (100 Taka)
-    const amount = payload.amount || 100;
+    // Pricing formula: 3 months = 100 Tk, 6 months = 200 Tk, 12 months = 400 Tk
+    let monthsToAdd = payload.months;
+    let amount = payload.amount;
+    if (monthsToAdd) {
+        amount = amount || (monthsToAdd / 3) * 100;
+    }
+    else if (amount) {
+        monthsToAdd = Math.max(3, Math.round((amount / 100) * 3));
+    }
+    else {
+        monthsToAdd = 6;
+        amount = 200;
+    }
+    expireDate.setMonth(expireDate.getMonth() + monthsToAdd);
     const paymentMethod = payload.paymentMethod || client_1.PaymentMethod.CASH;
     const transactionId = `MEM-RENEW-${user.id}-${Date.now()}`;
     const result = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
@@ -335,10 +453,54 @@ const deleteUserFromDB = (userId, requestingUserId) => __awaiter(void 0, void 0,
         where: { id: userId },
     });
 });
+const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
+    const users = yield db_1.default.user.findMany({
+        select: {
+            department: true,
+            session: true,
+            institution: true,
+        },
+    });
+    const departmentsSet = new Set();
+    const sessionsSet = new Set();
+    const institutionsSet = new Set();
+    users.forEach((u) => {
+        var _a, _b, _c;
+        if ((_a = u.department) === null || _a === void 0 ? void 0 : _a.trim())
+            departmentsSet.add(u.department.trim());
+        if ((_b = u.session) === null || _b === void 0 ? void 0 : _b.trim())
+            sessionsSet.add(u.session.trim());
+        if ((_c = u.institution) === null || _c === void 0 ? void 0 : _c.trim())
+            institutionsSet.add(u.institution.trim());
+    });
+    const defaultDepts = [
+        'Islamic Studies', 'Arabic', 'Philosophy', 'History', 'Sociology', 'Social Work', 'Economics',
+        'Accounting & Information Systems', 'Management Studies', 'Marketing', 'Finance & Banking',
+        'Law & Justice', 'International Relations', 'Political Science', 'Public Administration',
+        'Psychology', 'Bangla', 'English', 'Statistics', 'Mathematics', 'Physics', 'Chemistry',
+        'Botany', 'Zoology', 'Pharmacy', 'Computer Science & Engineering',
+        'Information & Communication Engineering', 'Electrical & Electronic Engineering',
+        'Applied Chemistry & Chemical Engineering', 'Materials Science & Engineering',
+        'Geography & Environmental Studies', 'Geology & Mining', 'Agricultural Sciences',
+        'Fisheries', 'Education', 'Physical Education', 'Fine Arts', 'Music', 'Theater',
+    ];
+    defaultDepts.forEach((d) => departmentsSet.add(d));
+    const defaultSessions = [
+        '2016-2017', '2017-2018', '2018-2019', '2019-2020', '2020-2021',
+        '2021-2022', '2022-2023', '2023-2024', '2024-2025', '2025-2026', '2026-2027',
+    ];
+    defaultSessions.forEach((s) => sessionsSet.add(s));
+    return {
+        departments: Array.from(departmentsSet).sort((a, b) => a.localeCompare(b)),
+        sessions: Array.from(sessionsSet).sort((a, b) => a.localeCompare(b)),
+        institutions: Array.from(institutionsSet).sort((a, b) => a.localeCompare(b)),
+    };
+});
 exports.UserService = {
     registerMember,
     getAllUsersFromDB,
     getUserByIdFromDB,
+    getUserOptionsFromDB,
     updateUserInDB,
     updateMyProfileInDB,
     renewMembershipInDB,

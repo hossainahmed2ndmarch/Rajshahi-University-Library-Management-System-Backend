@@ -146,10 +146,20 @@ const deleteUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
         data: result,
     });
 }));
+const getUserOptions = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.getUserOptionsFromDB();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'User departments, sessions, and options retrieved successfully!',
+        data: result,
+    });
+}));
 exports.UserController = {
     registerUser,
     getAllUsers,
     getUserById,
+    getUserOptions,
     getMe,
     updateUser,
     updateMyProfile,

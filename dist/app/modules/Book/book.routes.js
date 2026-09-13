@@ -19,6 +19,7 @@ router.post('/upload-images', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN,
 router.post('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), (0, validateRequest_1.default)(book_validation_1.BookValidation.createBookValidationSchema), book_controller_1.BookController.createBook);
 router.get('/', book_controller_1.BookController.getAllBooks);
 router.get('/categories', book_controller_1.BookController.getBookCategories);
+router.get('/options', book_controller_1.BookController.getBookOptions);
 router.get('/:id', book_controller_1.BookController.getBookById);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), (0, validateRequest_1.default)(book_validation_1.BookValidation.updateBookValidationSchema), book_controller_1.BookController.updateBook);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), book_controller_1.BookController.deleteBook);

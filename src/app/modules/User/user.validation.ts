@@ -23,6 +23,7 @@ const updateUserValidationSchema = z.object({
   body: z.object({
     name: z.string().optional(),
     phone: z.string().optional(),
+    email: z.string().email('Invalid email format').optional(),
     avatarUrl: z.string().optional(),
     studentOrVoterId: z.string().optional(),
     institution: z.string().optional(),
@@ -45,13 +46,16 @@ const updateMyProfileValidationSchema = z.object({
     session: z.string().optional(),
     institution: z.string().optional(),
     phone: z.string().optional(),
+    email: z.string().email('Invalid email format').optional(),
+    studentOrVoterId: z.string().optional(),
   }),
 });
 
 const renewMembershipValidationSchema = z.object({
   body: z.object({
     paymentMethod: z.nativeEnum(PaymentMethod).optional().default(PaymentMethod.CASH),
-    amount: z.number().optional().default(100),
+    amount: z.number().optional(),
+    months: z.number().optional(),
   }),
 });
 

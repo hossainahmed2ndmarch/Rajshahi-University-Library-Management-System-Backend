@@ -19,6 +19,7 @@ export type TRegisterMember = {
 export type TUpdateUser = {
   name?: string;
   phone?: string;
+  email?: string;
   avatarUrl?: string;
   studentOrVoterId?: string;
   institution?: string;
@@ -47,9 +48,12 @@ export type TUpdateMyProfile = {
   session?: string;
   institution?: string;
   phone?: string;
+  email?: string;
+  studentOrVoterId?: string;
 };
 
 export type TRenewMembership = {
   paymentMethod?: PaymentMethod;
   amount?: number;
+  months?: number;
 };

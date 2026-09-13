@@ -154,10 +154,22 @@ const deleteUser = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getUserOptions = catchAsync(async (_req: Request, res: Response) => {
+  const result = await UserService.getUserOptionsFromDB();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'User departments, sessions, and options retrieved successfully!',
+    data: result,
+  });
+});
+
 export const UserController = {
   registerUser,
   getAllUsers,
   getUserById,
+  getUserOptions,
   getMe,
   updateUser,
   updateMyProfile,

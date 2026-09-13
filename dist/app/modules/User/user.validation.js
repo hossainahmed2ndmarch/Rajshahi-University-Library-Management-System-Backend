@@ -24,6 +24,7 @@ const updateUserValidationSchema = zod_1.z.object({
     body: zod_1.z.object({
         name: zod_1.z.string().optional(),
         phone: zod_1.z.string().optional(),
+        email: zod_1.z.string().email('Invalid email format').optional(),
         avatarUrl: zod_1.z.string().optional(),
         studentOrVoterId: zod_1.z.string().optional(),
         institution: zod_1.z.string().optional(),
@@ -45,12 +46,15 @@ const updateMyProfileValidationSchema = zod_1.z.object({
         session: zod_1.z.string().optional(),
         institution: zod_1.z.string().optional(),
         phone: zod_1.z.string().optional(),
+        email: zod_1.z.string().email('Invalid email format').optional(),
+        studentOrVoterId: zod_1.z.string().optional(),
     }),
 });
 const renewMembershipValidationSchema = zod_1.z.object({
     body: zod_1.z.object({
         paymentMethod: zod_1.z.nativeEnum(client_1.PaymentMethod).optional().default(client_1.PaymentMethod.CASH),
-        amount: zod_1.z.number().optional().default(100),
+        amount: zod_1.z.number().optional(),
+        months: zod_1.z.number().optional(),
     }),
 });
 exports.UserValidation = {

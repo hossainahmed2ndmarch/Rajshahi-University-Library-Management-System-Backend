@@ -1,5 +1,6 @@
 import httpStatus from 'http-status';
 import { JwtPayload } from 'jsonwebtoken';
+import { UserStatus } from '@prisma/client';
 import config from '../../config';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
@@ -18,8 +19,11 @@ const loginUser = async (payload: TLoginUser) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User does not exist!');
   }
 
-  if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
-    throw new AppError(httpStatus.FORBIDDEN, 'User account is not active!');
+  if (user.status === UserStatus.BLOCKED) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Your account has been blocked by library administration. Please contact the desk.'
+    );
   }
 
   const isPasswordMatched = await comparePassword(payload.password, user.password);
@@ -28,11 +32,27 @@ const loginUser = async (payload: TLoginUser) => {
     throw new AppError(httpStatus.UNAUTHORIZED, 'Password does not match!');
   }
 
+  // If active user membership has expired, automatically sync status to INACTIVE
+  let currentStatus = user.status;
+  let isPaid = user.isPaid;
+  if (
+    user.status === UserStatus.ACTIVE &&
+    user.membershipExpiresAt &&
+    new Date(user.membershipExpiresAt) < new Date()
+  ) {
+    currentStatus = UserStatus.INACTIVE;
+    isPaid = false;
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { status: UserStatus.INACTIVE, isPaid: false },
+    });
+  }
+
   const jwtPayload = {
     userId: user.id,
     email: user.email,
     role: user.role,
-    status: user.status,
+    status: currentStatus,
   };
 
   const accessToken = createToken(
@@ -48,6 +68,8 @@ const loginUser = async (payload: TLoginUser) => {
   );
 
   const { password: _, ...userData } = user;
+  userData.status = currentStatus;
+  userData.isPaid = isPaid;
 
   return {
     accessToken,

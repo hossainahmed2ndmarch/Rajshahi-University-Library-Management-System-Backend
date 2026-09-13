@@ -62,6 +62,16 @@ const registerMember = async (payload: TRegisterMember) => {
     }
   }
 
+  // Auto-set INACTIVE if membership is already expired
+  if (
+    membershipExpiresAt &&
+    new Date(membershipExpiresAt) < new Date() &&
+    initialStatus !== UserStatus.BLOCKED
+  ) {
+    initialStatus = UserStatus.INACTIVE;
+    isPaid = false;
+  }
+
   const newUser = await prisma.user.create({
     data: {
       name: payload.name,
@@ -86,6 +96,20 @@ const registerMember = async (payload: TRegisterMember) => {
 };
 
 const getAllUsersFromDB = async (query: Record<string, unknown>) => {
+  // Automatically sync expired memberships to INACTIVE status (unless blocked)
+  await prisma.user.updateMany({
+    where: {
+      status: UserStatus.ACTIVE,
+      membershipExpiresAt: {
+        lt: new Date(),
+      },
+    },
+    data: {
+      status: UserStatus.INACTIVE,
+      isPaid: false,
+    },
+  });
+
   const userQuery = new QueryBuilder(prisma.user, query, {
     searchableFields: ['name', 'email', 'phone', 'studentOrVoterId', 'department', 'institution'],
     filterableFields: ['role', 'status', 'department', 'session', 'paymentMethod', 'isPaid'],
@@ -118,6 +142,23 @@ const getUserByIdFromDB = async (id: number) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
+  // Auto-sync status to INACTIVE if expired
+  if (
+    user.status === UserStatus.ACTIVE &&
+    user.membershipExpiresAt &&
+    new Date(user.membershipExpiresAt) < new Date()
+  ) {
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: {
+        status: UserStatus.INACTIVE,
+        isPaid: false,
+      },
+    });
+    const { password: _, ...userData } = updatedUser;
+    return userData;
+  }
+
   const { password, ...userData } = user;
   return userData;
 };
@@ -145,6 +186,34 @@ const updateUserInDB = async (
     }
   }
 
+  // Check uniqueness if email, phone, or studentOrVoterId is modified
+  if (payload.email && payload.email !== user.email) {
+    const existing = await prisma.user.findFirst({
+      where: { email: payload.email, id: { not: id } },
+    });
+    if (existing) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Email is already registered to another user!');
+    }
+  }
+
+  if (payload.phone && payload.phone !== user.phone) {
+    const existing = await prisma.user.findFirst({
+      where: { phone: payload.phone, id: { not: id } },
+    });
+    if (existing) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Phone number is already registered to another user!');
+    }
+  }
+
+  if (payload.studentOrVoterId && payload.studentOrVoterId !== user.studentOrVoterId) {
+    const existing = await prisma.user.findFirst({
+      where: { studentOrVoterId: payload.studentOrVoterId, id: { not: id } },
+    });
+    if (existing) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Student or Voter ID is already registered to another user!');
+    }
+  }
+
   const updateData: Record<string, any> = { ...payload };
 
   if (payload.membershipStartedAt !== undefined) {
@@ -158,8 +227,30 @@ const updateUserInDB = async (
       : null;
   }
 
-  // When status is set to ACTIVE, automatically update isPaid to true & set membership dates if missing
-  if (payload.status === UserStatus.ACTIVE) {
+  const effectiveExpiry =
+    updateData.membershipExpiresAt !== undefined
+      ? updateData.membershipExpiresAt
+      : user.membershipExpiresAt;
+
+  const isExpired = effectiveExpiry && new Date(effectiveExpiry) < new Date();
+
+  // Status handling:
+  // 1. If explicitly set to BLOCKED, keep BLOCKED
+  // 2. If user is currently BLOCKED and no status change provided, stay BLOCKED
+  // 3. When membership is expired, status automatically becomes INACTIVE
+  // 4. When membership is active/renewed, status automatically becomes ACTIVE & isPaid = true
+  if (payload.status === UserStatus.BLOCKED) {
+    updateData.status = UserStatus.BLOCKED;
+  } else if (user.status === UserStatus.BLOCKED && payload.status === undefined) {
+    updateData.status = UserStatus.BLOCKED;
+  } else if (isExpired) {
+    updateData.status = UserStatus.INACTIVE;
+    updateData.isPaid = false;
+  } else if (
+    payload.status === UserStatus.ACTIVE ||
+    (user.status === UserStatus.INACTIVE && !isExpired && effectiveExpiry)
+  ) {
+    updateData.status = UserStatus.ACTIVE;
     updateData.isPaid = true;
 
     if (!user.membershipStartedAt && !updateData.membershipStartedAt) {
@@ -191,9 +282,16 @@ const approveCashPaymentInDB = async (userId: number, amount?: number) => {
   }
 
   const now = new Date();
-  const expireDate = new Date(now.getTime());
-  expireDate.setFullYear(expireDate.getFullYear() + 1);
-  const membershipAmount = amount || 500;
+  let baseDate = now;
+  if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
+    baseDate = new Date(user.membershipExpiresAt);
+  }
+  const expireDate = new Date(baseDate.getTime());
+
+  // Pricing formula: 3 months = 100 Tk, 6 months = 200 Tk, 12 months = 400 Tk
+  const months = amount ? Math.max(3, Math.round((amount / 100) * 3)) : 12;
+  const membershipAmount = amount || (months / 3) * 100;
+  expireDate.setMonth(expireDate.getMonth() + months);
   const transactionId = `CASH-MEM-${user.id}-${Date.now()}`;
 
   const result = await prisma.$transaction(async (tx) => {
@@ -203,7 +301,7 @@ const approveCashPaymentInDB = async (userId: number, amount?: number) => {
         status: UserStatus.ACTIVE,
         isPaid: true,
         paymentMethod: PaymentMethod.CASH,
-        membershipStartedAt: now,
+        membershipStartedAt: user.membershipStartedAt || now,
         membershipExpiresAt: expireDate,
       },
     });
@@ -244,6 +342,34 @@ const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) =>
   if (payload.institution !== undefined) safeData.institution = payload.institution;
   if (payload.phone !== undefined) safeData.phone = payload.phone;
 
+  // A member can also update their Registered Email and Student / National Voter ID
+  if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
+    const emailExists = await prisma.user.findFirst({
+      where: { email: payload.email.trim(), id: { not: userId } },
+    });
+    if (emailExists) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'This email address is already in use by another member!');
+    }
+    safeData.email = payload.email.trim();
+  }
+
+  if (
+    payload.studentOrVoterId !== undefined &&
+    payload.studentOrVoterId.trim() &&
+    payload.studentOrVoterId.trim() !== user.studentOrVoterId
+  ) {
+    const idExists = await prisma.user.findFirst({
+      where: { studentOrVoterId: payload.studentOrVoterId.trim(), id: { not: userId } },
+    });
+    if (idExists) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'This Student or Voter ID is already registered to another member!'
+      );
+    }
+    safeData.studentOrVoterId = payload.studentOrVoterId.trim();
+  }
+
   const updatedUser = await prisma.user.update({
     where: { id: userId },
     data: safeData,
@@ -268,9 +394,21 @@ const renewMembershipInDB = async (userId: number, payload: TRenewMembership) =>
     baseDate = new Date(user.membershipExpiresAt);
   }
   const expireDate = new Date(baseDate.getTime());
-  expireDate.setMonth(expireDate.getMonth() + 6); // 6 months extension (100 Taka)
 
-  const amount = payload.amount || 100;
+  // Pricing formula: 3 months = 100 Tk, 6 months = 200 Tk, 12 months = 400 Tk
+  let monthsToAdd = payload.months;
+  let amount = payload.amount;
+  if (monthsToAdd) {
+    amount = amount || (monthsToAdd / 3) * 100;
+  } else if (amount) {
+    monthsToAdd = Math.max(3, Math.round((amount / 100) * 3));
+  } else {
+    monthsToAdd = 6;
+    amount = 200;
+  }
+
+  expireDate.setMonth(expireDate.getMonth() + monthsToAdd);
+
   const paymentMethod = payload.paymentMethod || PaymentMethod.CASH;
   const transactionId = `MEM-RENEW-${user.id}-${Date.now()}`;
 
@@ -377,10 +515,56 @@ const deleteUserFromDB = async (userId: number, requestingUserId: number) => {
   });
 };
 
+const getUserOptionsFromDB = async () => {
+  const users = await prisma.user.findMany({
+    select: {
+      department: true,
+      session: true,
+      institution: true,
+    },
+  });
+
+  const departmentsSet = new Set<string>();
+  const sessionsSet = new Set<string>();
+  const institutionsSet = new Set<string>();
+
+  users.forEach((u) => {
+    if (u.department?.trim()) departmentsSet.add(u.department.trim());
+    if (u.session?.trim()) sessionsSet.add(u.session.trim());
+    if (u.institution?.trim()) institutionsSet.add(u.institution.trim());
+  });
+
+  const defaultDepts = [
+    'Islamic Studies', 'Arabic', 'Philosophy', 'History', 'Sociology', 'Social Work', 'Economics',
+    'Accounting & Information Systems', 'Management Studies', 'Marketing', 'Finance & Banking',
+    'Law & Justice', 'International Relations', 'Political Science', 'Public Administration',
+    'Psychology', 'Bangla', 'English', 'Statistics', 'Mathematics', 'Physics', 'Chemistry',
+    'Botany', 'Zoology', 'Pharmacy', 'Computer Science & Engineering',
+    'Information & Communication Engineering', 'Electrical & Electronic Engineering',
+    'Applied Chemistry & Chemical Engineering', 'Materials Science & Engineering',
+    'Geography & Environmental Studies', 'Geology & Mining', 'Agricultural Sciences',
+    'Fisheries', 'Education', 'Physical Education', 'Fine Arts', 'Music', 'Theater',
+  ];
+  defaultDepts.forEach((d) => departmentsSet.add(d));
+
+  const defaultSessions = [
+    '2016-2017', '2017-2018', '2018-2019', '2019-2020', '2020-2021',
+    '2021-2022', '2022-2023', '2023-2024', '2024-2025', '2025-2026', '2026-2027',
+  ];
+  defaultSessions.forEach((s) => sessionsSet.add(s));
+
+  return {
+    departments: Array.from(departmentsSet).sort((a, b) => a.localeCompare(b)),
+    sessions: Array.from(sessionsSet).sort((a, b) => a.localeCompare(b)),
+    institutions: Array.from(institutionsSet).sort((a, b) => a.localeCompare(b)),
+  };
+};
+
 export const UserService = {
   registerMember,
   getAllUsersFromDB,
   getUserByIdFromDB,
+  getUserOptionsFromDB,
   updateUserInDB,
   updateMyProfileInDB,
   renewMembershipInDB,

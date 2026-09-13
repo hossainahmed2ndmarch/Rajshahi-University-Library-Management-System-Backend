@@ -3,13 +3,20 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.BookValidation = void 0;
 const zod_1 = require("zod");
 const client_1 = require("@prisma/client");
+const authorItemValidationSchema = zod_1.z.object({
+    name: zod_1.z.string().min(1, 'Author name is required'),
+    role: zod_1.z.enum(['WRITER', 'TRANSLATOR']).default('WRITER'),
+});
 const createBookValidationSchema = zod_1.z.object({
-    body: zod_1.z.object({
+    body: zod_1.z
+        .object({
         title: zod_1.z.string().min(1, 'Title is required'),
-        author: zod_1.z.string().min(1, 'Author is required'),
+        author: zod_1.z.string().optional(),
+        authors: zod_1.z.array(authorItemValidationSchema).optional(),
         isbn: zod_1.z.string().min(1, 'ISBN is required'),
         locationCell: zod_1.z.string().min(1, 'Location cell is required'),
-        category: zod_1.z.string().min(1, 'Category is required'),
+        category: zod_1.z.string().optional(),
+        categories: zod_1.z.array(zod_1.z.string()).optional(),
         publisher: zod_1.z.string().nullable().optional(),
         pages: zod_1.z.number().int('Pages must be an integer').min(0, 'Pages must be non-negative').optional(),
         type: zod_1.z.nativeEnum(client_1.BookType),
@@ -22,15 +29,27 @@ const createBookValidationSchema = zod_1.z.object({
         images: zod_1.z.array(zod_1.z.string()).optional(),
         description: zod_1.z.string().nullable().optional(),
         donatedById: zod_1.z.number().int().positive().nullable().optional(),
+    })
+        .refine((data) => Boolean((data.author && data.author.trim().length > 0) ||
+        (data.authors && data.authors.length > 0)), {
+        message: 'Author or at least one author entry is required',
+        path: ['author'],
+    })
+        .refine((data) => Boolean((data.category && data.category.trim().length > 0) ||
+        (data.categories && data.categories.length > 0)), {
+        message: 'Category or at least one category entry is required',
+        path: ['category'],
     }),
 });
 const updateBookValidationSchema = zod_1.z.object({
     body: zod_1.z.object({
         title: zod_1.z.string().min(1).optional(),
         author: zod_1.z.string().min(1).optional(),
+        authors: zod_1.z.array(authorItemValidationSchema).optional(),
         isbn: zod_1.z.string().min(1).optional(),
         locationCell: zod_1.z.string().min(1).optional(),
         category: zod_1.z.string().min(1).optional(),
+        categories: zod_1.z.array(zod_1.z.string()).optional(),
         publisher: zod_1.z.string().nullable().optional(),
         pages: zod_1.z.number().int().min(0).optional(),
         type: zod_1.z.nativeEnum(client_1.BookType).optional(),

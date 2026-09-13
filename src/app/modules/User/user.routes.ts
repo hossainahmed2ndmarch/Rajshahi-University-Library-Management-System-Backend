@@ -48,6 +48,12 @@ router.post(
 );
 
 router.get(
+  '/options',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER),
+  UserController.getUserOptions
+);
+
+router.get(
   '/:id',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER, UserRole.MEMBER),
   UserController.getUserById

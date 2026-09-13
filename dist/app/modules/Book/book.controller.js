@@ -77,6 +77,15 @@ const getBookCategories = (0, catchAsync_1.default)((_req, res) => __awaiter(voi
         data: result,
     });
 }));
+const getBookOptions = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield book_service_1.BookService.getBookOptionsFromDB();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Book filter and entry options retrieved successfully!',
+        data: result,
+    });
+}));
 /**
  * POST /books/upload-cover
  * Uploads a book cover image to Cloudinary and returns the secure URL.
@@ -161,6 +170,7 @@ exports.BookController = {
     getAllBooks,
     getBookById,
     getBookCategories,
+    getBookOptions,
     updateBook,
     deleteBook,
     uploadBookCover,

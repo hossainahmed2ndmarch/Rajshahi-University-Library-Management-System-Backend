@@ -36,23 +36,59 @@ const createBookIntoDB = (payload, adminId) => __awaiter(void 0, void 0, void 0,
     if (existingIsbn) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'A book with this ISBN already exists!');
     }
-    const bookData = Object.assign(Object.assign({}, payload), { addedById: adminId || null });
+    // Handle multiple categories
+    let categories = [];
+    if (Array.isArray(payload.categories) && payload.categories.length > 0) {
+        categories = Array.from(new Set(payload.categories.map((c) => c.trim()).filter(Boolean)));
+    }
+    else if (payload.category) {
+        categories = payload.category
+            .split(',')
+            .map((c) => c.trim())
+            .filter(Boolean);
+    }
+    const categoryStr = categories.length > 0 ? categories.join(', ') : payload.category || 'General';
+    // Handle multiple authors with roles (WRITER / TRANSLATOR)
+    let authors = payload.authors;
+    let authorStr = payload.author || '';
+    if (Array.isArray(authors) && authors.length > 0) {
+        authorStr = authors
+            .map((a) => (a.role === 'TRANSLATOR' ? `${a.name.trim()} (Translator)` : a.name.trim()))
+            .join(', ');
+    }
+    else if (payload.author) {
+        authors = [{ name: payload.author.trim(), role: 'WRITER' }];
+    }
+    const bookData = Object.assign(Object.assign({}, payload), { author: authorStr, authors: authors || undefined, category: categoryStr, categories, addedById: adminId || null });
     return yield db_1.default.book.create({
         data: bookData,
     });
 });
 const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived"]);
+    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, author } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "author"]);
     // Set up QueryBuilder with searchable and filterable fields
     // Default isArchived to false so deleted/archived books are hidden from regular listings
     const bookQuery = new queryBuilder_1.default(db_1.default.book, Object.assign(Object.assign({}, queryParams), { isArchived: isArchived !== null && isArchived !== void 0 ? isArchived : false }), {
         searchableFields: ['title', 'author', 'isbn', 'category', 'publisher', 'locationCell', 'description'],
-        filterableFields: ['category', 'author', 'type', 'isArchived', 'publisher'],
+        filterableFields: ['type', 'isArchived', 'publisher'],
     })
         .search()
         .filter()
         .paginate()
         .fields();
+    if (category && typeof category === 'string' && category !== 'ALL') {
+        bookQuery.where({
+            OR: [
+                { categories: { has: category.trim() } },
+                { category: { contains: category.trim(), mode: 'insensitive' } },
+            ],
+        });
+    }
+    if (author && typeof author === 'string') {
+        bookQuery.where({
+            author: { contains: author.trim(), mode: 'insensitive' },
+        });
+    }
     // Filter for borrowable books (BORROW_ONLY or HYBRID)
     if (isBorrowable === 'true' || isBorrowable === true) {
         bookQuery.where({
@@ -163,14 +199,36 @@ const updateBookInDB = (id, payload) => __awaiter(void 0, void 0, void 0, functi
     const updateData = {};
     if (payload.title !== undefined)
         updateData.title = payload.title;
-    if (payload.author !== undefined)
+    // Handle authors
+    if (payload.authors !== undefined) {
+        updateData.authors = payload.authors;
+        if (Array.isArray(payload.authors) && payload.authors.length > 0) {
+            updateData.author = payload.authors
+                .map((a) => (a.role === 'TRANSLATOR' ? `${a.name.trim()} (Translator)` : a.name.trim()))
+                .join(', ');
+        }
+        else if (payload.author !== undefined) {
+            updateData.author = payload.author;
+        }
+    }
+    else if (payload.author !== undefined) {
         updateData.author = payload.author;
+        updateData.authors = [{ name: payload.author.trim(), role: 'WRITER' }];
+    }
+    // Handle categories
+    if (payload.categories !== undefined) {
+        const cats = Array.from(new Set(payload.categories.map((c) => c.trim()).filter(Boolean)));
+        updateData.categories = cats;
+        updateData.category = cats.join(', ');
+    }
+    else if (payload.category !== undefined) {
+        updateData.category = payload.category;
+        updateData.categories = payload.category.split(',').map((c) => c.trim()).filter(Boolean);
+    }
     if (payload.isbn !== undefined)
         updateData.isbn = payload.isbn;
     if (payload.locationCell !== undefined)
         updateData.locationCell = payload.locationCell;
-    if (payload.category !== undefined)
-        updateData.category = payload.category;
     if (payload.publisher !== undefined)
         updateData.publisher = payload.publisher;
     if (payload.pages !== undefined)
@@ -250,11 +308,113 @@ const getBookCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, function
     })));
     return categoriesWithBooks;
 });
+const getBookOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
+    const books = yield db_1.default.book.findMany({
+        where: { isArchived: false },
+        select: {
+            category: true,
+            categories: true,
+            locationCell: true,
+            publisher: true,
+            author: true,
+            authors: true,
+        },
+    });
+    const categoriesSet = new Set();
+    const locationCellsSet = new Set();
+    const publishersSet = new Set();
+    const authorsMap = new Map();
+    for (const book of books) {
+        // Categories
+        if (Array.isArray(book.categories) && book.categories.length > 0) {
+            book.categories.forEach((c) => {
+                const trimmed = c === null || c === void 0 ? void 0 : c.trim();
+                if (trimmed)
+                    categoriesSet.add(trimmed);
+            });
+        }
+        else if (book.category) {
+            book.category.split(',').forEach((c) => {
+                const trimmed = c === null || c === void 0 ? void 0 : c.trim();
+                if (trimmed)
+                    categoriesSet.add(trimmed);
+            });
+        }
+        // Location Cells
+        if (book.locationCell) {
+            const trimmed = book.locationCell.trim();
+            if (trimmed && trimmed !== 'Rack-Unassigned' && trimmed !== 'Cell-Unassigned') {
+                locationCellsSet.add(trimmed);
+            }
+        }
+        // Publishers
+        if (book.publisher) {
+            const trimmed = book.publisher.trim();
+            if (trimmed && trimmed !== 'N/A') {
+                publishersSet.add(trimmed);
+            }
+        }
+        // Authors
+        if (Array.isArray(book.authors) && book.authors.length > 0) {
+            book.authors.forEach((a) => {
+                var _a;
+                const name = (_a = a.name) === null || _a === void 0 ? void 0 : _a.trim();
+                const role = a.role === 'TRANSLATOR' ? 'TRANSLATOR' : 'WRITER';
+                if (name) {
+                    if (!authorsMap.has(name) || role === 'WRITER') {
+                        authorsMap.set(name, role);
+                    }
+                }
+            });
+        }
+        else if (book.author) {
+            book.author.split(',').forEach((part) => {
+                const trimmed = part.trim();
+                if (!trimmed)
+                    return;
+                const isTrans = trimmed.toLowerCase().includes('(translator)');
+                const cleanName = trimmed.replace(/\(translator\)/i, '').trim();
+                if (cleanName) {
+                    const role = isTrans ? 'TRANSLATOR' : 'WRITER';
+                    if (!authorsMap.has(cleanName) || role === 'WRITER') {
+                        authorsMap.set(cleanName, role);
+                    }
+                }
+            });
+        }
+    }
+    // Include default Islamic library catalog categories if missing
+    const defaultCategories = [
+        'Tafsir',
+        'Hadith',
+        'Seerah',
+        'Fiqh',
+        'Aqeedah',
+        'History',
+        'Spirituality',
+        'Arabic Language',
+        'Comparative Religion',
+        'Islamic Economics',
+        'Family & Society',
+        'Quranic Sciences',
+    ];
+    defaultCategories.forEach((c) => categoriesSet.add(c));
+    const authors = Array.from(authorsMap.entries())
+        .map(([name, role]) => ({ name, role }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    return {
+        categories: Array.from(categoriesSet).sort((a, b) => a.localeCompare(b)),
+        locationCells: Array.from(locationCellsSet).sort((a, b) => a.localeCompare(b)),
+        publishers: Array.from(publishersSet).sort((a, b) => a.localeCompare(b)),
+        authors,
+    };
+});
 exports.BookService = {
     createBookIntoDB,
     getAllBooksFromDB,
     getBookByIdFromDB,
     getBookCategoriesFromDB,
+    getBookOptionsFromDB,
     updateBookInDB,
     deleteBookFromDB,
 };

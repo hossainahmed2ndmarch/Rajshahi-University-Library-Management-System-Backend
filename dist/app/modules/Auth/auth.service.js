@@ -58,6 +58,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AuthService = void 0;
 const http_status_1 = __importDefault(require("http-status"));
+const client_1 = require("@prisma/client");
 const config_1 = __importDefault(require("../../config"));
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
@@ -72,22 +73,37 @@ const loginUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User does not exist!');
     }
-    if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
-        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'User account is not active!');
+    if (user.status === client_1.UserStatus.BLOCKED) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account has been blocked by library administration. Please contact the desk.');
     }
     const isPasswordMatched = yield (0, passwordHelpers_1.comparePassword)(payload.password, user.password);
     if (!isPasswordMatched) {
         throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'Password does not match!');
     }
+    // If active user membership has expired, automatically sync status to INACTIVE
+    let currentStatus = user.status;
+    let isPaid = user.isPaid;
+    if (user.status === client_1.UserStatus.ACTIVE &&
+        user.membershipExpiresAt &&
+        new Date(user.membershipExpiresAt) < new Date()) {
+        currentStatus = client_1.UserStatus.INACTIVE;
+        isPaid = false;
+        yield db_1.default.user.update({
+            where: { id: user.id },
+            data: { status: client_1.UserStatus.INACTIVE, isPaid: false },
+        });
+    }
     const jwtPayload = {
         userId: user.id,
         email: user.email,
         role: user.role,
-        status: user.status,
+        status: currentStatus,
     };
     const accessToken = (0, jwtHelpers_1.createToken)(jwtPayload, config_1.default.jwt.jwt_secret, config_1.default.jwt.jwt_expires_in);
     const refreshToken = (0, jwtHelpers_1.createToken)(jwtPayload, config_1.default.jwt.refresh_token_secret, config_1.default.jwt.refresh_token_expires_in);
     const { password: _ } = user, userData = __rest(user, ["password"]);
+    userData.status = currentStatus;
+    userData.isPaid = isPaid;
     return {
         accessToken,
         refreshToken,
