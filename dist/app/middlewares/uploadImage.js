@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cloudinary = exports.uploadSingleImage = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
+exports.cloudinary = exports.uploadSingleImage = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
 const multer_1 = __importDefault(require("multer"));
 const cloudinary_1 = __importDefault(require("cloudinary"));
 const multer_storage_cloudinary_1 = __importDefault(require("multer-storage-cloudinary"));
@@ -64,6 +64,22 @@ exports.uploadMultipleBookImages = (0, multer_1.default)({
     fileFilter: imageFileFilter,
     limits: { fileSize: 8 * 1024 * 1024 },
 }).array('images', 10);
+// ── Cloudinary storage: Article Cover Images ─────────────────────────────────
+const articleCoverStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/articles',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+        transformation: [
+            { width: 1200, height: 800, crop: 'limit', quality: 'auto' },
+        ],
+    },
+});
+exports.uploadArticleCover = (0, multer_1.default)({
+    storage: articleCoverStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 8 * 1024 * 1024 },
+}).single('image');
 // Legacy alias kept for backward compat
 exports.uploadSingleImage = exports.uploadBookCover;
 const cloudinaryV2 = cloudinary_1.default.v2;

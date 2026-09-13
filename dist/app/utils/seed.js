@@ -358,6 +358,86 @@ function seedBooks(adminId) {
         console.log(`✅ [SEED SUCCESS] Successfully seeded ${INITIAL_BOOKS.length} books into the catalog.`);
     });
 }
+const INITIAL_ARTICLES = [
+    {
+        title: 'RU Library Monthly Gazette: August 2026 Bulletin',
+        slug: 'ruil-bulletin-august-2026',
+        category: 'Monthly Newspaper',
+        authorName: 'Library Editorial Board',
+        authorDesignation: 'Central Circulation Division',
+        totalReadTime: 4,
+        isPublished: true,
+        coverImage: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=1000&auto=format&fit=crop',
+        content: `The Rajshahi University Islamic Library system serves as a pillar for authentic knowledge transmission across the northern division of Bangladesh. With continuous digitization, physical shelf cell indexing, and an active student shifter network, students can access multi-volume commentaries and historical archives with minimal friction.
+
+## Highlights of the Month
+- **450 Newly Cataloged Volumes**: Comprehensive additions to the Fiqh and Hadith sections, including verified critical editions from Cairo and Beirut.
+- **Extended Circulation Hours**: Reading halls are now accessible during final examination preparation windows.
+- **Classical Calligraphy Seminar**: Hosted in collaboration with the Faculty of Islamic Studies, showcasing Arabic naskh and thuluth script traditions.`,
+    },
+    {
+        title: "Preserving Bengal's Islamic Manuscript Heritage in Rajshahi",
+        slug: 'preserving-islamic-manuscripts-rajshahi',
+        category: 'Scholarly Article',
+        authorName: 'Dr. Tariqur Rahman',
+        authorDesignation: 'Senior Archivist & Researcher',
+        totalReadTime: 7,
+        isPublished: true,
+        coverImage: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=1000&auto=format&fit=crop',
+        content: `Bengal possesses a profound and multifaceted history of Islamic scholarship that thrived in madrasahs and private collections across Rajshahi, Rangpur, and Murshidabad. Many rare manuscripts dating from the 18th and 19th centuries remain preserved in fragile paper conditions.
+
+Our digitization initiative employs non-destructive high-resolution imaging to archive each page. These digitized archives will soon be accessible through our digital research portal for verified scholars and post-graduate researchers.`,
+    },
+    {
+        title: 'Extended Central Reading Hall Hours for Semester Finals',
+        slug: 'extended-reading-hall-hours',
+        category: 'Library Notice',
+        authorName: 'Circulation Desk',
+        authorDesignation: 'Administration',
+        totalReadTime: 2,
+        isPublished: true,
+        coverImage: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=1000&auto=format&fit=crop',
+        content: `RU Islamic Library reading rooms will remain open until 10:00 PM daily starting next week to facilitate students preparing for annual examinations.
+
+Students are reminded to maintain quietude in the primary hall and reserve group discussion chambers in advance. High-speed Wi-Fi and digital catalog terminals are available throughout all reading floors.`,
+    },
+    {
+        title: 'Critical Review: Dar al-Minhaj Edition of Ihya Ulum al-Din',
+        slug: 'review-ihya-ulum-al-din-critical-edition',
+        category: 'Manuscript Review',
+        authorName: 'Ustadh Mahmudul Hasan',
+        authorDesignation: 'Faculty of Islamic Studies',
+        totalReadTime: 6,
+        isPublished: true,
+        coverImage: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&w=1000&auto=format&fit=crop',
+        content: `Imam al-Ghazali's magnum opus, *Ihya Ulum al-Din*, has undergone numerous printings across the Islamic world. The newly acquired Dar al-Minhaj edition represents one of the most meticulous critical verifications to date, comparing eight extant manuscripts from Istanbul, Damascus, and Cairo.
+
+The critical footnotes cross-reference Quranic ayahs and authentic Hadith narrations with commentary from Hafiz al-Iraqi. Students and faculty can find this 10-volume set in our Reference Hall, Shelf Cell R-04.`,
+    },
+];
+function seedArticles(adminId) {
+    return __awaiter(this, void 0, void 0, function* () {
+        console.log('📰 [SEED] Synchronizing Islamic Library publications & articles...');
+        for (const article of INITIAL_ARTICLES) {
+            yield prisma.article.upsert({
+                where: { slug: article.slug },
+                update: {
+                    title: article.title,
+                    content: article.content,
+                    category: article.category,
+                    authorName: article.authorName,
+                    authorDesignation: article.authorDesignation,
+                    totalReadTime: article.totalReadTime,
+                    isPublished: article.isPublished,
+                    coverImage: article.coverImage,
+                    authorUserId: adminId,
+                },
+                create: Object.assign(Object.assign({}, article), { authorUserId: adminId }),
+            });
+        }
+        console.log(`✅ [SEED SUCCESS] Successfully seeded ${INITIAL_ARTICLES.length} publications into the catalog.`);
+    });
+}
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -369,6 +449,7 @@ function main() {
             });
             if (admin) {
                 yield seedBooks(admin.id);
+                yield seedArticles(admin.id);
             }
         }
         catch (error) {
