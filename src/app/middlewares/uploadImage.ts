@@ -74,6 +74,24 @@ export const uploadMultipleBookImages = multer({
   limits: { fileSize: 8 * 1024 * 1024 },
 }).array('images', 10);
 
+// ── Cloudinary storage: Article Cover Images ─────────────────────────────────
+const articleCoverStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/articles',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+    transformation: [
+      { width: 1200, height: 800, crop: 'limit', quality: 'auto' },
+    ],
+  },
+});
+
+export const uploadArticleCover = multer({
+  storage: articleCoverStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 8 * 1024 * 1024 },
+}).single('image');
+
 // Legacy alias kept for backward compat
 export const uploadSingleImage = uploadBookCover;
 

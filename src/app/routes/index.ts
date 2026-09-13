@@ -9,6 +9,7 @@ import { DonationRoutes } from '../modules/Donation/donation.routes';
 import { ShiftLogRoutes } from '../modules/ShiftLog/shiftLog.routes';
 import { ReviewRoutes } from '../modules/Review/review.routes';
 import { ContactRoutes } from '../modules/Contact/contact.routes';
+import { ArticleRoutes } from '../modules/Article/article.routes';
 
 const router = Router();
 
@@ -57,6 +58,10 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/contact',
     route: ContactRoutes,
+  },
+  {
+    path: '/articles',
+    route: ArticleRoutes,
   },
 ];
 

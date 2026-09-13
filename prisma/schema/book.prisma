@@ -45,6 +45,7 @@ model Book {
   purchases     Purchase[]
   donations     Donation[] @relation("CatalogedFromDonation")
   reviews BookReview[]
+  articles Article[]
 
   @@index([type])
   @@index([category])
