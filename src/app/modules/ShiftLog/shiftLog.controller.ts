@@ -135,6 +135,24 @@ const emailAction = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const verifyShift = catchAsync(async (req: Request, res: Response) => {
+  const currentUser = {
+    userId: Number(req.user?.userId || req.user?.id),
+    role: req.user?.role as UserRole,
+  };
+  const shiftId = Number(req.params.id);
+  const result = await ShiftLogService.verifyShiftInDB(shiftId, currentUser);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: result.verifiedById
+      ? 'Shift log successfully verified and audited by supervisor!'
+      : 'Shift log audit verification removed.',
+    data: result,
+  });
+});
+
 export const ShiftLogController = {
   checkInShift,
   checkOutShift,
@@ -146,4 +164,5 @@ export const ShiftLogController = {
   rescheduleShift,
   completeOfflineShift,
   emailAction,
+  verifyShift,
 };

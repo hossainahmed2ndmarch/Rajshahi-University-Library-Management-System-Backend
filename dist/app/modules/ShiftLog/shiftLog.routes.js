@@ -29,6 +29,8 @@ router.get('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.User
 router.patch('/reschedule/:id', (0, auth_1.default)(client_1.UserRole.SHIFTER, client_1.UserRole.ADMIN, client_1.UserRole.SUPER_ADMIN), (0, validateRequest_1.default)(shiftLog_validation_1.ShiftLogValidation.rescheduleShiftValidationSchema), shiftLog_controller_1.ShiftLogController.rescheduleShift);
 // 7. Complete an offline / late shift (with mandatory cash entry)
 router.patch('/complete-offline/:id', (0, auth_1.default)(client_1.UserRole.SHIFTER, client_1.UserRole.ADMIN, client_1.UserRole.SUPER_ADMIN), (0, validateRequest_1.default)(shiftLog_validation_1.ShiftLogValidation.completeOfflineShiftValidationSchema), shiftLog_controller_1.ShiftLogController.completeOfflineShift);
-// 8. Delete shift audit log after audit (Admin / Super Admin)
+// 8. Verify / audit shift record (Admin / Super Admin)
+router.patch('/verify/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), shiftLog_controller_1.ShiftLogController.verifyShift);
+// 9. Delete shift audit log after audit (Admin / Super Admin)
 router.delete('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), shiftLog_controller_1.ShiftLogController.deleteShiftLog);
 exports.ShiftLogRoutes = router;

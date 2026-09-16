@@ -517,6 +517,37 @@ const emailActionShiftInDB = async (payload: TEmailAction) => {
   });
 };
 
+const verifyShiftInDB = async (
+  shiftId: number,
+  currentUser: { userId: number; role: UserRole }
+) => {
+  const shift = await prisma.shiftLog.findUnique({
+    where: { id: shiftId },
+  });
+
+  if (!shift) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Shift log record not found!');
+  }
+
+  // Toggle supervisor verification
+  const newVerifiedById = shift.verifiedById ? null : currentUser.userId;
+
+  return await prisma.shiftLog.update({
+    where: { id: shiftId },
+    data: {
+      verifiedById: newVerifiedById,
+    },
+    include: {
+      shifter: {
+        select: { id: true, name: true, email: true, phone: true },
+      },
+      verifiedBy: {
+        select: { id: true, name: true, email: true },
+      },
+    },
+  });
+};
+
 export const ShiftLogService = {
   checkInShiftInDB,
   checkOutShiftInDB,
@@ -528,4 +559,5 @@ export const ShiftLogService = {
   rescheduleShiftInDB,
   completeOfflineShiftInDB,
   emailActionShiftInDB,
+  verifyShiftInDB,
 };

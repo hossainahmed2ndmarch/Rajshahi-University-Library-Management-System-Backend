@@ -222,6 +222,22 @@ export class QueryBuilder<
   }
 
   public paginate(): this {
+    if (
+      this.queryParams.all === 'true' ||
+      this.queryParams.all === true ||
+      this.queryParams.limit === 'all' ||
+      Number(this.queryParams.limit) === -1 ||
+      this.queryParams.limit === '0' ||
+      this.queryParams.limit === 0
+    ) {
+      this.page = 1;
+      this.limit = 0;
+      this.skip = 0;
+      delete this.query.skip;
+      delete this.query.take;
+      return this;
+    }
+
     const page = Number(this.queryParams.page) || 1;
     const limit = Number(this.queryParams.limit) || 10;
 
@@ -279,13 +295,13 @@ export class QueryBuilder<
       this.model.findMany(this.query),
     ]);
 
-    const totalPages = Math.ceil(total / this.limit);
+    const totalPages = this.limit > 0 ? Math.ceil(total / this.limit) : 1;
 
     return {
       data: data as T[],
       meta: {
         page: this.page,
-        limit: this.limit,
+        limit: this.limit > 0 ? this.limit : total,
         total,
         totalPage: totalPages,
       },
@@ -295,7 +311,7 @@ export class QueryBuilder<
   public countTotal(total: number) {
     const page = this.page;
     const limit = this.limit;
-    const totalPage = Math.ceil(total / limit);
+    const totalPage = limit > 0 ? Math.ceil(total / limit) : 1;
 
     return {
       page,

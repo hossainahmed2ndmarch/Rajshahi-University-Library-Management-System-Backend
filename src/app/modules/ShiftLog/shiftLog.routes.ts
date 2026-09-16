@@ -72,7 +72,14 @@ router.patch(
   ShiftLogController.completeOfflineShift
 );
 
-// 8. Delete shift audit log after audit (Admin / Super Admin)
+// 8. Verify / audit shift record (Admin / Super Admin)
+router.patch(
+  '/verify/:id',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  ShiftLogController.verifyShift
+);
+
+// 9. Delete shift audit log after audit (Admin / Super Admin)
 router.delete(
   '/:id',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),

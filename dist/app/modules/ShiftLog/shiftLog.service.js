@@ -452,6 +452,30 @@ const emailActionShiftInDB = (payload) => __awaiter(void 0, void 0, void 0, func
         },
     });
 });
+const verifyShiftInDB = (shiftId, currentUser) => __awaiter(void 0, void 0, void 0, function* () {
+    const shift = yield db_1.default.shiftLog.findUnique({
+        where: { id: shiftId },
+    });
+    if (!shift) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Shift log record not found!');
+    }
+    // Toggle supervisor verification
+    const newVerifiedById = shift.verifiedById ? null : currentUser.userId;
+    return yield db_1.default.shiftLog.update({
+        where: { id: shiftId },
+        data: {
+            verifiedById: newVerifiedById,
+        },
+        include: {
+            shifter: {
+                select: { id: true, name: true, email: true, phone: true },
+            },
+            verifiedBy: {
+                select: { id: true, name: true, email: true },
+            },
+        },
+    });
+});
 exports.ShiftLogService = {
     checkInShiftInDB,
     checkOutShiftInDB,
@@ -463,4 +487,5 @@ exports.ShiftLogService = {
     rescheduleShiftInDB,
     completeOfflineShiftInDB,
     emailActionShiftInDB,
+    verifyShiftInDB,
 };
