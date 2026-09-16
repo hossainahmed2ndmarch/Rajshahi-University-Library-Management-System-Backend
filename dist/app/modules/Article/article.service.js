@@ -109,12 +109,19 @@ const getAllArticlesFromDB = (query) => __awaiter(void 0, void 0, void 0, functi
         .filter()
         .paginate()
         .fields();
-    if (category && typeof category === 'string' && category !== 'ALL') {
+    if (category &&
+        typeof category === 'string' &&
+        category !== 'ALL' &&
+        category !== 'all' &&
+        category !== '') {
         articleQuery.where({
             category: { equals: category.trim(), mode: 'insensitive' },
         });
     }
-    if (isPublished !== undefined) {
+    if (isPublished !== undefined &&
+        isPublished !== 'ALL' &&
+        isPublished !== 'all' &&
+        isPublished !== '') {
         const publishedBool = isPublished === 'true' || isPublished === true;
         articleQuery.where({
             isPublished: publishedBool,
@@ -307,24 +314,11 @@ const getArticleCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, funct
             },
         },
     });
-    const defaultCategories = [
-        'Monthly Newspaper',
-        'Scholarly Article',
-        'Library Notice',
-        'Manuscript Review',
-        'Islamic Research',
-        'Book Excerpt',
-    ];
-    const map = new Map();
-    defaultCategories.forEach((cat) => map.set(cat, 0));
-    categories.forEach((c) => {
-        if (c.category) {
-            map.set(c.category, c._count.id);
-        }
-    });
-    return Array.from(map.entries()).map(([category, count]) => ({
-        category,
-        count,
+    return categories
+        .filter((c) => Boolean(c.category && c.category.trim().length > 0))
+        .map((c) => ({
+        category: c.category.trim(),
+        count: c._count.id,
     }));
 });
 exports.ArticleService = {

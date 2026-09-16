@@ -8,6 +8,9 @@ import {
   TCheckOutShift,
   TScheduleShift,
   TCancelShift,
+  TRescheduleShift,
+  TCompleteOfflineShift,
+  TEmailAction,
 } from './shiftLog.interface';
 import {
   sendShiftScheduleAlert,
@@ -352,6 +355,168 @@ const deleteShiftLogInDB = async (id: number) => {
   });
 };
 
+const getActiveShiftFromDB = async () => {
+  return await prisma.shiftLog.findFirst({
+    where: { status: ShiftStatus.ACTIVE },
+    include: {
+      shifter: {
+        select: { id: true, name: true, email: true, phone: true },
+      },
+    },
+    orderBy: { startTime: 'desc' },
+  });
+};
+
+const rescheduleShiftInDB = async (
+  shiftId: number,
+  currentUser: { userId: number; role: UserRole },
+  payload: TRescheduleShift
+) => {
+  const shift = await prisma.shiftLog.findUnique({
+    where: { id: shiftId },
+    include: {
+      shifter: { select: { id: true, name: true, email: true, phone: true } },
+    },
+  });
+
+  if (!shift) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Shift session record not found!');
+  }
+
+  if (
+    shift.shifterId !== currentUser.userId &&
+    currentUser.role !== UserRole.SUPER_ADMIN &&
+    currentUser.role !== UserRole.ADMIN
+  ) {
+    throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to reschedule this shift!');
+  }
+
+  if (shift.status === ShiftStatus.COMPLETED || shift.status === ShiftStatus.CANCELLED) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Cannot reschedule a completed or cancelled shift!');
+  }
+
+  const newStartTime = new Date(payload.newStartTime);
+  const newEndTime = payload.newEndTime ? new Date(payload.newEndTime) : undefined;
+
+  const updatedShift = await prisma.shiftLog.update({
+    where: { id: shiftId },
+    data: {
+      rescheduledTo: shift.startTime, // Save old start time
+      startTime: newStartTime,
+      endTime: newEndTime,
+      handoverNotes: payload.reason
+        ? `${shift.handoverNotes || ''}\n[Rescheduled]: ${payload.reason}`.trim()
+        : shift.handoverNotes,
+    },
+    include: {
+      shifter: { select: { id: true, name: true, email: true, phone: true } },
+    },
+  });
+
+  const recipients = await resolveRecipients(currentUser.userId, payload.notifyRecipients);
+  if (recipients.length > 0) {
+    sendShiftScheduleAlert({
+      shifterName: shift.shifter.name,
+      shifterEmail: shift.shifter.email,
+      shifterPhone: shift.shifter.phone || undefined,
+      shiftStartTime: newStartTime,
+      shiftEndTime: newEndTime,
+      shiftSlotName: shift.shiftSlotName || 'Rescheduled Duty Shift',
+      recipients,
+      notificationMethod: payload.notificationMethod || 'EMAIL',
+      notes: payload.reason ? `Rescheduled: ${payload.reason}` : undefined,
+    }).catch((err) => console.error('[Shift Reschedule Notification Error]:', err));
+  }
+
+  return { shift: updatedShift, notifiedCount: recipients.length };
+};
+
+const completeOfflineShiftInDB = async (
+  shiftId: number,
+  currentUser: { userId: number; role: UserRole },
+  payload: TCompleteOfflineShift
+) => {
+  const shift = await prisma.shiftLog.findUnique({
+    where: { id: shiftId },
+    include: {
+      shifter: { select: { id: true, name: true, email: true } },
+    },
+  });
+
+  if (!shift) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Shift session record not found!');
+  }
+
+  if (
+    shift.shifterId !== currentUser.userId &&
+    currentUser.role !== UserRole.SUPER_ADMIN &&
+    currentUser.role !== UserRole.ADMIN
+  ) {
+    throw new AppError(httpStatus.FORBIDDEN, 'You are not authorized to complete this shift!');
+  }
+
+  if (shift.status === ShiftStatus.COMPLETED) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'This shift is already marked as completed!');
+  }
+
+  return await prisma.shiftLog.update({
+    where: { id: shiftId },
+    data: {
+      status: ShiftStatus.COMPLETED,
+      openingCash: payload.openingCash,
+      closingCash: payload.closingCash,
+      cashCollected: payload.cashCollected,
+      tasksCompleted: payload.tasksCompleted || null,
+      handoverNotes: payload.handoverNotes || null,
+      isOfflineRecord: payload.isOfflineRecord ?? true,
+      endTime: shift.endTime || new Date(),
+    },
+    include: {
+      shifter: { select: { id: true, name: true, email: true } },
+    },
+  });
+};
+
+const emailActionShiftInDB = async (payload: TEmailAction) => {
+  const shift = await prisma.shiftLog.findFirst({
+    where: { actionToken: payload.token },
+  });
+
+  if (!shift) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Invalid or expired action token!');
+  }
+
+  if (shift.status === ShiftStatus.COMPLETED || shift.status === ShiftStatus.CANCELLED) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      `Shift is already ${shift.status.toLowerCase()}. Action not applicable.`
+    );
+  }
+
+  if (payload.action === 'START') {
+    return await prisma.shiftLog.update({
+      where: { id: shift.id },
+      data: {
+        status: ShiftStatus.ACTIVE,
+        startTime: new Date(),
+        openingCash: payload.openingCash ?? 0,
+        actionToken: null, // single-use token cleared
+      },
+    });
+  }
+
+  // CANCEL action
+  return await prisma.shiftLog.update({
+    where: { id: shift.id },
+    data: {
+      status: ShiftStatus.CANCELLED,
+      endTime: new Date(),
+      cancellationReason: payload.cancelReason || 'Cancelled via email link',
+      actionToken: null,
+    },
+  });
+};
+
 export const ShiftLogService = {
   checkInShiftInDB,
   checkOutShiftInDB,
@@ -359,4 +524,8 @@ export const ShiftLogService = {
   cancelShiftInDB,
   getAllShiftLogsFromDB,
   deleteShiftLogInDB,
+  getActiveShiftFromDB,
+  rescheduleShiftInDB,
+  completeOfflineShiftInDB,
+  emailActionShiftInDB,
 };

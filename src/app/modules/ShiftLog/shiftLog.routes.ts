@@ -7,6 +7,16 @@ import { ShiftLogValidation } from './shiftLog.validation';
 
 const router = Router();
 
+// 0a. Public — real-time active shifter (home page, contact page)
+router.get('/active', ShiftLogController.getActiveShift);
+
+// 0b. Public — email action token (start / cancel without login)
+router.post(
+  '/email-action',
+  validateRequest(ShiftLogValidation.emailActionValidationSchema),
+  ShiftLogController.emailAction
+);
+
 // 1. Check in / start duty shift (status: ACTIVE)
 router.post(
   '/check-in',
@@ -46,7 +56,23 @@ router.get(
   ShiftLogController.getAllShiftLogs
 );
 
-// 6. Delete shift audit log after audit (Admin / Super Admin)
+// 6. Reschedule a duty shift & notify staff
+router.patch(
+  '/reschedule/:id',
+  auth(UserRole.SHIFTER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest(ShiftLogValidation.rescheduleShiftValidationSchema),
+  ShiftLogController.rescheduleShift
+);
+
+// 7. Complete an offline / late shift (with mandatory cash entry)
+router.patch(
+  '/complete-offline/:id',
+  auth(UserRole.SHIFTER, UserRole.ADMIN, UserRole.SUPER_ADMIN),
+  validateRequest(ShiftLogValidation.completeOfflineShiftValidationSchema),
+  ShiftLogController.completeOfflineShift
+);
+
+// 8. Delete shift audit log after audit (Admin / Super Admin)
 router.delete(
   '/:id',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),

@@ -40,9 +40,44 @@ const cancelShiftValidationSchema = zod_1.z.object({
         notificationMethod: zod_1.z.enum(['EMAIL', 'SMS', 'SOCIAL_MEDIA', 'ALL']).optional().default('EMAIL'),
     }),
 });
+const rescheduleShiftValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        newStartTime: zod_1.z.string().min(1, 'New start time is required'),
+        newEndTime: zod_1.z.string().optional(),
+        reason: zod_1.z.string().optional(),
+        notifyRecipients: zod_1.z
+            .union([zod_1.z.string(), zod_1.z.array(zod_1.z.union([zod_1.z.string(), zod_1.z.number()]))])
+            .optional(),
+        notificationMethod: zod_1.z
+            .enum(['EMAIL', 'SMS', 'SOCIAL_MEDIA', 'ALL'])
+            .optional()
+            .default('EMAIL'),
+    }),
+});
+const completeOfflineShiftValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        openingCash: zod_1.z.number().min(0, 'Opening cash cannot be negative'),
+        closingCash: zod_1.z.number().min(0, 'Closing cash cannot be negative'),
+        cashCollected: zod_1.z.number().min(0, 'Cash collected cannot be negative'),
+        tasksCompleted: zod_1.z.string().optional(),
+        handoverNotes: zod_1.z.string().optional(),
+        isOfflineRecord: zod_1.z.boolean().optional().default(true),
+    }),
+});
+const emailActionValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        token: zod_1.z.string().min(1, 'Action token is required'),
+        action: zod_1.z.enum(['START', 'CANCEL']),
+        cancelReason: zod_1.z.string().optional(),
+        openingCash: zod_1.z.number().min(0).optional().default(0),
+    }),
+});
 exports.ShiftLogValidation = {
     checkInValidationSchema,
     checkOutValidationSchema,
     scheduleShiftValidationSchema,
     cancelShiftValidationSchema,
+    rescheduleShiftValidationSchema,
+    completeOfflineShiftValidationSchema,
+    emailActionValidationSchema,
 };

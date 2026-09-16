@@ -12,6 +12,7 @@ const shiftLog_routes_1 = require("../modules/ShiftLog/shiftLog.routes");
 const review_routes_1 = require("../modules/Review/review.routes");
 const contact_routes_1 = require("../modules/Contact/contact.routes");
 const article_routes_1 = require("../modules/Article/article.routes");
+const shifterSchedule_routes_1 = require("../modules/ShifterSchedule/shifterSchedule.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -57,6 +58,10 @@ const moduleRoutes = [
     {
         path: '/articles',
         route: article_routes_1.ArticleRoutes,
+    },
+    {
+        path: '/shifter-schedules',
+        route: shifterSchedule_routes_1.ShifterScheduleRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

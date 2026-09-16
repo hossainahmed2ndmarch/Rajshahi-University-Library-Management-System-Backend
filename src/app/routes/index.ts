@@ -10,6 +10,7 @@ import { ShiftLogRoutes } from '../modules/ShiftLog/shiftLog.routes';
 import { ReviewRoutes } from '../modules/Review/review.routes';
 import { ContactRoutes } from '../modules/Contact/contact.routes';
 import { ArticleRoutes } from '../modules/Article/article.routes';
+import { ShifterScheduleRoutes } from '../modules/ShifterSchedule/shifterSchedule.routes';
 
 const router = Router();
 
@@ -62,6 +63,10 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/articles',
     route: ArticleRoutes,
+  },
+  {
+    path: '/shifter-schedules',
+    route: ShifterScheduleRoutes,
   },
 ];
 

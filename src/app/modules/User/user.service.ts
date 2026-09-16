@@ -268,6 +268,14 @@ const updateUserInDB = async (
     data: updateData,
   });
 
+  // If user role was changed or demoted to MEMBER, deactivate their active duty schedules
+  if (updateData.role === UserRole.MEMBER) {
+    await prisma.shifterSchedule.updateMany({
+      where: { shifterId: id },
+      data: { isActive: false },
+    });
+  }
+
   const { password, ...userData } = updatedUser;
   return userData;
 };

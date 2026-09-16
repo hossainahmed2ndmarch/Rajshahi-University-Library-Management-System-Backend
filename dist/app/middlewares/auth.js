@@ -55,7 +55,8 @@ const auth = (...requiredRoles) => {
     }));
 };
 exports.optionalAuth = (0, catchAsync_1.default)((req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    const token = req.headers.authorization;
+    const token = req.headers.authorization ||
+        (req.cookies && (req.cookies.accessToken || req.cookies.token));
     if (token) {
         const jwtToken = token.startsWith('Bearer ') ? token.split(' ')[1] : token;
         if (jwtToken) {

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { UserRole } from '@prisma/client';
-import auth from '../../middlewares/auth';
+import auth, { optionalAuth } from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
 import { uploadArticleCover } from '../../middlewares/uploadImage';
 import { ArticleController } from './article.controller';
@@ -24,8 +24,8 @@ router.post(
   ArticleController.createArticle
 );
 
-// ── Public: Get all articles (with filtering, search, pagination) ─────────────
-router.get('/', ArticleController.getAllArticles);
+// ── Get all articles (with optional auth, filtering, search, pagination) ────
+router.get('/', optionalAuth, ArticleController.getAllArticles);
 
 // ── Public: Get article categories ──────────────────────────────────────────
 router.get('/categories', ArticleController.getArticleCategories);

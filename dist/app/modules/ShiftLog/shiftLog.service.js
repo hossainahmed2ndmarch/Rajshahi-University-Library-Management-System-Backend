@@ -322,6 +322,136 @@ const deleteShiftLogInDB = (id) => __awaiter(void 0, void 0, void 0, function* (
         where: { id },
     });
 });
+const getActiveShiftFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
+    return yield db_1.default.shiftLog.findFirst({
+        where: { status: client_1.ShiftStatus.ACTIVE },
+        include: {
+            shifter: {
+                select: { id: true, name: true, email: true, phone: true },
+            },
+        },
+        orderBy: { startTime: 'desc' },
+    });
+});
+const rescheduleShiftInDB = (shiftId, currentUser, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const shift = yield db_1.default.shiftLog.findUnique({
+        where: { id: shiftId },
+        include: {
+            shifter: { select: { id: true, name: true, email: true, phone: true } },
+        },
+    });
+    if (!shift) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Shift session record not found!');
+    }
+    if (shift.shifterId !== currentUser.userId &&
+        currentUser.role !== client_1.UserRole.SUPER_ADMIN &&
+        currentUser.role !== client_1.UserRole.ADMIN) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You are not authorized to reschedule this shift!');
+    }
+    if (shift.status === client_1.ShiftStatus.COMPLETED || shift.status === client_1.ShiftStatus.CANCELLED) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot reschedule a completed or cancelled shift!');
+    }
+    const newStartTime = new Date(payload.newStartTime);
+    const newEndTime = payload.newEndTime ? new Date(payload.newEndTime) : undefined;
+    const updatedShift = yield db_1.default.shiftLog.update({
+        where: { id: shiftId },
+        data: {
+            rescheduledTo: shift.startTime, // Save old start time
+            startTime: newStartTime,
+            endTime: newEndTime,
+            handoverNotes: payload.reason
+                ? `${shift.handoverNotes || ''}\n[Rescheduled]: ${payload.reason}`.trim()
+                : shift.handoverNotes,
+        },
+        include: {
+            shifter: { select: { id: true, name: true, email: true, phone: true } },
+        },
+    });
+    const recipients = yield resolveRecipients(currentUser.userId, payload.notifyRecipients);
+    if (recipients.length > 0) {
+        (0, notificationSender_1.sendShiftScheduleAlert)({
+            shifterName: shift.shifter.name,
+            shifterEmail: shift.shifter.email,
+            shifterPhone: shift.shifter.phone || undefined,
+            shiftStartTime: newStartTime,
+            shiftEndTime: newEndTime,
+            shiftSlotName: shift.shiftSlotName || 'Rescheduled Duty Shift',
+            recipients,
+            notificationMethod: payload.notificationMethod || 'EMAIL',
+            notes: payload.reason ? `Rescheduled: ${payload.reason}` : undefined,
+        }).catch((err) => console.error('[Shift Reschedule Notification Error]:', err));
+    }
+    return { shift: updatedShift, notifiedCount: recipients.length };
+});
+const completeOfflineShiftInDB = (shiftId, currentUser, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const shift = yield db_1.default.shiftLog.findUnique({
+        where: { id: shiftId },
+        include: {
+            shifter: { select: { id: true, name: true, email: true } },
+        },
+    });
+    if (!shift) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Shift session record not found!');
+    }
+    if (shift.shifterId !== currentUser.userId &&
+        currentUser.role !== client_1.UserRole.SUPER_ADMIN &&
+        currentUser.role !== client_1.UserRole.ADMIN) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You are not authorized to complete this shift!');
+    }
+    if (shift.status === client_1.ShiftStatus.COMPLETED) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This shift is already marked as completed!');
+    }
+    return yield db_1.default.shiftLog.update({
+        where: { id: shiftId },
+        data: {
+            status: client_1.ShiftStatus.COMPLETED,
+            openingCash: payload.openingCash,
+            closingCash: payload.closingCash,
+            cashCollected: payload.cashCollected,
+            tasksCompleted: payload.tasksCompleted || null,
+            handoverNotes: payload.handoverNotes || null,
+            isOfflineRecord: (_a = payload.isOfflineRecord) !== null && _a !== void 0 ? _a : true,
+            endTime: shift.endTime || new Date(),
+        },
+        include: {
+            shifter: { select: { id: true, name: true, email: true } },
+        },
+    });
+});
+const emailActionShiftInDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const shift = yield db_1.default.shiftLog.findFirst({
+        where: { actionToken: payload.token },
+    });
+    if (!shift) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Invalid or expired action token!');
+    }
+    if (shift.status === client_1.ShiftStatus.COMPLETED || shift.status === client_1.ShiftStatus.CANCELLED) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Shift is already ${shift.status.toLowerCase()}. Action not applicable.`);
+    }
+    if (payload.action === 'START') {
+        return yield db_1.default.shiftLog.update({
+            where: { id: shift.id },
+            data: {
+                status: client_1.ShiftStatus.ACTIVE,
+                startTime: new Date(),
+                openingCash: (_a = payload.openingCash) !== null && _a !== void 0 ? _a : 0,
+                actionToken: null, // single-use token cleared
+            },
+        });
+    }
+    // CANCEL action
+    return yield db_1.default.shiftLog.update({
+        where: { id: shift.id },
+        data: {
+            status: client_1.ShiftStatus.CANCELLED,
+            endTime: new Date(),
+            cancellationReason: payload.cancelReason || 'Cancelled via email link',
+            actionToken: null,
+        },
+    });
+});
 exports.ShiftLogService = {
     checkInShiftInDB,
     checkOutShiftInDB,
@@ -329,4 +459,8 @@ exports.ShiftLogService = {
     cancelShiftInDB,
     getAllShiftLogsFromDB,
     deleteShiftLogInDB,
+    getActiveShiftFromDB,
+    rescheduleShiftInDB,
+    completeOfflineShiftInDB,
+    emailActionShiftInDB,
 };

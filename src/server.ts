@@ -5,6 +5,7 @@ import prisma from './lib/db';
 
 import cron from 'node-cron';
 import { BorrowService } from './app/modules/Borrow/borrow.service';
+import { startShiftReminderJob } from './app/utils/shiftReminderJob';
 
 let server: Server;
 
@@ -30,6 +31,9 @@ async function main() {
     const port = Number(config.port) || 5000;
     server = app.listen(port, '0.0.0.0', () => {
       console.log(`🚀 Server is listening on port ${port}`);
+      const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
+      startShiftReminderJob(baseUrl);
+      console.log('⏰ [Shift Reminder Job] Started successfully.');
     });
   } catch (error) {
     console.error('❌ Failed to connect database:', error);

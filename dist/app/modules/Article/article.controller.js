@@ -18,8 +18,10 @@ const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const article_service_1 = require("./article.service");
 const createArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    const requestingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) ? Number(req.user.userId) : undefined;
+    var _a, _b;
+    const requestingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)
+        ? Number(req.user.userId || req.user.id)
+        : undefined;
     const result = yield article_service_1.ArticleService.createArticleIntoDB(req.body, requestingUserId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -34,7 +36,7 @@ const getAllArticles = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
     const query = Object.assign({}, req.query);
     const userRole = (_a = req.user) === null || _a === void 0 ? void 0 : _a.role;
     const isStaff = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'SHIFTER';
-    if (!isStaff && query.isPublished === undefined) {
+    if (!isStaff) {
         query.isPublished = 'true';
     }
     const result = yield article_service_1.ArticleService.getAllArticlesFromDB(query);

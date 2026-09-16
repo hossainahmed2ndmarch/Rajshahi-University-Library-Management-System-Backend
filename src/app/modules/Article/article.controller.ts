@@ -5,7 +5,10 @@ import sendResponse from '../../utils/sendResponse';
 import { ArticleService } from './article.service';
 
 const createArticle = catchAsync(async (req: Request, res: Response) => {
-  const requestingUserId = req.user?.userId ? Number(req.user.userId) : undefined;
+  const requestingUserId =
+    req.user?.userId || req.user?.id
+      ? Number(req.user.userId || req.user.id)
+      : undefined;
   const result = await ArticleService.createArticleIntoDB(req.body, requestingUserId);
 
   sendResponse(res, {
@@ -22,7 +25,7 @@ const getAllArticles = catchAsync(async (req: Request, res: Response) => {
   const userRole = req.user?.role;
   const isStaff = userRole === 'SUPER_ADMIN' || userRole === 'ADMIN' || userRole === 'SHIFTER';
 
-  if (!isStaff && query.isPublished === undefined) {
+  if (!isStaff) {
     query.isPublished = 'true';
   }
 

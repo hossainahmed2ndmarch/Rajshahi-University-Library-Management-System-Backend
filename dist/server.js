@@ -17,6 +17,7 @@ const config_1 = __importDefault(require("./app/config"));
 const db_1 = __importDefault(require("./lib/db"));
 const node_cron_1 = __importDefault(require("node-cron"));
 const borrow_service_1 = require("./app/modules/Borrow/borrow.service");
+const shiftReminderJob_1 = require("./app/utils/shiftReminderJob");
 let server;
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -40,6 +41,9 @@ function main() {
             const port = Number(config_1.default.port) || 5000;
             server = app_1.default.listen(port, '0.0.0.0', () => {
                 console.log(`🚀 Server is listening on port ${port}`);
+                const baseUrl = process.env.BASE_URL || `http://localhost:${port}`;
+                (0, shiftReminderJob_1.startShiftReminderJob)(baseUrl);
+                console.log('⏰ [Shift Reminder Job] Started successfully.');
             });
         }
         catch (error) {

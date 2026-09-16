@@ -81,6 +81,60 @@ const deleteShiftLog = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const getActiveShift = catchAsync(async (req: Request, res: Response) => {
+  const result = await ShiftLogService.getActiveShiftFromDB();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: result ? 'Active shift retrieved successfully!' : 'No active shift at the moment.',
+    data: result,
+  });
+});
+
+const rescheduleShift = catchAsync(async (req: Request, res: Response) => {
+  const currentUser = {
+    userId: Number(req.user?.userId || req.user?.id),
+    role: req.user?.role as UserRole,
+  };
+  const shiftId = Number(req.params.id);
+  const result = await ShiftLogService.rescheduleShiftInDB(shiftId, currentUser, req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: `Shift rescheduled successfully! ${result.notifiedCount} staff members notified.`,
+    data: result,
+  });
+});
+
+const completeOfflineShift = catchAsync(async (req: Request, res: Response) => {
+  const currentUser = {
+    userId: Number(req.user?.userId || req.user?.id),
+    role: req.user?.role as UserRole,
+  };
+  const shiftId = Number(req.params.id);
+  const result = await ShiftLogService.completeOfflineShiftInDB(shiftId, currentUser, req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Offline shift completion recorded successfully!',
+    data: result,
+  });
+});
+
+const emailAction = catchAsync(async (req: Request, res: Response) => {
+  const result = await ShiftLogService.emailActionShiftInDB(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: `Shift ${req.body.action} action completed via email link!`,
+    data: result,
+  });
+});
+
 export const ShiftLogController = {
   checkInShift,
   checkOutShift,
@@ -88,4 +142,8 @@ export const ShiftLogController = {
   cancelShift,
   getAllShiftLogs,
   deleteShiftLog,
+  getActiveShift,
+  rescheduleShift,
+  completeOfflineShift,
+  emailAction,
 };

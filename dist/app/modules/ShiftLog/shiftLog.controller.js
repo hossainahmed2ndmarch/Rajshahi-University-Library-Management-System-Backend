@@ -85,6 +85,54 @@ const deleteShiftLog = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
         data: result,
     });
 }));
+const getActiveShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield shiftLog_service_1.ShiftLogService.getActiveShiftFromDB();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: result ? 'Active shift retrieved successfully!' : 'No active shift at the moment.',
+        data: result,
+    });
+}));
+const rescheduleShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
+    const currentUser = {
+        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
+    };
+    const shiftId = Number(req.params.id);
+    const result = yield shiftLog_service_1.ShiftLogService.rescheduleShiftInDB(shiftId, currentUser, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: `Shift rescheduled successfully! ${result.notifiedCount} staff members notified.`,
+        data: result,
+    });
+}));
+const completeOfflineShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b, _c;
+    const currentUser = {
+        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
+    };
+    const shiftId = Number(req.params.id);
+    const result = yield shiftLog_service_1.ShiftLogService.completeOfflineShiftInDB(shiftId, currentUser, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Offline shift completion recorded successfully!',
+        data: result,
+    });
+}));
+const emailAction = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield shiftLog_service_1.ShiftLogService.emailActionShiftInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: `Shift ${req.body.action} action completed via email link!`,
+        data: result,
+    });
+}));
 exports.ShiftLogController = {
     checkInShift,
     checkOutShift,
@@ -92,4 +140,8 @@ exports.ShiftLogController = {
     cancelShift,
     getAllShiftLogs,
     deleteShiftLog,
+    getActiveShift,
+    rescheduleShift,
+    completeOfflineShift,
+    emailAction,
 };

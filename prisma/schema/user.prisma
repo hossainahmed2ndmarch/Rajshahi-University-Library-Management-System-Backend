@@ -36,8 +36,9 @@ model User {
   approvedPurchaseBy Purchase[]      @relation("ApprovedPurchases")
   donations          Donation[]      @relation("UserDonations")
   receivedDonations  Donation[]      @relation("ReceivedDonations")
-  shifts             ShiftLog[]      @relation("UserShifts")
-  verifiedShifts     ShiftLog[]      @relation("VerifiedShifts")
+  shifts             ShiftLog[]        @relation("UserShifts")
+  schedules          ShifterSchedule[] @relation("UserSchedules")
+  verifiedShifts     ShiftLog[]        @relation("VerifiedShifts")
   bookReviews        BookReview[]
   serviceReviews     ServiceReview[]
   payments           Payment[]

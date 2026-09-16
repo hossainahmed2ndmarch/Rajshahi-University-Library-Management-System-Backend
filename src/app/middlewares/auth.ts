@@ -52,7 +52,9 @@ const auth = (...requiredRoles: string[]) => {
 };
 
 export const optionalAuth = catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-  const token = req.headers.authorization;
+  const token =
+    req.headers.authorization ||
+    (req.cookies && (req.cookies.accessToken || req.cookies.token));
 
   if (token) {
     const jwtToken = token.startsWith('Bearer ') ? token.split(' ')[1] : token;

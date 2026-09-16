@@ -247,6 +247,13 @@ const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void
         where: { id },
         data: updateData,
     });
+    // If user role was changed or demoted to MEMBER, deactivate their active duty schedules
+    if (updateData.role === client_1.UserRole.MEMBER) {
+        yield db_1.default.shifterSchedule.updateMany({
+            where: { shifterId: id },
+            data: { isActive: false },
+        });
+    }
     const { password } = updatedUser, userData = __rest(updatedUser, ["password"]);
     return userData;
 });
