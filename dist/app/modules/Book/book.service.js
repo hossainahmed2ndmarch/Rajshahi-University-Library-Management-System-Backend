@@ -65,29 +65,88 @@ const createBookIntoDB = (payload, adminId) => __awaiter(void 0, void 0, void 0,
     });
 });
 const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, author } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "author"]);
+    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, author, publisher, minPrice, maxPrice } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "author", "publisher", "minPrice", "maxPrice"]);
     // Set up QueryBuilder with searchable and filterable fields
     // Default isArchived to false so deleted/archived books are hidden from regular listings
     const bookQuery = new queryBuilder_1.default(db_1.default.book, Object.assign(Object.assign({}, queryParams), { isArchived: isArchived !== null && isArchived !== void 0 ? isArchived : false }), {
         searchableFields: ['title', 'author', 'isbn', 'category', 'publisher', 'locationCell', 'description'],
-        filterableFields: ['type', 'isArchived', 'publisher'],
+        filterableFields: ['type', 'isArchived'],
     })
         .search()
         .filter()
         .paginate()
         .fields();
-    if (category && typeof category === 'string' && category !== 'ALL') {
-        bookQuery.where({
-            OR: [
-                { categories: { has: category.trim() } },
-                { category: { contains: category.trim(), mode: 'insensitive' } },
-            ],
-        });
+    // ── Category filter: supports single value or comma-separated multi-values ────
+    if (category) {
+        const categoryValues = Array.isArray(category)
+            ? category.map((c) => c.trim()).filter(Boolean)
+            : typeof category === 'string' && category !== 'ALL'
+                ? category.split(',').map((c) => c.trim()).filter(Boolean)
+                : [];
+        if (categoryValues.length === 1) {
+            bookQuery.where({
+                OR: [
+                    { categories: { has: categoryValues[0] } },
+                    { category: { contains: categoryValues[0], mode: 'insensitive' } },
+                ],
+            });
+        }
+        else if (categoryValues.length > 1) {
+            bookQuery.where({
+                OR: categoryValues.flatMap((cat) => [
+                    { categories: { has: cat } },
+                    { category: { contains: cat, mode: 'insensitive' } },
+                ]),
+            });
+        }
     }
-    if (author && typeof author === 'string') {
-        bookQuery.where({
-            author: { contains: author.trim(), mode: 'insensitive' },
-        });
+    // ── Author filter: supports single value or comma-separated multi-values ──────
+    if (author) {
+        const authorValues = Array.isArray(author)
+            ? author.map((a) => a.trim()).filter(Boolean)
+            : typeof author === 'string'
+                ? author.split(',').map((a) => a.trim()).filter(Boolean)
+                : [];
+        if (authorValues.length === 1) {
+            bookQuery.where({
+                author: { contains: authorValues[0], mode: 'insensitive' },
+            });
+        }
+        else if (authorValues.length > 1) {
+            bookQuery.where({
+                OR: authorValues.map((a) => ({ author: { contains: a, mode: 'insensitive' } })),
+            });
+        }
+    }
+    // ── Publisher filter: supports single value or comma-separated multi-values ───
+    if (publisher) {
+        const publisherValues = Array.isArray(publisher)
+            ? publisher.map((p) => p.trim()).filter(Boolean)
+            : typeof publisher === 'string'
+                ? publisher.split(',').map((p) => p.trim()).filter(Boolean)
+                : [];
+        if (publisherValues.length === 1) {
+            bookQuery.where({
+                publisher: { contains: publisherValues[0], mode: 'insensitive' },
+            });
+        }
+        else if (publisherValues.length > 1) {
+            bookQuery.where({
+                OR: publisherValues.map((p) => ({ publisher: { contains: p, mode: 'insensitive' } })),
+            });
+        }
+    }
+    // ── Price range filter on sellPrice ──────────────────────────────────────────
+    const minPriceNum = minPrice !== undefined && minPrice !== '' ? Number(minPrice) : null;
+    const maxPriceNum = maxPrice !== undefined && maxPrice !== '' ? Number(maxPrice) : null;
+    if (minPriceNum !== null && !isNaN(minPriceNum) && maxPriceNum !== null && !isNaN(maxPriceNum)) {
+        bookQuery.where({ sellPrice: { gte: minPriceNum, lte: maxPriceNum } });
+    }
+    else if (minPriceNum !== null && !isNaN(minPriceNum)) {
+        bookQuery.where({ sellPrice: { gte: minPriceNum } });
+    }
+    else if (maxPriceNum !== null && !isNaN(maxPriceNum)) {
+        bookQuery.where({ sellPrice: { lte: maxPriceNum } });
     }
     // Filter for borrowable books (BORROW_ONLY or HYBRID)
     if (isBorrowable === 'true' || isBorrowable === true) {
