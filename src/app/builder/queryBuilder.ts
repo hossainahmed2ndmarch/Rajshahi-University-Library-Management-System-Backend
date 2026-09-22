@@ -127,11 +127,7 @@ export class QueryBuilder<
         };
       });
 
-      const whereConditions = this.query.where as Record<string, unknown>;
-      const countWhereConditions = this.countQuery.where as Record<string, unknown>;
-
-      whereConditions.OR = searchConditions;
-      countWhereConditions.OR = searchConditions;
+      this.where({ OR: searchConditions } as TWhereInput);
     }
 
     return this;
@@ -280,14 +276,52 @@ export class QueryBuilder<
   }
 
   public where(condition: TWhereInput): this {
-    this.query.where = this.deepMerge(this.query.where as Record<string, unknown>, condition as Record<string, unknown>);
-    this.countQuery.where = this.deepMerge(this.countQuery.where as Record<string, unknown>, condition as Record<string, unknown>);
+    if (!condition || Object.keys(condition).length === 0) {
+      return this;
+    }
+
+    const condObj = condition as Record<string, unknown>;
+    const currentWhere = this.query.where as Record<string, unknown>;
+    const currentCountWhere = this.countQuery.where as Record<string, unknown>;
+
+    // Helper: migrate all stray top-level keys (set by .filter() or elsewhere) into AND.
+    // We always sweep even if AND already exists, because .filter() may have added keys
+    // directly to the where object after the AND array was already created.
+    const migrateStray = (whereObj: Record<string, unknown>) => {
+      if (!Array.isArray(whereObj.AND)) {
+        whereObj.AND = [];
+      }
+      const strayKeys = Object.keys(whereObj).filter((k) => k !== 'AND');
+      for (const key of strayKeys) {
+        const val = whereObj[key];
+        if (val !== undefined) {
+          (whereObj.AND as unknown[]).push({ [key]: val });
+          delete whereObj[key];
+        }
+      }
+    };
+
+    migrateStray(currentWhere);
+    migrateStray(currentCountWhere);
+
+    (currentWhere.AND as unknown[]).push(condObj);
+    (currentCountWhere.AND as unknown[]).push(condObj);
+
     return this;
   }
 
   public async execute(): Promise<IQueryResult<T>> {
     if (!this.model) {
       throw new Error('Model delegate must be provided to QueryBuilder to run execute()');
+    }
+
+    const currentWhere = this.query.where as Record<string, unknown>;
+    const currentCountWhere = this.countQuery.where as Record<string, unknown>;
+    if (Array.isArray(currentWhere.AND) && currentWhere.AND.length === 0) {
+      delete currentWhere.AND;
+    }
+    if (Array.isArray(currentCountWhere.AND) && currentCountWhere.AND.length === 0) {
+      delete currentCountWhere.AND;
     }
 
     const [total, data] = await Promise.all([
@@ -330,6 +364,8 @@ export class QueryBuilder<
         } else {
           result[key] = source[key];
         }
+      } else if (Array.isArray(source[key]) && Array.isArray(result[key])) {
+        result[key] = [...(result[key] as unknown[]), ...(source[key] as unknown[])];
       } else {
         result[key] = source[key];
       }

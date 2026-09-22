@@ -78,10 +78,7 @@ class QueryBuilder {
                     },
                 };
             });
-            const whereConditions = this.query.where;
-            const countWhereConditions = this.countQuery.where;
-            whereConditions.OR = searchConditions;
-            countWhereConditions.OR = searchConditions;
+            this.where({ OR: searchConditions });
         }
         return this;
     }
@@ -199,14 +196,46 @@ class QueryBuilder {
         return this;
     }
     where(condition) {
-        this.query.where = this.deepMerge(this.query.where, condition);
-        this.countQuery.where = this.deepMerge(this.countQuery.where, condition);
+        if (!condition || Object.keys(condition).length === 0) {
+            return this;
+        }
+        const condObj = condition;
+        const currentWhere = this.query.where;
+        const currentCountWhere = this.countQuery.where;
+        // Helper: migrate all stray top-level keys (set by .filter() or elsewhere) into AND.
+        // We always sweep even if AND already exists, because .filter() may have added keys
+        // directly to the where object after the AND array was already created.
+        const migrateStray = (whereObj) => {
+            if (!Array.isArray(whereObj.AND)) {
+                whereObj.AND = [];
+            }
+            const strayKeys = Object.keys(whereObj).filter((k) => k !== 'AND');
+            for (const key of strayKeys) {
+                const val = whereObj[key];
+                if (val !== undefined) {
+                    whereObj.AND.push({ [key]: val });
+                    delete whereObj[key];
+                }
+            }
+        };
+        migrateStray(currentWhere);
+        migrateStray(currentCountWhere);
+        currentWhere.AND.push(condObj);
+        currentCountWhere.AND.push(condObj);
         return this;
     }
     execute() {
         return __awaiter(this, void 0, void 0, function* () {
             if (!this.model) {
                 throw new Error('Model delegate must be provided to QueryBuilder to run execute()');
+            }
+            const currentWhere = this.query.where;
+            const currentCountWhere = this.countQuery.where;
+            if (Array.isArray(currentWhere.AND) && currentWhere.AND.length === 0) {
+                delete currentWhere.AND;
+            }
+            if (Array.isArray(currentCountWhere.AND) && currentCountWhere.AND.length === 0) {
+                delete currentCountWhere.AND;
             }
             const [total, data] = yield Promise.all([
                 this.model.count(this.countQuery),
@@ -245,6 +274,9 @@ class QueryBuilder {
                 else {
                     result[key] = source[key];
                 }
+            }
+            else if (Array.isArray(source[key]) && Array.isArray(result[key])) {
+                result[key] = [...result[key], ...source[key]];
             }
             else {
                 result[key] = source[key];

@@ -65,23 +65,24 @@ const createBookIntoDB = (payload, adminId) => __awaiter(void 0, void 0, void 0,
     });
 });
 const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, author, publisher, minPrice, maxPrice } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "author", "publisher", "minPrice", "maxPrice"]);
+    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, categories, author, authors, publisher, publishers, type, minPrice, maxPrice } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "categories", "author", "authors", "publisher", "publishers", "type", "minPrice", "maxPrice"]);
     // Set up QueryBuilder with searchable and filterable fields
     // Default isArchived to false so deleted/archived books are hidden from regular listings
     const bookQuery = new queryBuilder_1.default(db_1.default.book, Object.assign(Object.assign({}, queryParams), { isArchived: isArchived !== null && isArchived !== void 0 ? isArchived : false }), {
         searchableFields: ['title', 'author', 'isbn', 'category', 'publisher', 'locationCell', 'description'],
-        filterableFields: ['type', 'isArchived'],
+        filterableFields: ['isArchived'],
     })
         .search()
         .filter()
         .paginate()
         .fields();
-    // ── Category filter: supports single value or comma-separated multi-values ────
-    if (category) {
-        const categoryValues = Array.isArray(category)
-            ? category.map((c) => c.trim()).filter(Boolean)
-            : typeof category === 'string' && category !== 'ALL'
-                ? category.split(',').map((c) => c.trim()).filter(Boolean)
+    // ── Category filter: supports single value, array, or comma-separated multi-values ────
+    const rawCategory = category !== null && category !== void 0 ? category : categories;
+    if (rawCategory) {
+        const categoryValues = Array.isArray(rawCategory)
+            ? rawCategory.flatMap((c) => c.split(',')).map((c) => c.trim()).filter(Boolean)
+            : typeof rawCategory === 'string' && rawCategory !== 'ALL'
+                ? rawCategory.split(',').map((c) => c.trim()).filter(Boolean)
                 : [];
         if (categoryValues.length === 1) {
             bookQuery.where({
@@ -100,12 +101,13 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
             });
         }
     }
-    // ── Author filter: supports single value or comma-separated multi-values ──────
-    if (author) {
-        const authorValues = Array.isArray(author)
-            ? author.map((a) => a.trim()).filter(Boolean)
-            : typeof author === 'string'
-                ? author.split(',').map((a) => a.trim()).filter(Boolean)
+    // ── Author filter: supports single value, array, or comma-separated multi-values ──────
+    const rawAuthor = author !== null && author !== void 0 ? author : authors;
+    if (rawAuthor) {
+        const authorValues = Array.isArray(rawAuthor)
+            ? rawAuthor.flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean)
+            : typeof rawAuthor === 'string'
+                ? rawAuthor.split(',').map((a) => a.trim()).filter(Boolean)
                 : [];
         if (authorValues.length === 1) {
             bookQuery.where({
@@ -118,12 +120,13 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
             });
         }
     }
-    // ── Publisher filter: supports single value or comma-separated multi-values ───
-    if (publisher) {
-        const publisherValues = Array.isArray(publisher)
-            ? publisher.map((p) => p.trim()).filter(Boolean)
-            : typeof publisher === 'string'
-                ? publisher.split(',').map((p) => p.trim()).filter(Boolean)
+    // ── Publisher filter: supports single value, array, or comma-separated multi-values ───
+    const rawPublisher = publisher !== null && publisher !== void 0 ? publisher : publishers;
+    if (rawPublisher) {
+        const publisherValues = Array.isArray(rawPublisher)
+            ? rawPublisher.flatMap((p) => p.split(',')).map((p) => p.trim()).filter(Boolean)
+            : typeof rawPublisher === 'string'
+                ? rawPublisher.split(',').map((p) => p.trim()).filter(Boolean)
                 : [];
         if (publisherValues.length === 1) {
             bookQuery.where({
@@ -147,6 +150,34 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
     }
     else if (maxPriceNum !== null && !isNaN(maxPriceNum)) {
         bookQuery.where({ sellPrice: { lte: maxPriceNum } });
+    }
+    // ── Type filter ─────────────────────────────────────────────────────────────
+    const typeParam = typeof type === 'string' ? type.trim().toUpperCase() : undefined;
+    if (typeParam && typeParam !== 'ALL') {
+        if (typeParam === 'BORROW_ONLY' || typeParam === 'BORROW') {
+            bookQuery.where({
+                type: {
+                    in: [client_1.BookType.BORROW_ONLY, client_1.BookType.HYBRID],
+                },
+            });
+        }
+        else if (typeParam === 'SELL_ONLY' || typeParam === 'SELL' || typeParam === 'BUY') {
+            bookQuery.where({
+                type: {
+                    in: [client_1.BookType.SELL_ONLY, client_1.BookType.HYBRID],
+                },
+            });
+        }
+        else if (typeParam === 'HYBRID') {
+            bookQuery.where({
+                type: client_1.BookType.HYBRID,
+            });
+        }
+        else if (Object.values(client_1.BookType).includes(typeParam)) {
+            bookQuery.where({
+                type: typeParam,
+            });
+        }
     }
     // Filter for borrowable books (BORROW_ONLY or HYBRID)
     if (isBorrowable === 'true' || isBorrowable === true) {
@@ -330,42 +361,59 @@ const deleteBookFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () 
     });
 });
 const getBookCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    const categories = yield db_1.default.book.groupBy({
-        by: ['category'],
+    const books = yield db_1.default.book.findMany({
         where: { isArchived: false },
-        _count: {
+        select: {
             id: true,
+            title: true,
+            coverImage: true,
+            author: true,
+            category: true,
+            categories: true,
+            createdAt: true,
         },
         orderBy: {
-            _count: {
-                id: 'desc',
-            },
+            createdAt: 'desc',
         },
     });
-    const categoriesWithBooks = yield Promise.all(categories.map((c) => __awaiter(void 0, void 0, void 0, function* () {
-        const books = yield db_1.default.book.findMany({
-            where: {
-                category: c.category,
-                isArchived: false,
-            },
-            select: {
-                id: true,
-                title: true,
-                coverImage: true,
-                author: true,
-            },
-            take: 4,
-            orderBy: {
-                createdAt: 'desc',
-            },
-        });
-        return {
-            category: c.category,
-            count: c._count.id,
-            books,
+    const categoryMap = new Map();
+    for (const book of books) {
+        const cats = new Set();
+        if (Array.isArray(book.categories) && book.categories.length > 0) {
+            book.categories.forEach((c) => {
+                const trimmed = c === null || c === void 0 ? void 0 : c.trim();
+                if (trimmed)
+                    cats.add(trimmed);
+            });
+        }
+        if (book.category) {
+            book.category.split(',').forEach((c) => {
+                const trimmed = c === null || c === void 0 ? void 0 : c.trim();
+                if (trimmed)
+                    cats.add(trimmed);
+            });
+        }
+        const previewBook = {
+            id: book.id,
+            title: book.title,
+            coverImage: book.coverImage,
+            author: book.author,
         };
-    })));
-    return categoriesWithBooks;
+        cats.forEach((cat) => {
+            if (!categoryMap.has(cat)) {
+                categoryMap.set(cat, { category: cat, books: [] });
+            }
+            categoryMap.get(cat).books.push(previewBook);
+        });
+    }
+    const result = Array.from(categoryMap.values())
+        .map((item) => ({
+        category: item.category,
+        count: item.books.length,
+        books: item.books.slice(0, 4),
+    }))
+        .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+    return result;
 });
 const getBookOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
     const books = yield db_1.default.book.findMany({
@@ -392,7 +440,7 @@ const getBookOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
                     categoriesSet.add(trimmed);
             });
         }
-        else if (book.category) {
+        if (book.category) {
             book.category.split(',').forEach((c) => {
                 const trimmed = c === null || c === void 0 ? void 0 : c.trim();
                 if (trimmed)
@@ -442,22 +490,6 @@ const getBookOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
             });
         }
     }
-    // Include default Islamic library catalog categories if missing
-    const defaultCategories = [
-        'Tafsir',
-        'Hadith',
-        'Seerah',
-        'Fiqh',
-        'Aqeedah',
-        'History',
-        'Spirituality',
-        'Arabic Language',
-        'Comparative Religion',
-        'Islamic Economics',
-        'Family & Society',
-        'Quranic Sciences',
-    ];
-    defaultCategories.forEach((c) => categoriesSet.add(c));
     const authors = Array.from(authorsMap.entries())
         .map(([name, role]) => ({ name, role }))
         .sort((a, b) => a.name.localeCompare(b.name));

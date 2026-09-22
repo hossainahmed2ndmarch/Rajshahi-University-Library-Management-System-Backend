@@ -52,25 +52,42 @@ const createBookIntoDB = async (payload: TCreateBook, adminId?: number) => {
 };
 
 const getAllBooksFromDB = async (query: Record<string, unknown>) => {
-  const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, author, publisher, minPrice, maxPrice, ...queryParams } = query;
+  const {
+    isBorrowable,
+    isSellable,
+    sortBy,
+    sortOrder = 'desc',
+    isArchived,
+    category,
+    categories,
+    author,
+    authors,
+    publisher,
+    publishers,
+    type,
+    minPrice,
+    maxPrice,
+    ...queryParams
+  } = query;
 
   // Set up QueryBuilder with searchable and filterable fields
   // Default isArchived to false so deleted/archived books are hidden from regular listings
   const bookQuery = new QueryBuilder(prisma.book, { ...queryParams, isArchived: isArchived ?? false }, {
     searchableFields: ['title', 'author', 'isbn', 'category', 'publisher', 'locationCell', 'description'],
-    filterableFields: ['type', 'isArchived'],
+    filterableFields: ['isArchived'],
   })
     .search()
     .filter()
     .paginate()
     .fields();
 
-  // ── Category filter: supports single value or comma-separated multi-values ────
-  if (category) {
-    const categoryValues = Array.isArray(category)
-      ? (category as string[]).map((c) => c.trim()).filter(Boolean)
-      : typeof category === 'string' && category !== 'ALL'
-      ? category.split(',').map((c) => c.trim()).filter(Boolean)
+  // ── Category filter: supports single value, array, or comma-separated multi-values ────
+  const rawCategory = category ?? categories;
+  if (rawCategory) {
+    const categoryValues = Array.isArray(rawCategory)
+      ? (rawCategory as string[]).flatMap((c) => c.split(',')).map((c) => c.trim()).filter(Boolean)
+      : typeof rawCategory === 'string' && rawCategory !== 'ALL'
+      ? rawCategory.split(',').map((c) => c.trim()).filter(Boolean)
       : [];
 
     if (categoryValues.length === 1) {
@@ -90,12 +107,13 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     }
   }
 
-  // ── Author filter: supports single value or comma-separated multi-values ──────
-  if (author) {
-    const authorValues = Array.isArray(author)
-      ? (author as string[]).map((a) => a.trim()).filter(Boolean)
-      : typeof author === 'string'
-      ? author.split(',').map((a) => a.trim()).filter(Boolean)
+  // ── Author filter: supports single value, array, or comma-separated multi-values ──────
+  const rawAuthor = author ?? authors;
+  if (rawAuthor) {
+    const authorValues = Array.isArray(rawAuthor)
+      ? (rawAuthor as string[]).flatMap((a) => a.split(',')).map((a) => a.trim()).filter(Boolean)
+      : typeof rawAuthor === 'string'
+      ? rawAuthor.split(',').map((a) => a.trim()).filter(Boolean)
       : [];
 
     if (authorValues.length === 1) {
@@ -109,12 +127,13 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     }
   }
 
-  // ── Publisher filter: supports single value or comma-separated multi-values ───
-  if (publisher) {
-    const publisherValues = Array.isArray(publisher)
-      ? (publisher as string[]).map((p) => p.trim()).filter(Boolean)
-      : typeof publisher === 'string'
-      ? publisher.split(',').map((p) => p.trim()).filter(Boolean)
+  // ── Publisher filter: supports single value, array, or comma-separated multi-values ───
+  const rawPublisher = publisher ?? publishers;
+  if (rawPublisher) {
+    const publisherValues = Array.isArray(rawPublisher)
+      ? (rawPublisher as string[]).flatMap((p) => p.split(',')).map((p) => p.trim()).filter(Boolean)
+      : typeof rawPublisher === 'string'
+      ? rawPublisher.split(',').map((p) => p.trim()).filter(Boolean)
       : [];
 
     if (publisherValues.length === 1) {
@@ -137,6 +156,32 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     bookQuery.where({ sellPrice: { gte: minPriceNum } });
   } else if (maxPriceNum !== null && !isNaN(maxPriceNum)) {
     bookQuery.where({ sellPrice: { lte: maxPriceNum } });
+  }
+
+  // ── Type filter ─────────────────────────────────────────────────────────────
+  const typeParam = typeof type === 'string' ? type.trim().toUpperCase() : undefined;
+  if (typeParam && typeParam !== 'ALL') {
+    if (typeParam === 'BORROW_ONLY' || typeParam === 'BORROW') {
+      bookQuery.where({
+        type: {
+          in: [BookType.BORROW_ONLY, BookType.HYBRID],
+        },
+      });
+    } else if (typeParam === 'SELL_ONLY' || typeParam === 'SELL' || typeParam === 'BUY') {
+      bookQuery.where({
+        type: {
+          in: [BookType.SELL_ONLY, BookType.HYBRID],
+        },
+      });
+    } else if (typeParam === 'HYBRID') {
+      bookQuery.where({
+        type: BookType.HYBRID,
+      });
+    } else if (Object.values(BookType).includes(typeParam as BookType)) {
+      bookQuery.where({
+        type: typeParam as BookType,
+      });
+    }
   }
 
   // Filter for borrowable books (BORROW_ONLY or HYBRID)
@@ -324,47 +369,69 @@ const deleteBookFromDB = async (id: number) => {
 };
 
 const getBookCategoriesFromDB = async () => {
-  const categories = await prisma.book.groupBy({
-    by: ['category'],
+  const books = await prisma.book.findMany({
     where: { isArchived: false },
-    _count: {
+    select: {
       id: true,
+      title: true,
+      coverImage: true,
+      author: true,
+      category: true,
+      categories: true,
+      createdAt: true,
     },
     orderBy: {
-      _count: {
-        id: 'desc',
-      },
+      createdAt: 'desc',
     },
   });
 
-  const categoriesWithBooks = await Promise.all(
-    categories.map(async (c) => {
-      const books = await prisma.book.findMany({
-        where: {
-          category: c.category,
-          isArchived: false,
-        },
-        select: {
-          id: true,
-          title: true,
-          coverImage: true,
-          author: true,
-        },
-        take: 4,
-        orderBy: {
-          createdAt: 'desc',
-        },
+  const categoryMap = new Map<
+    string,
+    {
+      category: string;
+      books: { id: number; title: string; coverImage: string | null; author: string }[];
+    }
+  >();
+
+  for (const book of books) {
+    const cats = new Set<string>();
+    if (Array.isArray(book.categories) && book.categories.length > 0) {
+      book.categories.forEach((c) => {
+        const trimmed = c?.trim();
+        if (trimmed) cats.add(trimmed);
       });
+    }
+    if (book.category) {
+      book.category.split(',').forEach((c) => {
+        const trimmed = c?.trim();
+        if (trimmed) cats.add(trimmed);
+      });
+    }
 
-      return {
-        category: c.category,
-        count: c._count.id,
-        books,
-      };
-    })
-  );
+    const previewBook = {
+      id: book.id,
+      title: book.title,
+      coverImage: book.coverImage,
+      author: book.author,
+    };
 
-  return categoriesWithBooks;
+    cats.forEach((cat) => {
+      if (!categoryMap.has(cat)) {
+        categoryMap.set(cat, { category: cat, books: [] });
+      }
+      categoryMap.get(cat)!.books.push(previewBook);
+    });
+  }
+
+  const result = Array.from(categoryMap.values())
+    .map((item) => ({
+      category: item.category,
+      count: item.books.length,
+      books: item.books.slice(0, 4),
+    }))
+    .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
+
+  return result;
 };
 
 const getBookOptionsFromDB = async () => {
@@ -392,7 +459,8 @@ const getBookOptionsFromDB = async () => {
         const trimmed = c?.trim();
         if (trimmed) categoriesSet.add(trimmed);
       });
-    } else if (book.category) {
+    }
+    if (book.category) {
       book.category.split(',').forEach((c) => {
         const trimmed = c?.trim();
         if (trimmed) categoriesSet.add(trimmed);
@@ -441,23 +509,6 @@ const getBookOptionsFromDB = async () => {
       });
     }
   }
-
-  // Include default Islamic library catalog categories if missing
-  const defaultCategories = [
-    'Tafsir',
-    'Hadith',
-    'Seerah',
-    'Fiqh',
-    'Aqeedah',
-    'History',
-    'Spirituality',
-    'Arabic Language',
-    'Comparative Religion',
-    'Islamic Economics',
-    'Family & Society',
-    'Quranic Sciences',
-  ];
-  defaultCategories.forEach((c) => categoriesSet.add(c));
 
   const authors = Array.from(authorsMap.entries())
     .map(([name, role]) => ({ name, role }))
