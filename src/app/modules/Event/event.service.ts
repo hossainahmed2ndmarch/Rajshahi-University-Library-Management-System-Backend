@@ -225,10 +225,20 @@ const deleteEventFromDB = async (id: number) => {
   return await prisma.event.delete({ where: { id } });
 };
 
+const getCategoriesFromDB = async () => {
+  const records = await prisma.event.findMany({
+    where: { category: { not: null } },
+    select: { category: true },
+    distinct: ['category'],
+  });
+  return records.map((r) => r.category).filter(Boolean) as string[];
+};
+
 export const EventService = {
   createEventIntoDB,
   getAllEventsFromDB,
   getEventByIdOrSlugFromDB,
   updateEventInDB,
   deleteEventFromDB,
+  getCategoriesFromDB,
 };

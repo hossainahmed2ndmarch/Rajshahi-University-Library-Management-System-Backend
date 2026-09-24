@@ -66,10 +66,39 @@ const deleteEvent = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
         data: result,
     });
 }));
+const uploadBanner = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const file = req.file;
+    if (!file) {
+        return (0, sendResponse_1.default)(res, {
+            statusCode: http_status_1.default.BAD_REQUEST,
+            success: false,
+            message: 'Please select an image file to upload!',
+            data: null,
+        });
+    }
+    const bannerUrl = (file.path || file.secure_url || file.url);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Banner uploaded successfully!',
+        data: { url: bannerUrl },
+    });
+}));
+const getCategories = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const categories = yield event_service_1.EventService.getCategoriesFromDB();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Event categories retrieved successfully!',
+        data: categories,
+    });
+}));
 exports.EventController = {
     createEvent,
     getAllEvents,
     getEventByIdOrSlug,
     updateEvent,
     deleteEvent,
+    uploadBanner,
+    getCategories,
 };

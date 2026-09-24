@@ -92,6 +92,85 @@ export const uploadArticleCover = multer({
   limits: { fileSize: 8 * 1024 * 1024 },
 }).single('image');
 
+// ── Cloudinary storage: Activity Banner ──────────────────────────────────────
+const activityBannerStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/activities',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+    transformation: [
+      { width: 1200, height: 630, crop: 'limit', quality: 'auto' },
+    ],
+  },
+});
+
+export const uploadActivityBanner = multer({
+  storage: activityBannerStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).single('banner');
+
+// ── Cloudinary storage: Event Banner ─────────────────────────────────────────
+const eventBannerStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/events',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+    transformation: [
+      { width: 1200, height: 630, crop: 'limit', quality: 'auto' },
+    ],
+  },
+});
+
+export const uploadEventBanner = multer({
+  storage: eventBannerStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 10 * 1024 * 1024 },
+}).single('banner');
+
+// ── Audio filter & Cloudinary storage: Session Audio ─────────────────────────
+const audioFileFilter = (
+  _req: any,
+  file: Express.Multer.File,
+  cb: multer.FileFilterCallback
+) => {
+  const allowedAudio = [
+    'audio/mpeg',
+    'audio/mp3',
+    'audio/wav',
+    'audio/ogg',
+    'audio/aac',
+    'audio/m4a',
+    'audio/x-m4a',
+    'audio/webm',
+    'audio/flac',
+  ];
+  if (allowedAudio.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+    cb(null, true);
+  } else {
+    cb(
+      new AppError(
+        httpStatus.BAD_REQUEST,
+        'Only audio files (MP3, WAV, AAC, M4A, OGG, WEBM, FLAC) are allowed!'
+      )
+    );
+  }
+};
+
+const sessionAudioStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/sessions/audio',
+    resource_type: 'auto',
+  },
+});
+
+export const uploadSessionAudio = multer({
+  storage: sessionAudioStorage,
+  fileFilter: audioFileFilter,
+  limits: { fileSize: 60 * 1024 * 1024 }, // 60MB max
+}).single('audio');
+
 // Legacy alias kept for backward compat
 export const uploadSingleImage = uploadBookCover;
 

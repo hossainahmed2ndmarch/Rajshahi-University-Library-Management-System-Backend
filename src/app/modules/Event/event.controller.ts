@@ -63,10 +63,45 @@ const deleteEvent = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const uploadBanner = catchAsync(async (req: Request, res: Response) => {
+  const file = req.file;
+  if (!file) {
+    return sendResponse(res, {
+      statusCode: httpStatus.BAD_REQUEST,
+      success: false,
+      message: 'Please select an image file to upload!',
+      data: null,
+    });
+  }
+
+  const bannerUrl =
+    ((file as any).path || (file as any).secure_url || (file as any).url) as string;
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Banner uploaded successfully!',
+    data: { url: bannerUrl },
+  });
+});
+
+const getCategories = catchAsync(async (_req: Request, res: Response) => {
+  const categories = await EventService.getCategoriesFromDB();
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Event categories retrieved successfully!',
+    data: categories,
+  });
+});
+
 export const EventController = {
   createEvent,
   getAllEvents,
   getEventByIdOrSlug,
   updateEvent,
   deleteEvent,
+  uploadBanner,
+  getCategories,
 };

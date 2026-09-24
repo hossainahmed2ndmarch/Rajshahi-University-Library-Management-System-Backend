@@ -60,6 +60,21 @@ const bulkMarkAttendanceIntoDB = async (items: TBulkAttendanceItem[]) => {
 const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) => {
   const sessionDate = normalizeDate(payload.sessionDate);
 
+  // Check event configuration
+  const event = await prisma.event.findUnique({
+    where: { id: payload.eventId },
+    select: { id: true, metadata: true },
+  });
+
+  if (!event) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Event not found!');
+  }
+
+  const meta = (event.metadata as any) || {};
+  const allowOpenFeedback = Boolean(
+    meta.allowOpenFeedback || meta.allowFeedbackWithoutAttendance
+  );
+
   // Check if attendance already recorded by admin for this user & event
   let record = await prisma.eventMemberRecord.findFirst({
     where: {
@@ -81,20 +96,41 @@ const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) =>
     });
   }
 
-  if (!record) {
+  if (record) {
+    // Update existing attendance record with feedback and set isApproved to false for admin review
+    return await prisma.eventMemberRecord.update({
+      where: { id: record.id },
+      data: {
+        rating: payload.rating !== undefined ? payload.rating : record.rating,
+        comment: payload.comment,
+        isApproved: false, // Requires admin or super admin approval
+      },
+      include: {
+        event: { select: { id: true, title: true } },
+        user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+      },
+    });
+  }
+
+  // If no record exists, verify if admin allowed open feedback for this event
+  if (!allowOpenFeedback) {
     throw new AppError(
       httpStatus.FORBIDDEN,
       'Feedback can only be submitted after your attendance has been recorded by an administrator!',
     );
   }
 
-  // Update with feedback and set isApproved to false for admin review
-  return await prisma.eventMemberRecord.update({
-    where: { id: record.id },
+  // Create record with INTERESTED status so user is not incorrectly counted as attendee
+  return await prisma.eventMemberRecord.create({
     data: {
-      rating: payload.rating !== undefined ? payload.rating : record.rating,
+      eventId: payload.eventId,
+      userId,
+      sessionId: payload.sessionId || null,
+      sessionDate,
+      status: AttendanceStatus.INTERESTED,
+      rating: payload.rating !== undefined ? payload.rating : 5,
       comment: payload.comment,
-      isApproved: false, // Requires admin or super admin approval
+      isApproved: false,
     },
     include: {
       event: { select: { id: true, title: true } },
@@ -286,13 +322,19 @@ const getEventAttendanceStatsFromDB = async (eventId: number) => {
     }
   }
 
+  // Participants/attendees MUST ONLY count users who are actually present at the event!
+  const attendeesCount = present + completed;
+
   return {
     eventId,
-    total,
+    total: attendeesCount,
+    attendees: attendeesCount,
+    participants: attendeesCount,
+    interested,
+    totalRegistered: records.length,
     present,
     absent,
     excused,
-    interested,
     completed,
     averageRating: ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0,
     approvedFeedbackCount: records.filter((r) => r.comment && r.isApproved).length,

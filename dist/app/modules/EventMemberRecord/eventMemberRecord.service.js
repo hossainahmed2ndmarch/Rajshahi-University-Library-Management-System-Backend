@@ -65,6 +65,16 @@ const bulkMarkAttendanceIntoDB = (items) => __awaiter(void 0, void 0, void 0, fu
 });
 const submitFeedbackIntoDB = (userId, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const sessionDate = normalizeDate(payload.sessionDate);
+    // Check event configuration
+    const event = yield db_1.default.event.findUnique({
+        where: { id: payload.eventId },
+        select: { id: true, metadata: true },
+    });
+    if (!event) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Event not found!');
+    }
+    const meta = event.metadata || {};
+    const allowOpenFeedback = Boolean(meta.allowOpenFeedback || meta.allowFeedbackWithoutAttendance);
     // Check if attendance already recorded by admin for this user & event
     let record = yield db_1.default.eventMemberRecord.findFirst({
         where: Object.assign({ eventId: payload.eventId, userId }, (sessionDate ? { sessionDate } : {})),
@@ -80,16 +90,36 @@ const submitFeedbackIntoDB = (userId, payload) => __awaiter(void 0, void 0, void
             orderBy: { createdAt: 'desc' },
         });
     }
-    if (!record) {
+    if (record) {
+        // Update existing attendance record with feedback and set isApproved to false for admin review
+        return yield db_1.default.eventMemberRecord.update({
+            where: { id: record.id },
+            data: {
+                rating: payload.rating !== undefined ? payload.rating : record.rating,
+                comment: payload.comment,
+                isApproved: false, // Requires admin or super admin approval
+            },
+            include: {
+                event: { select: { id: true, title: true } },
+                user: { select: { id: true, name: true, email: true, avatarUrl: true } },
+            },
+        });
+    }
+    // If no record exists, verify if admin allowed open feedback for this event
+    if (!allowOpenFeedback) {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Feedback can only be submitted after your attendance has been recorded by an administrator!');
     }
-    // Update with feedback and set isApproved to false for admin review
-    return yield db_1.default.eventMemberRecord.update({
-        where: { id: record.id },
+    // Create record with INTERESTED status so user is not incorrectly counted as attendee
+    return yield db_1.default.eventMemberRecord.create({
         data: {
-            rating: payload.rating !== undefined ? payload.rating : record.rating,
+            eventId: payload.eventId,
+            userId,
+            sessionId: payload.sessionId || null,
+            sessionDate,
+            status: client_1.AttendanceStatus.INTERESTED,
+            rating: payload.rating !== undefined ? payload.rating : 5,
             comment: payload.comment,
-            isApproved: false, // Requires admin or super admin approval
+            isApproved: false,
         },
         include: {
             event: { select: { id: true, title: true } },
@@ -260,13 +290,18 @@ const getEventAttendanceStatsFromDB = (eventId) => __awaiter(void 0, void 0, voi
             ratingCount++;
         }
     }
+    // Participants/attendees MUST ONLY count users who are actually present at the event!
+    const attendeesCount = present + completed;
     return {
         eventId,
-        total,
+        total: attendeesCount,
+        attendees: attendeesCount,
+        participants: attendeesCount,
+        interested,
+        totalRegistered: records.length,
         present,
         absent,
         excused,
-        interested,
         completed,
         averageRating: ratingCount > 0 ? Number((totalRating / ratingCount).toFixed(1)) : 0,
         approvedFeedbackCount: records.filter((r) => r.comment && r.isApproved).length,

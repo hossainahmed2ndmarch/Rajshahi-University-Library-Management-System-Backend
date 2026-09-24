@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cloudinary = exports.uploadSingleImage = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
+exports.cloudinary = exports.uploadSingleImage = exports.uploadSessionAudio = exports.uploadEventBanner = exports.uploadActivityBanner = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
 const multer_1 = __importDefault(require("multer"));
 const cloudinary_1 = __importDefault(require("cloudinary"));
 const multer_storage_cloudinary_1 = __importDefault(require("multer-storage-cloudinary"));
@@ -80,6 +80,70 @@ exports.uploadArticleCover = (0, multer_1.default)({
     fileFilter: imageFileFilter,
     limits: { fileSize: 8 * 1024 * 1024 },
 }).single('image');
+// ── Cloudinary storage: Activity Banner ──────────────────────────────────────
+const activityBannerStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/activities',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+        transformation: [
+            { width: 1200, height: 630, crop: 'limit', quality: 'auto' },
+        ],
+    },
+});
+exports.uploadActivityBanner = (0, multer_1.default)({
+    storage: activityBannerStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 10 * 1024 * 1024 },
+}).single('banner');
+// ── Cloudinary storage: Event Banner ─────────────────────────────────────────
+const eventBannerStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/events',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+        transformation: [
+            { width: 1200, height: 630, crop: 'limit', quality: 'auto' },
+        ],
+    },
+});
+exports.uploadEventBanner = (0, multer_1.default)({
+    storage: eventBannerStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 10 * 1024 * 1024 },
+}).single('banner');
+// ── Audio filter & Cloudinary storage: Session Audio ─────────────────────────
+const audioFileFilter = (_req, file, cb) => {
+    const allowedAudio = [
+        'audio/mpeg',
+        'audio/mp3',
+        'audio/wav',
+        'audio/ogg',
+        'audio/aac',
+        'audio/m4a',
+        'audio/x-m4a',
+        'audio/webm',
+        'audio/flac',
+    ];
+    if (allowedAudio.includes(file.mimetype) || file.mimetype.startsWith('audio/')) {
+        cb(null, true);
+    }
+    else {
+        cb(new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Only audio files (MP3, WAV, AAC, M4A, OGG, WEBM, FLAC) are allowed!'));
+    }
+};
+const sessionAudioStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/sessions/audio',
+        resource_type: 'auto',
+    },
+});
+exports.uploadSessionAudio = (0, multer_1.default)({
+    storage: sessionAudioStorage,
+    fileFilter: audioFileFilter,
+    limits: { fileSize: 60 * 1024 * 1024 }, // 60MB max
+}).single('audio');
 // Legacy alias kept for backward compat
 exports.uploadSingleImage = exports.uploadBookCover;
 const cloudinaryV2 = cloudinary_1.default.v2;

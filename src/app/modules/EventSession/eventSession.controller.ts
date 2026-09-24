@@ -63,10 +63,33 @@ const deleteSession = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const uploadAudio = catchAsync(async (req: Request, res: Response) => {
+  const file = req.file;
+  if (!file) {
+    return sendResponse(res, {
+      statusCode: httpStatus.BAD_REQUEST,
+      success: false,
+      message: 'Please select an audio file to upload!',
+      data: null,
+    });
+  }
+
+  const audioUrl =
+    ((file as any).path || (file as any).secure_url || (file as any).url) as string;
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Audio uploaded successfully!',
+    data: { url: audioUrl },
+  });
+});
+
 export const EventSessionController = {
   createSession,
   getSessionsByEvent,
   getSessionById,
   updateSession,
   deleteSession,
+  uploadAudio,
 };

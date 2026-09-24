@@ -122,10 +122,20 @@ const deleteActivityFromDB = async (id: number) => {
   return await prisma.activity.delete({ where: { id } });
 };
 
+const getCategoriesFromDB = async () => {
+  const records = await prisma.activity.findMany({
+    where: { category: { not: null } },
+    select: { category: true },
+    distinct: ['category'],
+  });
+  return records.map((r) => r.category).filter(Boolean) as string[];
+};
+
 export const ActivityService = {
   createActivityIntoDB,
   getAllActivitiesFromDB,
   getActivityByIdFromDB,
   updateActivityInDB,
   deleteActivityFromDB,
+  getCategoriesFromDB,
 };

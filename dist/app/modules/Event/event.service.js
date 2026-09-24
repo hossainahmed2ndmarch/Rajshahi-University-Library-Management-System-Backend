@@ -231,10 +231,19 @@ const deleteEventFromDB = (id) => __awaiter(void 0, void 0, void 0, function* ()
     }
     return yield db_1.default.event.delete({ where: { id } });
 });
+const getCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
+    const records = yield db_1.default.event.findMany({
+        where: { category: { not: null } },
+        select: { category: true },
+        distinct: ['category'],
+    });
+    return records.map((r) => r.category).filter(Boolean);
+});
 exports.EventService = {
     createEventIntoDB,
     getAllEventsFromDB,
     getEventByIdOrSlugFromDB,
     updateEventInDB,
     deleteEventFromDB,
+    getCategoriesFromDB,
 };

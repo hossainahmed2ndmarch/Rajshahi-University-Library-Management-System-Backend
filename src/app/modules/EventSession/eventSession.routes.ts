@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { UserRole } from '@prisma/client';
 import auth from '../../middlewares/auth';
 import validateRequest from '../../middlewares/validateRequest';
+import { uploadSessionAudio } from '../../middlewares/uploadImage';
 import { EventSessionController } from './eventSession.controller';
 import { EventSessionValidation } from './eventSession.validation';
 
@@ -13,6 +14,13 @@ router.get('/event/:eventId', EventSessionController.getSessionsByEvent);
 router.get('/:id', EventSessionController.getSessionById);
 
 // ── Admin + Super Admin Routes ────────────────────────────────────────────────
+router.post(
+  '/upload-audio',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  uploadSessionAudio,
+  EventSessionController.uploadAudio,
+);
+
 router.post(
   '/',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),

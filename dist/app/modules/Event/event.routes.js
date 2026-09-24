@@ -8,13 +8,16 @@ const express_1 = require("express");
 const client_1 = require("@prisma/client");
 const auth_1 = __importDefault(require("../../middlewares/auth"));
 const validateRequest_1 = __importDefault(require("../../middlewares/validateRequest"));
+const uploadImage_1 = require("../../middlewares/uploadImage");
 const event_controller_1 = require("./event.controller");
 const event_validation_1 = require("./event.validation");
 const router = (0, express_1.Router)();
 // ── Public Routes ──────────────────────────────────────────────────────────────
 router.get('/', event_controller_1.EventController.getAllEvents);
+router.get('/categories', event_controller_1.EventController.getCategories);
 router.get('/:idOrSlug', event_controller_1.EventController.getEventByIdOrSlug);
 // ── Admin + Super Admin Routes ────────────────────────────────────────────────
+router.post('/upload-banner', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), uploadImage_1.uploadEventBanner, event_controller_1.EventController.uploadBanner);
 router.post('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(event_validation_1.EventValidation.createEventValidationSchema), event_controller_1.EventController.createEvent);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(event_validation_1.EventValidation.updateEventValidationSchema), event_controller_1.EventController.updateEvent);
 // ── Super Admin Only ──────────────────────────────────────────────────────────
