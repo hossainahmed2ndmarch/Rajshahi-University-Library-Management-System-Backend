@@ -1,0 +1,33 @@
+model Event {
+  id         Int          @id @default(autoincrement())
+  org        Organization @default(RUIL)
+  activityId Int?
+  activity   Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  title    String // e.g., "শনিবারের পাঠচক্র - সেশন ১", "বাৎসরিক বইমেলা ২০২৬"
+  slug     String      @unique
+  category String? // Dynamic string category
+  status   EventStatus @default(UPCOMING)
+
+  scheduleText String? // e.g., "প্রতি শনিবার বিকেল ৪:০০ টা"
+  location     String?
+  bannerImage  String? // Cloudinary URL
+  startDate    DateTime?
+  endDate      DateTime?
+
+  // Book Connection (For Pathchokro or Boimela active book)
+  books          Book[]
+  currentChapter String? // e.g., "অধ্যায় ৩: সালাতের গুরুত্ব"
+
+  metadata Json? // Dynamic attributes (trainer, stall number, etc.)
+  isActive Boolean @default(true)
+
+  // Relations
+  sessions      EventSession[]
+  memberRecords EventMemberRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("events")
+}

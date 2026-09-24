@@ -27,22 +27,23 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relation Arrays (1:N)
-  booksAdded         Book[]          @relation("BooksAdded")
-  booksDonated       Book[]          @relation("BooksDonated")
-  borrows            Borrow[]        @relation("UserBorrows")
-  approvedBorrows    Borrow[]        @relation("ApprovedBorrows")
-  returnedBorrows    Borrow[]        @relation("ReturnedBorrows")
-  purchases          Purchase[]      @relation("UserPurchases")
-  approvedPurchaseBy Purchase[]      @relation("ApprovedPurchases")
-  donations          Donation[]      @relation("UserDonations")
-  receivedDonations  Donation[]      @relation("ReceivedDonations")
-  shifts             ShiftLog[]        @relation("UserShifts")
-  schedules          ShifterSchedule[] @relation("UserSchedules")
-  verifiedShifts     ShiftLog[]        @relation("VerifiedShifts")
+  booksAdded         Book[]              @relation("BooksAdded")
+  booksDonated       Book[]              @relation("BooksDonated")
+  borrows            Borrow[]            @relation("UserBorrows")
+  approvedBorrows    Borrow[]            @relation("ApprovedBorrows")
+  returnedBorrows    Borrow[]            @relation("ReturnedBorrows")
+  purchases          Purchase[]          @relation("UserPurchases")
+  approvedPurchaseBy Purchase[]          @relation("ApprovedPurchases")
+  donations          Donation[]          @relation("UserDonations")
+  receivedDonations  Donation[]          @relation("ReceivedDonations")
+  shifts             ShiftLog[]          @relation("UserShifts")
+  schedules          ShifterSchedule[]   @relation("UserSchedules")
+  verifiedShifts     ShiftLog[]          @relation("VerifiedShifts")
   bookReviews        BookReview[]
   serviceReviews     ServiceReview[]
   payments           Payment[]
-  articles           Article[]       @relation("AuthorUser")
+  articles           Article[]           @relation("AuthorUser")
+  memberRecords      EventMemberRecord[]
 
   @@index([role])
   @@index([status])

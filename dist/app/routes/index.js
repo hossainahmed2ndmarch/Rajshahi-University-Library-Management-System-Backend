@@ -13,6 +13,10 @@ const review_routes_1 = require("../modules/Review/review.routes");
 const contact_routes_1 = require("../modules/Contact/contact.routes");
 const article_routes_1 = require("../modules/Article/article.routes");
 const shifterSchedule_routes_1 = require("../modules/ShifterSchedule/shifterSchedule.routes");
+const activity_routes_1 = require("../modules/Activity/activity.routes");
+const event_routes_1 = require("../modules/Event/event.routes");
+const eventSession_routes_1 = require("../modules/EventSession/eventSession.routes");
+const eventMemberRecord_routes_1 = require("../modules/EventMemberRecord/eventMemberRecord.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -62,6 +66,22 @@ const moduleRoutes = [
     {
         path: '/shifter-schedules',
         route: shifterSchedule_routes_1.ShifterScheduleRoutes,
+    },
+    {
+        path: '/activities',
+        route: activity_routes_1.ActivityRoutes,
+    },
+    {
+        path: '/events',
+        route: event_routes_1.EventRoutes,
+    },
+    {
+        path: '/event-sessions',
+        route: eventSession_routes_1.EventSessionRoutes,
+    },
+    {
+        path: '/event-member-records',
+        route: eventMemberRecord_routes_1.EventMemberRecordRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

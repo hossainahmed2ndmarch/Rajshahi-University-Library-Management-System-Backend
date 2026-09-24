@@ -11,6 +11,10 @@ import { ReviewRoutes } from '../modules/Review/review.routes';
 import { ContactRoutes } from '../modules/Contact/contact.routes';
 import { ArticleRoutes } from '../modules/Article/article.routes';
 import { ShifterScheduleRoutes } from '../modules/ShifterSchedule/shifterSchedule.routes';
+import { ActivityRoutes } from '../modules/Activity/activity.routes';
+import { EventRoutes } from '../modules/Event/event.routes';
+import { EventSessionRoutes } from '../modules/EventSession/eventSession.routes';
+import { EventMemberRecordRoutes } from '../modules/EventMemberRecord/eventMemberRecord.routes';
 
 const router = Router();
 
@@ -67,6 +71,22 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/shifter-schedules',
     route: ShifterScheduleRoutes,
+  },
+  {
+    path: '/activities',
+    route: ActivityRoutes,
+  },
+  {
+    path: '/events',
+    route: EventRoutes,
+  },
+  {
+    path: '/event-sessions',
+    route: EventSessionRoutes,
+  },
+  {
+    path: '/event-member-records',
+    route: EventMemberRecordRoutes,
   },
 ];
 

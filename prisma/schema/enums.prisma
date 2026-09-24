@@ -1,15 +1,15 @@
 // users
 enum UserRole {
- SUPER_ADMIN
- ADMIN
- SHIFTER
- MEMBER
+  SUPER_ADMIN
+  ADMIN
+  SHIFTER
+  MEMBER
 }
 
 enum UserStatus {
   PENDING_PAYMENT
   PENDING_APPROVAL
-  ACTIVE 
+  ACTIVE
   INACTIVE
   BLOCKED
 }
@@ -49,31 +49,59 @@ enum PaymentStatus {
 }
 
 enum PaymentMethod {
- CASH
- ONLINE
+  CASH
+  ONLINE
 }
 
 // Donation
 enum DonationMethod {
- LIBRARY_DROP_OFF
- PICKUP
- COURIER
+  LIBRARY_DROP_OFF
+  PICKUP
+  COURIER
 }
 
 enum DonationStatus {
- PENDING
- APPROVED
- SCHEDULED
- RECEIVED
- CATALOGED
- REJECTED
- CANCELLED
+  PENDING
+  APPROVED
+  SCHEDULED
+  RECEIVED
+  CATALOGED
+  REJECTED
+  CANCELLED
 }
 
 // Shift-Logs
 enum ShiftStatus {
- SCHEDULED
- ACTIVE
- COMPLETED
- CANCELLED
+  SCHEDULED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum Organization {
+  RUIL
+  RUDC
+  BOTH
+}
+
+enum ActivityStatus {
+  ONGOING
+  PAUSED
+  COMPLETED
+  UPCOMING
+}
+
+enum EventStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  EXCUSED
+  INTERESTED
+  COMPLETED
 }

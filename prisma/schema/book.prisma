@@ -1,9 +1,9 @@
 // Book Model
 
 model Book {
-  id     Int    @id @default(autoincrement())
-  title  String
-  author String
+  id      Int    @id @default(autoincrement())
+  title   String
+  author  String
   authors Json? // Structured authors: [{ name: string, role: "WRITER" | "TRANSLATOR" }]
 
   // Unique Global Identifiers
@@ -14,8 +14,8 @@ model Book {
   category   String
   categories String[] @default([])
   publisher  String?
-  pages     Int
-  type      BookType // BORROW_ONLY | SELL_ONLY | HYBRID
+  pages      Int
+  type       BookType // BORROW_ONLY | SELL_ONLY | HYBRID
 
   // Inventory & Pricing
   buyPrice    Float? // Admin purchase/cost price — used for profit calculation
@@ -26,26 +26,27 @@ model Book {
 
   coverImage  String?
   images      String[] @default([])
-  description String? @db.Text
-  isArchived  Boolean @default(false)
+  description String?  @db.Text
+  isArchived  Boolean  @default(false)
 
   // Relations
   addedById Int? // Admin or Shifter who registered the book in system
-  addedBy   User?   @relation("BooksAdded", fields: [addedById], references: [id], onDelete: SetNull)
+  addedBy   User? @relation("BooksAdded", fields: [addedById], references: [id], onDelete: SetNull)
 
   donatedById Int? // 
-  donatedBy   User?   @relation("BooksDonated", fields: [donatedById], references: [id], onDelete: SetNull)
+  donatedBy   User? @relation("BooksDonated", fields: [donatedById], references: [id], onDelete: SetNull)
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Virtual Relations
-  borrows       Borrow[]
-  purchases     Purchase[]
-  donations     Donation[] @relation("CatalogedFromDonation")
-  reviews BookReview[]
-  articles Article[]
+  borrows   Borrow[]
+  purchases Purchase[]
+  donations Donation[]   @relation("CatalogedFromDonation")
+  reviews   BookReview[]
+  articles  Article[]
+  event     Event[]
 
   @@index([type])
   @@index([category])

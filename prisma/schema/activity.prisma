@@ -1,0 +1,17 @@
+model Activity {
+  id          Int            @id @default(autoincrement())
+  org         Organization   @default(RUIL)
+  title       String // e.g., "ফজর ক্যাম্পেইন", "সুন্নাহ পাঠশালা", "সাপ্তাহিক পাঠচক্র"
+  slug        String         @unique
+  category    String? // Dynamic string category (e.g., "Dawah", "Campaign", "Academic")
+  description String?        @db.Text
+  bannerImage String?
+  status      ActivityStatus @default(ONGOING)
+
+  events Event[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("activities")
+}

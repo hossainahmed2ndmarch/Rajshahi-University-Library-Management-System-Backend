@@ -1,32 +1,31 @@
 // Model Article
 
 model Article {
- id         Int     @id @default(autoincrement())
- title      String
- slug       String  @unique
- content    String  @db.Text
- coverImage String? // Cloudinary URL
- category   String
+  id         Int     @id @default(autoincrement())
+  title      String
+  slug       String  @unique
+  content    String  @db.Text
+  coverImage String? // Cloudinary URL
+  category   String
 
- // Relation to Existing Library Member / User (Optional)
- authorUserId Int?
- authorUser   User? @relation("AuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  // Relation to Existing Library Member / User (Optional)
+  authorUserId Int?
+  authorUser   User? @relation("AuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
 
- authorName        String
- authorDesignation String?
+  authorName        String
+  authorDesignation String?
 
- // Link to existing Book/Deyalika for advertisement excerpts
- relatedBookId Int?
- relatedBook   Book? @relation(fields: [relatedBookId], references: [id], onDelete: SetNull)
+  // Link to existing Book/Deyalika for advertisement excerpts
+  relatedBookId Int?
+  relatedBook   Book? @relation(fields: [relatedBookId], references: [id], onDelete: SetNull)
 
- totalViews    Int      @default(0)
- totalReadTime Int      @default(0)
- isPublished   Boolean  @default(false)
- createdAt     DateTime @default(now())
- updatedAt     DateTime @updatedAt
+  totalViews    Int      @default(0)
+  totalReadTime Int      @default(0)
+  isPublished   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
- @@index([category])
- @@index([isPublished])
- @@map("articles")
+  @@index([category])
+  @@index([isPublished])
+  @@map("articles")
 }
-

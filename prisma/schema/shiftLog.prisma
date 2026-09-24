@@ -1,75 +1,74 @@
 // Shift-logs Model 
 
 model ShiftLog {
- id Int @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
- // Shifter Relation
- shifterId Int
- shifter   User @relation("UserShifts", fields: [shifterId], references: [id], onDelete: Cascade)
+  // Shifter Relation
+  shifterId Int
+  shifter   User @relation("UserShifts", fields: [shifterId], references: [id], onDelete: Cascade)
 
- // Timing
- startTime DateTime  @default(now())
- endTime   DateTime?
+  // Timing
+  startTime DateTime  @default(now())
+  endTime   DateTime?
 
- // Status
- status ShiftStatus @default(ACTIVE)
+  // Status
+  status ShiftStatus @default(ACTIVE)
 
- // Cash Accountability 
- openingCash   Float  @default(0.0)
- cashCollected Float  @default(0.0)
- closingCash   Float?
+  // Cash Accountability 
+  openingCash   Float  @default(0.0)
+  cashCollected Float  @default(0.0)
+  closingCash   Float?
 
- // Operational Logs
- tasksCompleted String? @db.Text
- handoverNotes  String? @db.Text
+  // Operational Logs
+  tasksCompleted String? @db.Text
+  handoverNotes  String? @db.Text
 
- // Shift slot details
- shiftSlotName String? // e.g. "আসর – মাগরিব"
+  // Shift slot details
+  shiftSlotName String? // e.g. "আসর – মাগরিব"
 
- // Remote action & Offline flags
- actionToken        String?
- isOfflineRecord    Boolean   @default(false)
- rescheduledTo      DateTime?
- cancellationReason String?   @db.Text
+  // Remote action & Offline flags
+  actionToken        String?
+  isOfflineRecord    Boolean   @default(false)
+  rescheduledTo      DateTime?
+  cancellationReason String?   @db.Text
 
- // Supervisor Verification
- verifiedById Int?
- verifiedBy   User? @relation("VerifiedShifts", fields: [verifiedById], references: [id], onDelete: SetNull)
+  // Supervisor Verification
+  verifiedById Int?
+  verifiedBy   User? @relation("VerifiedShifts", fields: [verifiedById], references: [id], onDelete: SetNull)
 
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
- @@index([shifterId])
- @@index([status])
- @@index([startTime])
- @@index([actionToken])
- @@map("shift_logs")
+  @@index([shifterId])
+  @@index([status])
+  @@index([startTime])
+  @@index([actionToken])
+  @@map("shift_logs")
 }
 
 // Fixed & Recurring Shifter Schedule (Duty Roster)
 model ShifterSchedule {
- id Int @id @default(autoincrement())
+  id Int @id @default(autoincrement())
 
- shifterId Int
- shifter   User @relation("UserSchedules", fields: [shifterId], references: [id], onDelete: Cascade)
+  shifterId Int
+  shifter   User @relation("UserSchedules", fields: [shifterId], references: [id], onDelete: Cascade)
 
- dayOfWeek Int    // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
- dayName   String // e.g. "শনিবার", "রবিবার"
- dayEn     String // e.g. "Saturday", "Sunday"
- slot      String // e.g. "asr_maghrib" | "maghrib_isha" | "custom"
- slotName  String // e.g. "আসর – মাগরিব", "মাগরিব – এশা"
- startTime String // e.g. "15:30" or "03:30 PM"
- endTime   String // e.g. "18:15" or "06:15 PM"
+  dayOfWeek Int // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
+  dayName   String // e.g. "শনিবার", "রবিবার"
+  dayEn     String // e.g. "Saturday", "Sunday"
+  slot      String // e.g. "asr_maghrib" | "maghrib_isha" | "custom"
+  slotName  String // e.g. "আসর – মাগরিব", "মাগরিব – এশা"
+  startTime String // e.g. "15:30" or "03:30 PM"
+  endTime   String // e.g. "18:15" or "06:15 PM"
 
- isActive Boolean @default(true)
- notes    String?
+  isActive Boolean @default(true)
+  notes    String?
 
- createdAt DateTime @default(now())
- updatedAt DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
- @@index([shifterId])
- @@index([dayOfWeek])
- @@index([isActive])
- @@map("shifter_schedules")
+  @@index([shifterId])
+  @@index([dayOfWeek])
+  @@index([isActive])
+  @@map("shifter_schedules")
 }
-

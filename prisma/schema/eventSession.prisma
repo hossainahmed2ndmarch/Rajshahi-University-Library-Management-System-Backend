@@ -1,0 +1,18 @@
+model EventSession {
+  id      Int   @id @default(autoincrement())
+  eventId Int
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  sessionDate DateTime @db.Date
+  chapter     String? // e.g., "অধ্যায় ৪: ঈমানের রুকনসমূহ"
+  summary     String?  @db.Text // Discussion takeaways and key notes
+  audioUrl    String? // Cloudinary URL for audio recordings
+
+  // Virtual relation pointer (does not exist as a column in PostgreSQL)
+  records EventMemberRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("event_sessions")
+}

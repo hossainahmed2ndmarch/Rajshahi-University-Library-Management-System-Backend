@@ -1,0 +1,27 @@
+model EventMemberRecord {
+  id      Int   @id @default(autoincrement())
+  eventId Int
+  event   Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  sessionId Int? // Optional link to a specific weekly session
+  session   EventSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // --- Attendance Fields ---
+  status      AttendanceStatus @default(PRESENT)
+  sessionDate DateTime?        @db.Date // Specific roll call date (YYYY-MM-DD)
+
+  // --- Feedback Fields ---
+  rating     Int? // 1-5 Rating score
+  comment    String? @db.Text // Discussion comment / book feedback
+  isApproved Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Single essential constraint to prevent double attendance logging for the same user on the same date
+  @@unique([eventId, userId, sessionDate])
+  @@map("event_member_records")
+}
