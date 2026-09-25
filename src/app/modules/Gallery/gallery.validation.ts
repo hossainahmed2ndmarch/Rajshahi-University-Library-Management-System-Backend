@@ -43,6 +43,7 @@ const setAssetValidationSchema = z.object({
     category: z.string().optional().default('ASSET'),
     mediaType: z.nativeEnum(MediaType).optional().default(MediaType.IMAGE),
     thumbnail: z.string().optional().nullable(),
+    activityId: z.number().int().positive().optional().nullable(),
   }),
 });
 

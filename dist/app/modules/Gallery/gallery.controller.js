@@ -136,8 +136,19 @@ const upsertAsset = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
         data: result,
     });
 }));
-const getCategories = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const categories = yield gallery_service_1.GalleryService.getCategoriesFromDB();
+const deleteAssetByKey = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const key = req.params.key;
+    const result = yield gallery_service_1.GalleryService.deleteAssetByKeyFromDB(key);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: `Site asset "${key}" deleted successfully!`,
+        data: result,
+    });
+}));
+const getCategories = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { org } = req.query;
+    const categories = yield gallery_service_1.GalleryService.getCategoriesFromDB(org);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -151,6 +162,7 @@ exports.GalleryController = {
     getGalleryItemById,
     updateGalleryItem,
     deleteGalleryItem,
+    deleteAssetByKey,
     togglePublish,
     toggleFeature,
     uploadMedia,

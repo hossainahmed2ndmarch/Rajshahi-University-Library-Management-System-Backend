@@ -154,8 +154,21 @@ const upsertAsset = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const getCategories = catchAsync(async (_req: Request, res: Response) => {
-  const categories = await GalleryService.getCategoriesFromDB();
+const deleteAssetByKey = catchAsync(async (req: Request, res: Response) => {
+  const key = req.params.key as string;
+  const result = await GalleryService.deleteAssetByKeyFromDB(key);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: `Site asset "${key}" deleted successfully!`,
+    data: result,
+  });
+});
+
+const getCategories = catchAsync(async (req: Request, res: Response) => {
+  const { org } = req.query;
+  const categories = await GalleryService.getCategoriesFromDB(org as string);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -171,6 +184,7 @@ export const GalleryController = {
   getGalleryItemById,
   updateGalleryItem,
   deleteGalleryItem,
+  deleteAssetByKey,
   togglePublish,
   toggleFeature,
   uploadMedia,

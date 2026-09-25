@@ -6,14 +6,13 @@ model GalleryItem {
   title       String?
   description String?      @db.Text
   mediaType   MediaType    @default(IMAGE)
-  url         String       // Image / Cloudinary / YouTube URL
-  thumbnail   String?      // Optional thumbnail / preview image
+  url         String     
+  thumbnail   String?      
 
-  // 🔑 Dynamic site assets (e.g., "ruil_logo", "hero_banner", "footer_logo", "navbar_logo")
+
   assetKey    String?      @unique 
-  category    String?      // e.g., "BANNER", "LOGO", "CAMPAIGN", "EVENT", "ARCHIVE", "STUDY_HALL", "GENERAL"
+  category    String?     
 
-  // 🔗 Connection to umbrella Activity (Optional)
   activityId  Int?
   activity    Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
 

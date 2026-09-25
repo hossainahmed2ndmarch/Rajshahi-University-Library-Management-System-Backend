@@ -78,7 +78,12 @@ const getAllGalleryItemsFromDB = async (query: Record<string, unknown>) => {
   }
 
   if (org && org !== 'ALL') {
-    galleryQuery.where({ org: org as Organization });
+    if (typeof org === 'string' && org.includes(',')) {
+      const orgList = org.split(',').map((o) => o.trim()) as Organization[];
+      galleryQuery.where({ org: { in: orgList } });
+    } else {
+      galleryQuery.where({ org: org as Organization });
+    }
   }
 
   if (mediaType && mediaType !== 'ALL') {
@@ -241,6 +246,15 @@ const getAllAssetsFromDB = async (org?: Organization) => {
   const assets = await prisma.galleryItem.findMany({
     where,
     orderBy: { createdAt: 'desc' },
+    include: {
+      activity: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+        },
+      },
+    },
   });
 
   // Return both array and a key-value dictionary for easy frontend asset resolution
@@ -268,6 +282,7 @@ const upsertAssetInDB = async (payload: TSetAssetPayload) => {
       category: payload.category || 'ASSET',
       mediaType: payload.mediaType || MediaType.IMAGE,
       thumbnail: payload.thumbnail,
+      activityId: payload.activityId !== undefined ? payload.activityId : undefined,
       isPublished: true,
     },
     create: {
@@ -279,17 +294,56 @@ const upsertAssetInDB = async (payload: TSetAssetPayload) => {
       category: payload.category || 'ASSET',
       mediaType: payload.mediaType || MediaType.IMAGE,
       thumbnail: payload.thumbnail,
+      activityId: payload.activityId || null,
       isPublished: true,
+    },
+    include: {
+      activity: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+        },
+      },
     },
   });
 };
 
-const getCategoriesFromDB = async () => {
+const deleteAssetByKeyFromDB = async (assetKey: string) => {
+  const asset = await prisma.galleryItem.findUnique({
+    where: { assetKey },
+  });
+
+  if (!asset) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      `Site asset "${assetKey}" not found in database!`,
+    );
+  }
+
+  return await prisma.galleryItem.delete({
+    where: { assetKey },
+  });
+};
+
+const getCategoriesFromDB = async (org?: string) => {
+  const where: Prisma.GalleryItemWhereInput = {
+    category: { not: null },
+    assetKey: null, // Filter out internal asset keys from general gallery categories
+    isPublished: true,
+  };
+
+  if (org && org !== 'ALL') {
+    if (org.includes(',')) {
+      const orgList = org.split(',').map((o) => o.trim()) as Organization[];
+      where.org = { in: orgList };
+    } else {
+      where.org = org as Organization;
+    }
+  }
+
   const records = await prisma.galleryItem.findMany({
-    where: {
-      category: { not: null },
-      assetKey: null, // Filter out internal asset keys from general gallery categories
-    },
+    where,
     select: { category: true },
     distinct: ['category'],
   });
@@ -302,6 +356,7 @@ export const GalleryService = {
   getGalleryItemByIdFromDB,
   updateGalleryItemInDB,
   deleteGalleryItemFromDB,
+  deleteAssetByKeyFromDB,
   togglePublishInDB,
   toggleFeatureInDB,
   getAssetByKeyFromDB,

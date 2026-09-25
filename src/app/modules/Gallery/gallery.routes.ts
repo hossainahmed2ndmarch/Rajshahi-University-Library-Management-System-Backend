@@ -37,6 +37,12 @@ router.put(
   GalleryController.upsertAsset,
 );
 
+router.delete(
+  '/asset/:key',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  GalleryController.deleteAssetByKey,
+);
+
 router.patch(
   '/:id/toggle-publish',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),

@@ -43,6 +43,7 @@ const setAssetValidationSchema = zod_1.z.object({
         category: zod_1.z.string().optional().default('ASSET'),
         mediaType: zod_1.z.nativeEnum(client_1.MediaType).optional().default(client_1.MediaType.IMAGE),
         thumbnail: zod_1.z.string().optional().nullable(),
+        activityId: zod_1.z.number().int().positive().optional().nullable(),
     }),
 });
 exports.GalleryValidation = {

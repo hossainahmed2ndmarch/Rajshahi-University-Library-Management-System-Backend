@@ -25,4 +25,5 @@ export type TSetAssetPayload = {
   category?: string;
   mediaType?: MediaType;
   thumbnail?: string;
+  activityId?: number | null;
 };
