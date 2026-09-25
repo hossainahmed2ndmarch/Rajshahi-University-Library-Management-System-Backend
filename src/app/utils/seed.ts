@@ -1,4 +1,4 @@
-import { PrismaClient, UserRole, UserStatus } from '@prisma/client';
+import { PrismaClient, UserRole, UserStatus, Organization, MediaType } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 import 'dotenv/config';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -417,6 +417,160 @@ async function seedArticles(adminId: number): Promise<void> {
   console.log(`✅ [SEED SUCCESS] Successfully seeded ${INITIAL_ARTICLES.length} publications into the catalog.`);
 }
 
+async function seedGalleryAndAssets(): Promise<void> {
+  console.log('🖼️ [SEED] Synchronizing site assets & gallery archives...');
+
+  const initialAssets = [
+    {
+      assetKey: 'ruil_logo',
+      title: 'RU Islamic Library Official Logo',
+      category: 'LOGO',
+      org: Organization.RUIL,
+      url: 'https://res.cloudinary.com/ruil/image/upload/v1/ruil-library/assets/logo.png',
+      description: 'Primary logo for RU Islamic Library brand header and print collateral.',
+    },
+    {
+      assetKey: 'rudc_logo',
+      title: 'RUDC Official Logo',
+      category: 'LOGO',
+      org: Organization.RUDC,
+      url: 'https://res.cloudinary.com/ruil/image/upload/v1/ruil-library/assets/rudc_logo.png',
+      description: 'Official emblem of Rajshahi University Dawah Circle.',
+    },
+    {
+      assetKey: 'hero_banner',
+      title: 'Homepage Main Hero Banner',
+      category: 'BANNER',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1541829070764-84a7d30dd3f3?q=80&w=1600&auto=format&fit=crop',
+      description: 'Hero section background showcase for the library home portal.',
+    },
+    {
+      assetKey: 'gallery_header_banner',
+      title: 'Gallery Page Header Banner',
+      category: 'BANNER',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1507842229451-7f01be7fe82a?q=80&w=1600&auto=format&fit=crop',
+      description: 'Aesthetic visual backdrop for the Gallery & Archives page.',
+    },
+    {
+      assetKey: 'about_banner',
+      title: 'About Section Spotlight',
+      category: 'BANNER',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=1600&auto=format&fit=crop',
+      description: 'Showcase image for the About Us overview and mission section.',
+    },
+  ];
+
+  for (const asset of initialAssets) {
+    await prisma.galleryItem.upsert({
+      where: { assetKey: asset.assetKey },
+      update: {
+        title: asset.title,
+        url: asset.url,
+        category: asset.category,
+        org: asset.org,
+        description: asset.description,
+        isPublished: true,
+      },
+      create: {
+        assetKey: asset.assetKey,
+        title: asset.title,
+        url: asset.url,
+        category: asset.category,
+        org: asset.org,
+        description: asset.description,
+        isPublished: true,
+      },
+    });
+  }
+
+  const initialGallery = [
+    {
+      title: 'Central Islamic Reading Hall',
+      category: 'Study Halls',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1521587760476-6c12a4b040da?q=80&w=1200&auto=format&fit=crop',
+      description: 'Students engaged in individual research, thesis review, and Quranic study in the silent reading room.',
+      featured: true,
+    },
+    {
+      title: 'Annual Rare Manuscript Exhibition',
+      category: 'Archives',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1461360370896-922624d12aa1?q=80&w=1200&auto=format&fit=crop',
+      description: 'Display of early 20th-century Bengali and Arabic translations of classical Fiqh and Hadith manuscripts.',
+      featured: true,
+    },
+    {
+      title: 'Shifter Desk & Barcode Circulation Station',
+      category: 'Operations',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1568667256549-094345857637?q=80&w=1200&auto=format&fit=crop',
+      description: 'Live check-in and automated borrowing counter at Central Library Bhaban managed by student shifters.',
+      featured: false,
+    },
+    {
+      title: 'Classical Hadith Commentary Stacks',
+      category: 'Archives',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?q=80&w=1200&auto=format&fit=crop',
+      description: 'Complete 10-volume Tafsir and Kutub al-Sittah shelves organized by Dewey Decimal classification.',
+      featured: true,
+    },
+    {
+      title: 'Book Donation Sorting & Repair Workshop',
+      category: 'Events',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1497633762265-9d179a990aa6?q=80&w=1200&auto=format&fit=crop',
+      description: 'Volunteers and student shifters indexing incoming community-donated Islamic literature.',
+      featured: false,
+    },
+    {
+      title: 'RUDC Dawah Training & Discussion Circle',
+      category: 'Events',
+      org: Organization.RUDC,
+      url: 'https://images.unsplash.com/photo-1577495508048-b635879837f1?q=80&w=1200&auto=format&fit=crop',
+      description: 'Weekly interactive dawah circle for university youths and undergraduate members.',
+      featured: true,
+    },
+    {
+      title: 'Faculty Research & Seminar Corner',
+      category: 'Study Halls',
+      org: Organization.RUIL,
+      url: 'https://images.unsplash.com/photo-1532012164546-f432f2e3777f?q=80&w=1200&auto=format&fit=crop',
+      description: 'Dedicated discussion zone for post-graduate scholars and visiting Islamic researchers.',
+      featured: false,
+    },
+    {
+      title: 'Islamic Architecture & Calligraphy Showcase',
+      category: 'Exhibitions',
+      org: Organization.BOTH,
+      url: 'https://images.unsplash.com/photo-1584281729290-349f854b8344?q=80&w=1200&auto=format&fit=crop',
+      description: 'Exhibition of classical Thuluth and Naskh calligraphy pieces along with historical architectural plans.',
+      featured: true,
+    },
+  ];
+
+  for (const item of initialGallery) {
+    const existing = await prisma.galleryItem.findFirst({
+      where: { title: item.title },
+    });
+    if (!existing) {
+      await prisma.galleryItem.create({
+        data: {
+          ...item,
+          isPublished: true,
+          mediaType: MediaType.IMAGE,
+        },
+      });
+    }
+  }
+
+  console.log(`✅ [SEED SUCCESS] Successfully synchronized site assets and gallery items.`);
+}
+
 async function main() {
   try {
     await seedSuperAdmin();
@@ -428,6 +582,7 @@ async function main() {
     if (admin) {
       await seedBooks(admin.id);
       await seedArticles(admin.id);
+      await seedGalleryAndAssets();
     }
   } catch (error) {
     console.error('❌ [SEED ERROR] Critical failure during seeding:', error);

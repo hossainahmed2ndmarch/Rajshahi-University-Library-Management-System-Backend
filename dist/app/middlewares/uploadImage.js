@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cloudinary = exports.uploadSingleImage = exports.uploadSessionAudio = exports.uploadEventBanner = exports.uploadActivityBanner = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
+exports.cloudinary = exports.uploadSingleImage = exports.uploadSessionAudio = exports.uploadGalleryMedia = exports.uploadEventBanner = exports.uploadActivityBanner = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
 const multer_1 = __importDefault(require("multer"));
 const cloudinary_1 = __importDefault(require("cloudinary"));
 const multer_storage_cloudinary_1 = __importDefault(require("multer-storage-cloudinary"));
@@ -112,6 +112,22 @@ exports.uploadEventBanner = (0, multer_1.default)({
     fileFilter: imageFileFilter,
     limits: { fileSize: 10 * 1024 * 1024 },
 }).single('banner');
+// ── Cloudinary storage: Gallery & Asset Media ──────────────────────────────
+const galleryMediaStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/gallery',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'svg'],
+        transformation: [
+            { quality: 'auto', fetch_format: 'auto' },
+        ],
+    },
+});
+exports.uploadGalleryMedia = (0, multer_1.default)({
+    storage: galleryMediaStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 15 * 1024 * 1024 },
+}).single('file');
 // ── Audio filter & Cloudinary storage: Session Audio ─────────────────────────
 const audioFileFilter = (_req, file, cb) => {
     const allowedAudio = [

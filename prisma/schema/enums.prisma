@@ -105,3 +105,8 @@ enum AttendanceStatus {
   INTERESTED
   COMPLETED
 }
+
+enum MediaType {
+  IMAGE
+  VIDEO
+}

@@ -17,6 +17,7 @@ const activity_routes_1 = require("../modules/Activity/activity.routes");
 const event_routes_1 = require("../modules/Event/event.routes");
 const eventSession_routes_1 = require("../modules/EventSession/eventSession.routes");
 const eventMemberRecord_routes_1 = require("../modules/EventMemberRecord/eventMemberRecord.routes");
+const gallery_routes_1 = require("../modules/Gallery/gallery.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -82,6 +83,10 @@ const moduleRoutes = [
     {
         path: '/event-member-records',
         route: eventMemberRecord_routes_1.EventMemberRecordRoutes,
+    },
+    {
+        path: '/gallery',
+        route: gallery_routes_1.GalleryRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

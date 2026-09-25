@@ -1,0 +1,26 @@
+// Model Gallery 
+model GalleryItem {
+  id          Int          @id @default(autoincrement())
+  org         Organization @default(RUIL)
+  
+  title       String?
+  description String?      @db.Text
+  mediaType   MediaType    @default(IMAGE)
+  url         String       // Image / Cloudinary / YouTube URL
+  thumbnail   String?      // Optional thumbnail / preview image
+
+  // 🔑 Dynamic site assets (e.g., "ruil_logo", "hero_banner", "footer_logo", "navbar_logo")
+  assetKey    String?      @unique 
+  category    String?      // e.g., "BANNER", "LOGO", "CAMPAIGN", "EVENT", "ARCHIVE", "STUDY_HALL", "GENERAL"
+
+  // 🔗 Connection to umbrella Activity (Optional)
+  activityId  Int?
+  activity    Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
+
+  isPublished Boolean      @default(true)
+  featured    Boolean      @default(false)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @default(now()) @updatedAt
+
+  @@map("gallery_items")
+}

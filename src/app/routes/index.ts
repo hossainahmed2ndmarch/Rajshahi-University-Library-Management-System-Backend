@@ -15,6 +15,7 @@ import { ActivityRoutes } from '../modules/Activity/activity.routes';
 import { EventRoutes } from '../modules/Event/event.routes';
 import { EventSessionRoutes } from '../modules/EventSession/eventSession.routes';
 import { EventMemberRecordRoutes } from '../modules/EventMemberRecord/eventMemberRecord.routes';
+import { GalleryRoutes } from '../modules/Gallery/gallery.routes';
 
 const router = Router();
 
@@ -87,6 +88,10 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/event-member-records',
     route: EventMemberRecordRoutes,
+  },
+  {
+    path: '/gallery',
+    route: GalleryRoutes,
   },
 ];
 

@@ -128,6 +128,25 @@ export const uploadEventBanner = multer({
   limits: { fileSize: 10 * 1024 * 1024 },
 }).single('banner');
 
+// ── Cloudinary storage: Gallery & Asset Media ──────────────────────────────
+const galleryMediaStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/gallery',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'gif', 'avif', 'svg'],
+    transformation: [
+      { quality: 'auto', fetch_format: 'auto' },
+    ],
+  },
+});
+
+export const uploadGalleryMedia = multer({
+  storage: galleryMediaStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 15 * 1024 * 1024 },
+}).single('file');
+
+
 // ── Audio filter & Cloudinary storage: Session Audio ─────────────────────────
 const audioFileFilter = (
   _req: any,
