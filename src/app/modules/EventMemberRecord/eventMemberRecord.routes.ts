@@ -7,8 +7,15 @@ import { EventMemberRecordValidation } from './eventMemberRecord.validation';
 
 const router = Router();
 
-// ── Public Routes ──────────────────────────────────────────────────────────────
+// ── Public & Guest Routes ──────────────────────────────────────────────────
 router.get('/stats/:eventId', optionalAuth, EventMemberRecordController.getEventStats);
+
+router.post(
+  '/campaign',
+  optionalAuth,
+  validateRequest(EventMemberRecordValidation.campaignSubmissionValidationSchema),
+  EventMemberRecordController.submitCampaign,
+);
 
 // ── Authenticated User Routes ─────────────────────────────────────────────────
 router.get('/my-records', auth(), EventMemberRecordController.getMyRecords);
@@ -46,6 +53,13 @@ router.patch(
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
   validateRequest(EventMemberRecordValidation.approveFeedbackValidationSchema),
   EventMemberRecordController.approveFeedback,
+);
+
+router.post(
+  '/publish-article/:id',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  validateRequest(EventMemberRecordValidation.publishRecordAsArticleValidationSchema),
+  EventMemberRecordController.publishRecordAsArticle,
 );
 
 export const EventMemberRecordRoutes = router;

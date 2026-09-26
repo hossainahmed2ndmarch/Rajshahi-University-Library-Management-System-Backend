@@ -36,9 +36,29 @@ const approveFeedbackValidationSchema = zod_1.z.object({
         isApproved: zod_1.z.boolean(),
     }),
 });
+const campaignSubmissionValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        eventId: zod_1.z.number().int().positive('eventId is required'),
+        sessionId: zod_1.z.number().int().positive().nullable().optional(),
+        sessionDate: zod_1.z.string().nullable().optional(),
+        rating: zod_1.z.number().int().min(1).max(5).optional(),
+        comment: zod_1.z.string().optional(),
+        submissionData: zod_1.z.record(zod_1.z.string(), zod_1.z.any()),
+    }),
+});
+const publishRecordAsArticleValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        title: zod_1.z.string().optional(),
+        authorDesignation: zod_1.z.string().optional(),
+        category: zod_1.z.string().optional(),
+        coverImage: zod_1.z.string().url().nullable().optional(),
+    }),
+});
 exports.EventMemberRecordValidation = {
     bulkAttendanceValidationSchema,
     submitFeedbackValidationSchema,
     selfAttendanceValidationSchema,
     approveFeedbackValidationSchema,
+    campaignSubmissionValidationSchema,
+    publishRecordAsArticleValidationSchema,
 };

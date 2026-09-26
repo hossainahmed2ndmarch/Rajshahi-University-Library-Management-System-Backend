@@ -40,7 +40,7 @@ const generateSlug = (title) => {
     return `${base}-${Date.now().toString(36)}`;
 };
 const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
+    var _a, _b, _c;
     const slug = generateSlug(payload.title);
     const eventData = {
         title: payload.title,
@@ -57,6 +57,9 @@ const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
         metadata: (_a = payload.metadata) !== null && _a !== void 0 ? _a : undefined,
         isActive: (_b = payload.isActive) !== null && _b !== void 0 ? _b : true,
         activity: payload.activityId ? { connect: { id: payload.activityId } } : undefined,
+        books: ((_c = payload.bookIds) === null || _c === void 0 ? void 0 : _c.length)
+            ? { connect: payload.bookIds.map((id) => ({ id })) }
+            : undefined,
     };
     return yield db_1.default.event.create({
         data: eventData,
@@ -66,6 +69,14 @@ const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
                     id: true,
                     title: true,
                     slug: true,
+                },
+            },
+            books: {
+                select: {
+                    id: true,
+                    title: true,
+                    author: true,
+                    coverImage: true,
                 },
             },
         },
@@ -102,6 +113,14 @@ const getAllEventsFromDB = (query) => __awaiter(void 0, void 0, void 0, function
                 slug: true,
             },
         },
+        books: {
+            select: {
+                id: true,
+                title: true,
+                author: true,
+                coverImage: true,
+            },
+        },
         _count: {
             select: {
                 sessions: true,
@@ -127,6 +146,14 @@ const getEventByIdOrSlugFromDB = (idOrSlug) => __awaiter(void 0, void 0, void 0,
                     status: true,
                 },
             },
+            books: {
+                select: {
+                    id: true,
+                    title: true,
+                    author: true,
+                    coverImage: true,
+                },
+            },
             sessions: {
                 orderBy: { sessionDate: 'asc' },
                 include: {
@@ -142,6 +169,7 @@ const getEventByIdOrSlugFromDB = (idOrSlug) => __awaiter(void 0, void 0, void 0,
                     id: true,
                     rating: true,
                     comment: true,
+                    submissionData: true,
                     status: true,
                     sessionDate: true,
                     createdAt: true,
@@ -210,6 +238,11 @@ const updateEventInDB = (id, payload) => __awaiter(void 0, void 0, void 0, funct
             updateData.activity = { connect: { id: payload.activityId } };
         }
     }
+    if (payload.bookIds !== undefined) {
+        updateData.books = {
+            set: payload.bookIds.map((id) => ({ id })),
+        };
+    }
     return yield db_1.default.event.update({
         where: { id },
         data: updateData,
@@ -219,6 +252,14 @@ const updateEventInDB = (id, payload) => __awaiter(void 0, void 0, void 0, funct
                     id: true,
                     title: true,
                     slug: true,
+                },
+            },
+            books: {
+                select: {
+                    id: true,
+                    title: true,
+                    author: true,
+                    coverImage: true,
                 },
             },
         },

@@ -44,8 +44,9 @@ const validateRequest_1 = __importDefault(require("../../middlewares/validateReq
 const eventMemberRecord_controller_1 = require("./eventMemberRecord.controller");
 const eventMemberRecord_validation_1 = require("./eventMemberRecord.validation");
 const router = (0, express_1.Router)();
-// ── Public Routes ──────────────────────────────────────────────────────────────
+// ── Public & Guest Routes ──────────────────────────────────────────────────
 router.get('/stats/:eventId', auth_1.optionalAuth, eventMemberRecord_controller_1.EventMemberRecordController.getEventStats);
+router.post('/campaign', auth_1.optionalAuth, (0, validateRequest_1.default)(eventMemberRecord_validation_1.EventMemberRecordValidation.campaignSubmissionValidationSchema), eventMemberRecord_controller_1.EventMemberRecordController.submitCampaign);
 // ── Authenticated User Routes ─────────────────────────────────────────────────
 router.get('/my-records', (0, auth_1.default)(), eventMemberRecord_controller_1.EventMemberRecordController.getMyRecords);
 router.post('/self-attendance', (0, auth_1.default)(), (0, validateRequest_1.default)(eventMemberRecord_validation_1.EventMemberRecordValidation.selfAttendanceValidationSchema), eventMemberRecord_controller_1.EventMemberRecordController.selfAttendance);
@@ -54,4 +55,5 @@ router.post('/feedback', (0, auth_1.default)(), (0, validateRequest_1.default)(e
 router.get('/event/:eventId', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), eventMemberRecord_controller_1.EventMemberRecordController.getRecordsByEvent);
 router.post('/bulk-attendance', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(eventMemberRecord_validation_1.EventMemberRecordValidation.bulkAttendanceValidationSchema), eventMemberRecord_controller_1.EventMemberRecordController.bulkMarkAttendance);
 router.patch('/approve/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(eventMemberRecord_validation_1.EventMemberRecordValidation.approveFeedbackValidationSchema), eventMemberRecord_controller_1.EventMemberRecordController.approveFeedback);
+router.post('/publish-article/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(eventMemberRecord_validation_1.EventMemberRecordValidation.publishRecordAsArticleValidationSchema), eventMemberRecord_controller_1.EventMemberRecordController.publishRecordAsArticle);
 exports.EventMemberRecordRoutes = router;

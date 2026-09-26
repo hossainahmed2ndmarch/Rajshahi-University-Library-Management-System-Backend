@@ -12,6 +12,7 @@ export interface TCreateEvent {
   startDate?: string | Date;
   endDate?: string | Date;
   currentChapter?: string;
+  bookIds?: number[];
   metadata?: Prisma.InputJsonValue;
   isActive?: boolean;
 }
@@ -28,6 +29,7 @@ export interface TUpdateEvent {
   startDate?: string | Date | null;
   endDate?: string | Date | null;
   currentChapter?: string;
+  bookIds?: number[];
   metadata?: Prisma.InputJsonValue;
   isActive?: boolean;
 }

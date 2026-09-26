@@ -1,4 +1,4 @@
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, Prisma } from '@prisma/client';
 
 export interface TBulkAttendanceItem {
   eventId: number;
@@ -21,4 +21,13 @@ export interface TSelfAttendance {
   sessionId?: number | null;
   sessionDate?: string | Date | null;
   status?: AttendanceStatus;
+}
+
+export interface TCampaignSubmission {
+  eventId: number;
+  sessionId?: number | null;
+  sessionDate?: string | Date | null;
+  rating?: number;
+  comment?: string;
+  submissionData: Prisma.InputJsonValue; // Dynamic campaign form fields (name, phone, masjid, khutba topic, etc.)
 }

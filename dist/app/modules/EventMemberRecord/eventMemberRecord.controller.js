@@ -89,9 +89,32 @@ const getEventStats = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         data: result,
     });
 }));
+const submitCampaign = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const userId = req.user ? Number(req.user.userId) : null;
+    const result = yield eventMemberRecord_service_1.EventMemberRecordService.submitCampaignIntoDB(req.body, userId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'ক্যাম্পেইনে অংশগ্রহণের জন্য ধন্যবাদ! আপনার লেখা পর্যালোচনার জন্য জমা হয়েছে।',
+        data: result,
+    });
+}));
+const publishRecordAsArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const requestingUserId = Number(req.user.userId);
+    const result = yield eventMemberRecord_service_1.EventMemberRecordService.publishRecordAsArticleInDB(Number(id), requestingUserId, req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'লেখাটি সফলভাবে আর্টিকেল হিসেবে প্রকাশ করা হয়েছে!',
+        data: result,
+    });
+}));
 exports.EventMemberRecordController = {
     bulkMarkAttendance,
     submitFeedback,
+    submitCampaign,
+    publishRecordAsArticle,
     selfAttendance,
     approveFeedback,
     getRecordsByEvent,

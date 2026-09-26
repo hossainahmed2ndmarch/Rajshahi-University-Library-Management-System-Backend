@@ -34,6 +34,9 @@ const createEventIntoDB = async (payload: TCreateEvent) => {
     metadata: payload.metadata ?? undefined,
     isActive: payload.isActive ?? true,
     activity: payload.activityId ? { connect: { id: payload.activityId } } : undefined,
+    books: payload.bookIds?.length
+      ? { connect: payload.bookIds.map((id) => ({ id })) }
+      : undefined,
   };
 
   return await prisma.event.create({
@@ -44,6 +47,14 @@ const createEventIntoDB = async (payload: TCreateEvent) => {
           id: true,
           title: true,
           slug: true,
+        },
+      },
+      books: {
+        select: {
+          id: true,
+          title: true,
+          author: true,
+          coverImage: true,
         },
       },
     },
@@ -92,6 +103,14 @@ const getAllEventsFromDB = async (query: Record<string, unknown>) => {
         slug: true,
       },
     },
+    books: {
+      select: {
+        id: true,
+        title: true,
+        author: true,
+        coverImage: true,
+      },
+    },
     _count: {
       select: {
         sessions: true,
@@ -120,6 +139,14 @@ const getEventByIdOrSlugFromDB = async (idOrSlug: string) => {
           status: true,
         },
       },
+      books: {
+        select: {
+          id: true,
+          title: true,
+          author: true,
+          coverImage: true,
+        },
+      },
       sessions: {
         orderBy: { sessionDate: 'asc' },
         include: {
@@ -135,6 +162,7 @@ const getEventByIdOrSlugFromDB = async (idOrSlug: string) => {
           id: true,
           rating: true,
           comment: true,
+          submissionData: true,
           status: true,
           sessionDate: true,
           createdAt: true,
@@ -200,6 +228,12 @@ const updateEventInDB = async (id: number, payload: TUpdateEvent) => {
     }
   }
 
+  if (payload.bookIds !== undefined) {
+    updateData.books = {
+      set: payload.bookIds.map((id) => ({ id })),
+    };
+  }
+
   return await prisma.event.update({
     where: { id },
     data: updateData,
@@ -209,6 +243,14 @@ const updateEventInDB = async (id: number, payload: TUpdateEvent) => {
           id: true,
           title: true,
           slug: true,
+        },
+      },
+      books: {
+        select: {
+          id: true,
+          title: true,
+          author: true,
+          coverImage: true,
         },
       },
     },

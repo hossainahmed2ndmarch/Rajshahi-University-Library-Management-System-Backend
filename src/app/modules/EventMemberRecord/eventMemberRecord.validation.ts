@@ -40,9 +40,31 @@ const approveFeedbackValidationSchema = z.object({
   }),
 });
 
+const campaignSubmissionValidationSchema = z.object({
+  body: z.object({
+    eventId: z.number().int().positive('eventId is required'),
+    sessionId: z.number().int().positive().nullable().optional(),
+    sessionDate: z.string().nullable().optional(),
+    rating: z.number().int().min(1).max(5).optional(),
+    comment: z.string().optional(),
+    submissionData: z.record(z.string(), z.any()),
+  }),
+});
+
+const publishRecordAsArticleValidationSchema = z.object({
+  body: z.object({
+    title: z.string().optional(),
+    authorDesignation: z.string().optional(),
+    category: z.string().optional(),
+    coverImage: z.string().url().nullable().optional(),
+  }),
+});
+
 export const EventMemberRecordValidation = {
   bulkAttendanceValidationSchema,
   submitFeedbackValidationSchema,
   selfAttendanceValidationSchema,
   approveFeedbackValidationSchema,
+  campaignSubmissionValidationSchema,
+  publishRecordAsArticleValidationSchema,
 };

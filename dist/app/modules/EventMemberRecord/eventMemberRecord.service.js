@@ -188,7 +188,10 @@ const getRecordsByEventFromDB = (eventId, query) => __awaiter(void 0, void 0, vo
         where.isApproved = query.isApproved === 'true' || query.isApproved === true;
     }
     if (query.hasFeedback === 'true') {
-        where.comment = { not: null };
+        where.OR = [
+            { comment: { not: null } },
+            { submissionData: { not: client_1.Prisma.JsonNull } },
+        ];
     }
     const [total, records] = yield Promise.all([
         db_1.default.eventMemberRecord.count({ where }),
@@ -308,11 +311,148 @@ const getEventAttendanceStatsFromDB = (eventId) => __awaiter(void 0, void 0, voi
         pendingFeedbackCount: records.filter((r) => r.comment && !r.isApproved).length,
     };
 });
+const submitCampaignIntoDB = (payload, userId) => __awaiter(void 0, void 0, void 0, function* () {
+    const sessionDate = normalizeDate(payload.sessionDate);
+    // Verify event exists
+    const event = yield db_1.default.event.findUnique({
+        where: { id: payload.eventId },
+        select: { id: true, metadata: true },
+    });
+    if (!event) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Event not found!');
+    }
+    // For authenticated users: try to find existing record and update it
+    if (userId) {
+        const existing = yield db_1.default.eventMemberRecord.findFirst({
+            where: Object.assign({ eventId: payload.eventId, userId }, (sessionDate ? { sessionDate } : {})),
+            orderBy: { createdAt: 'desc' },
+        });
+        if (existing) {
+            return yield db_1.default.eventMemberRecord.update({
+                where: { id: existing.id },
+                data: {
+                    submissionData: payload.submissionData,
+                    rating: payload.rating !== undefined ? payload.rating : existing.rating,
+                    comment: payload.comment || existing.comment,
+                    isApproved: false, // Requires admin review
+                },
+                include: {
+                    event: { select: { id: true, title: true } },
+                    user: { select: { id: true, name: true, email: true } },
+                },
+            });
+        }
+        // Create a new record with INTERESTED status for authenticated user
+        return yield db_1.default.eventMemberRecord.create({
+            data: {
+                eventId: payload.eventId,
+                userId,
+                sessionId: payload.sessionId || null,
+                sessionDate,
+                status: client_1.AttendanceStatus.INTERESTED,
+                submissionData: payload.submissionData,
+                rating: payload.rating,
+                comment: payload.comment,
+                isApproved: false,
+            },
+            include: {
+                event: { select: { id: true, title: true } },
+                user: { select: { id: true, name: true, email: true } },
+            },
+        });
+    }
+    // For guests (non-users): always create a new record without userId
+    return yield db_1.default.eventMemberRecord.create({
+        data: {
+            eventId: payload.eventId,
+            sessionId: payload.sessionId || null,
+            sessionDate,
+            status: client_1.AttendanceStatus.INTERESTED,
+            submissionData: payload.submissionData,
+            rating: payload.rating,
+            comment: payload.comment,
+            isApproved: false,
+        },
+        include: {
+            event: { select: { id: true, title: true } },
+        },
+    });
+});
+const publishRecordAsArticleInDB = (recordId, requestingUserId, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    const record = yield db_1.default.eventMemberRecord.findUnique({
+        where: { id: recordId },
+        include: {
+            event: { select: { id: true, title: true, bannerImage: true } },
+            user: { select: { id: true, name: true, email: true, phone: true } },
+        },
+    });
+    if (!record) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member record not found!');
+    }
+    const subData = record.submissionData || {};
+    const authorName = ((_a = record.user) === null || _a === void 0 ? void 0 : _a.name) ||
+        subData.name ||
+        subData.authorName ||
+        'শুভাকাঙ্ক্ষী লেখক';
+    const authorDesignation = (payload === null || payload === void 0 ? void 0 : payload.authorDesignation) ||
+        subData.institution ||
+        subData.subject ||
+        (record.user ? 'RUIL সদস্য' : 'ক্যাম্পেইন অংশগ্রহণকারী');
+    const title = (payload === null || payload === void 0 ? void 0 : payload.title) ||
+        subData.khutbaTopic ||
+        subData.topic ||
+        subData.title ||
+        `${record.event.title} - শিক্ষণীয় প্রবন্ধ`;
+    let content = subData.khutbaLesson ||
+        subData.story ||
+        subData.content ||
+        subData.takeaways ||
+        record.comment ||
+        '';
+    if (!content) {
+        content = `${authorName} এর অনুভূতি ও শিক্ষণীয় আলোচনা।`;
+    }
+    const baseSlug = title
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s\u0980-\u09FF-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    const uniqueSlug = `${baseSlug || 'campaign-article'}-${Date.now().toString(36)}`;
+    const article = yield db_1.default.article.create({
+        data: {
+            title,
+            slug: uniqueSlug,
+            content,
+            coverImage: (payload === null || payload === void 0 ? void 0 : payload.coverImage) || record.event.bannerImage || null,
+            category: (payload === null || payload === void 0 ? void 0 : payload.category) || 'ক্যাম্পেইন',
+            authorUserId: record.userId || null,
+            authorName,
+            authorDesignation,
+            isPublished: true,
+        },
+    });
+    const updatedRecord = yield db_1.default.eventMemberRecord.update({
+        where: { id: recordId },
+        data: { isApproved: true },
+        include: {
+            user: { select: { id: true, name: true, email: true } },
+            event: { select: { id: true, title: true } },
+        },
+    });
+    return {
+        article,
+        record: updatedRecord,
+    };
+});
 exports.EventMemberRecordService = {
     bulkMarkAttendanceIntoDB,
     submitFeedbackIntoDB,
+    submitCampaignIntoDB,
     recordSelfAttendanceIntoDB,
     approveFeedbackInDB,
+    publishRecordAsArticleInDB,
     getRecordsByEventFromDB,
     getMyRecordsFromDB,
     getEventAttendanceStatsFromDB,

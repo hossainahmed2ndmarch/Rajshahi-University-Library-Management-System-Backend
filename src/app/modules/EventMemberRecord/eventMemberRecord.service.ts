@@ -1,11 +1,12 @@
 import httpStatus from 'http-status';
-import { AttendanceStatus } from '@prisma/client';
+import { AttendanceStatus, Prisma } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import {
   TBulkAttendanceItem,
   TSubmitFeedback,
   TSelfAttendance,
+  TCampaignSubmission,
 } from './eventMemberRecord.interface';
 
 const normalizeDate = (dateVal?: string | Date | null): Date | null => {
@@ -216,7 +217,10 @@ const getRecordsByEventFromDB = async (eventId: number, query: Record<string, un
   }
 
   if (query.hasFeedback === 'true') {
-    where.comment = { not: null };
+    where.OR = [
+      { comment: { not: null } },
+      { submissionData: { not: Prisma.JsonNull } },
+    ];
   }
 
   const [total, records] = await Promise.all([
@@ -342,11 +346,181 @@ const getEventAttendanceStatsFromDB = async (eventId: number) => {
   };
 };
 
+const submitCampaignIntoDB = async (
+  payload: TCampaignSubmission,
+  userId?: number | null,
+) => {
+  const sessionDate = normalizeDate(payload.sessionDate);
+
+  // Verify event exists
+  const event = await prisma.event.findUnique({
+    where: { id: payload.eventId },
+    select: { id: true, metadata: true },
+  });
+
+  if (!event) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Event not found!');
+  }
+
+  // For authenticated users: try to find existing record and update it
+  if (userId) {
+    const existing = await prisma.eventMemberRecord.findFirst({
+      where: {
+        eventId: payload.eventId,
+        userId,
+        ...(sessionDate ? { sessionDate } : {}),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing) {
+      return await prisma.eventMemberRecord.update({
+        where: { id: existing.id },
+        data: {
+          submissionData: payload.submissionData,
+          rating: payload.rating !== undefined ? payload.rating : existing.rating,
+          comment: payload.comment || existing.comment,
+          isApproved: false, // Requires admin review
+        },
+        include: {
+          event: { select: { id: true, title: true } },
+          user: { select: { id: true, name: true, email: true } },
+        },
+      });
+    }
+
+    // Create a new record with INTERESTED status for authenticated user
+    return await prisma.eventMemberRecord.create({
+      data: {
+        eventId: payload.eventId,
+        userId,
+        sessionId: payload.sessionId || null,
+        sessionDate,
+        status: AttendanceStatus.INTERESTED,
+        submissionData: payload.submissionData,
+        rating: payload.rating,
+        comment: payload.comment,
+        isApproved: false,
+      },
+      include: {
+        event: { select: { id: true, title: true } },
+        user: { select: { id: true, name: true, email: true } },
+      },
+    });
+  }
+
+  // For guests (non-users): always create a new record without userId
+  return await prisma.eventMemberRecord.create({
+    data: {
+      eventId: payload.eventId,
+      sessionId: payload.sessionId || null,
+      sessionDate,
+      status: AttendanceStatus.INTERESTED,
+      submissionData: payload.submissionData,
+      rating: payload.rating,
+      comment: payload.comment,
+      isApproved: false,
+    },
+    include: {
+      event: { select: { id: true, title: true } },
+    },
+  });
+};
+
+const publishRecordAsArticleInDB = async (
+  recordId: number,
+  requestingUserId: number,
+  payload?: { title?: string; authorDesignation?: string; category?: string; coverImage?: string },
+) => {
+  const record = await prisma.eventMemberRecord.findUnique({
+    where: { id: recordId },
+    include: {
+      event: { select: { id: true, title: true, bannerImage: true } },
+      user: { select: { id: true, name: true, email: true, phone: true } },
+    },
+  });
+
+  if (!record) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Member record not found!');
+  }
+
+  const subData = (record.submissionData as Record<string, any>) || {};
+
+  const authorName =
+    record.user?.name ||
+    subData.name ||
+    subData.authorName ||
+    'শুভাকাঙ্ক্ষী লেখক';
+
+  const authorDesignation =
+    payload?.authorDesignation ||
+    subData.institution ||
+    subData.subject ||
+    (record.user ? 'RUIL সদস্য' : 'ক্যাম্পেইন অংশগ্রহণকারী');
+
+  const title =
+    payload?.title ||
+    subData.khutbaTopic ||
+    subData.topic ||
+    subData.title ||
+    `${record.event.title} - শিক্ষণীয় প্রবন্ধ`;
+
+  let content =
+    subData.khutbaLesson ||
+    subData.story ||
+    subData.content ||
+    subData.takeaways ||
+    record.comment ||
+    '';
+
+  if (!content) {
+    content = `${authorName} এর অনুভূতি ও শিক্ষণীয় আলোচনা।`;
+  }
+
+  const baseSlug = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s\u0980-\u09FF-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  const uniqueSlug = `${baseSlug || 'campaign-article'}-${Date.now().toString(36)}`;
+
+  const article = await prisma.article.create({
+    data: {
+      title,
+      slug: uniqueSlug,
+      content,
+      coverImage: payload?.coverImage || record.event.bannerImage || null,
+      category: payload?.category || 'ক্যাম্পেইন',
+      authorUserId: record.userId || null,
+      authorName,
+      authorDesignation,
+      isPublished: true,
+    },
+  });
+
+  const updatedRecord = await prisma.eventMemberRecord.update({
+    where: { id: recordId },
+    data: { isApproved: true },
+    include: {
+      user: { select: { id: true, name: true, email: true } },
+      event: { select: { id: true, title: true } },
+    },
+  });
+
+  return {
+    article,
+    record: updatedRecord,
+  };
+};
+
 export const EventMemberRecordService = {
   bulkMarkAttendanceIntoDB,
   submitFeedbackIntoDB,
+  submitCampaignIntoDB,
   recordSelfAttendanceIntoDB,
   approveFeedbackInDB,
+  publishRecordAsArticleInDB,
   getRecordsByEventFromDB,
   getMyRecordsFromDB,
   getEventAttendanceStatsFromDB,
