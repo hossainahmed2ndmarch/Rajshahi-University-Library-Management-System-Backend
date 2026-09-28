@@ -72,6 +72,13 @@ const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) =>
   }
 
   const meta = (event.metadata as any) || {};
+  if (meta.allowComments === false) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'এই অনুষ্ঠানে মন্তব্য বা ফিডব্যাক প্রদান বর্তমানে বন্ধ রয়েছে!',
+    );
+  }
+
   const allowOpenFeedback = Boolean(
     meta.allowOpenFeedback || meta.allowFeedbackWithoutAttendance
   );
@@ -98,6 +105,13 @@ const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) =>
   }
 
   if (record) {
+    if (record.comment && record.comment.trim() !== '') {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'আপনি ইতিমধ্যে আপনার মতামত বা ফিডব্যাক জমা দিয়েছেন! একই অনুষ্ঠানে একাধিকবার মতামত প্রদান করা যাবে না।',
+      );
+    }
+
     // Update existing attendance record with feedback and set isApproved to false for admin review
     return await prisma.eventMemberRecord.update({
       where: { id: record.id },
@@ -111,6 +125,22 @@ const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) =>
         user: { select: { id: true, name: true, email: true, avatarUrl: true } },
       },
     });
+  }
+
+  // Check if user already submitted open feedback previously
+  const existingOpenFeedback = await prisma.eventMemberRecord.findFirst({
+    where: {
+      eventId: payload.eventId,
+      userId,
+      comment: { not: null },
+    },
+  });
+
+  if (existingOpenFeedback) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'আপনি ইতিমধ্যে আপনার মতামত বা ফিডব্যাক জমা দিয়েছেন! একই অনুষ্ঠানে একাধিকবার মতামত প্রদান করা যাবে না।',
+    );
   }
 
   // If no record exists, verify if admin allowed open feedback for this event
@@ -362,31 +392,36 @@ const submitCampaignIntoDB = async (
     throw new AppError(httpStatus.NOT_FOUND, 'Event not found!');
   }
 
-  // For authenticated users: try to find existing record and update it
+  const meta = (event.metadata as Record<string, any>) || {};
+  const isCampaignEnabled =
+    meta.campaign?.enabled === true ||
+    (meta.campaignType && meta.campaignType !== 'NONE' && meta.campaignEnabled !== false);
+
+  if (!isCampaignEnabled) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'এই অনুষ্ঠানে বর্তমানে কোনো সক্রিয় ক্যাম্পেইন চালু নেই বা বন্ধ রয়েছে!',
+    );
+  }
+
+  // Enforce one-time participation for logged-in users
   if (userId) {
     const existing = await prisma.eventMemberRecord.findFirst({
       where: {
         eventId: payload.eventId,
         userId,
-        ...(sessionDate ? { sessionDate } : {}),
+        OR: [
+          { submissionData: { not: Prisma.JsonNull } },
+          { comment: { not: null } },
+        ],
       },
-      orderBy: { createdAt: 'desc' },
     });
 
     if (existing) {
-      return await prisma.eventMemberRecord.update({
-        where: { id: existing.id },
-        data: {
-          submissionData: payload.submissionData,
-          rating: payload.rating !== undefined ? payload.rating : existing.rating,
-          comment: payload.comment || existing.comment,
-          isApproved: false, // Requires admin review
-        },
-        include: {
-          event: { select: { id: true, title: true } },
-          user: { select: { id: true, name: true, email: true } },
-        },
-      });
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'আপনি ইতিমধ্যে এই ক্যাম্পেইনে অংশ গ্রহণ করেছেন! একই ক্যাম্পেইনে একাধিকবার অংশগ্রহণ সম্ভব নয়।',
+      );
     }
 
     // Create a new record with INTERESTED status for authenticated user
@@ -409,7 +444,53 @@ const submitCampaignIntoDB = async (
     });
   }
 
-  // For guests (non-users): always create a new record without userId
+  // Enforce one-time participation for guests (non-users) by phone number or email
+  const subData = (payload.submissionData as Record<string, any>) || {};
+  const guestPhone = subData.phone ? String(subData.phone).trim() : null;
+  const guestEmail = subData.email ? String(subData.email).trim().toLowerCase() : null;
+
+  if (guestPhone || guestEmail) {
+    const existingGuests = await prisma.eventMemberRecord.findMany({
+      where: {
+        eventId: payload.eventId,
+        userId: null,
+      },
+      select: {
+        id: true,
+        submissionData: true,
+      },
+    });
+
+    const isDuplicate = existingGuests.some((g) => {
+      const data = g.submissionData as Record<string, any> | null;
+      if (!data) return false;
+
+      if (guestPhone && data.phone) {
+        const cleanPhone = String(data.phone).replace(/\D/g, '');
+        const currentCleanPhone = guestPhone.replace(/\D/g, '');
+        if (cleanPhone && cleanPhone.length >= 7 && cleanPhone === currentCleanPhone) {
+          return true;
+        }
+      }
+
+      if (guestEmail && data.email) {
+        if (String(data.email).trim().toLowerCase() === guestEmail) {
+          return true;
+        }
+      }
+
+      return false;
+    });
+
+    if (isDuplicate) {
+      throw new AppError(
+        httpStatus.BAD_REQUEST,
+        'এই ফোন নম্বর বা ইমেইল দিয়ে ইতিমধ্যে এই ক্যাম্পেইনে অংশ নেওয়া হয়েছে! একাধিকবার অংশগ্রহণ সম্ভব নয়।',
+      );
+    }
+  }
+
+  // For guests (non-users): create a new record without userId
   return await prisma.eventMemberRecord.create({
     data: {
       eventId: payload.eventId,
@@ -424,6 +505,20 @@ const submitCampaignIntoDB = async (
     include: {
       event: { select: { id: true, title: true } },
     },
+  });
+};
+
+const deleteRecordFromDB = async (recordId: number) => {
+  const record = await prisma.eventMemberRecord.findUnique({
+    where: { id: recordId },
+  });
+
+  if (!record) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Member record not found!');
+  }
+
+  return await prisma.eventMemberRecord.delete({
+    where: { id: recordId },
   });
 };
 
@@ -521,6 +616,7 @@ export const EventMemberRecordService = {
   recordSelfAttendanceIntoDB,
   approveFeedbackInDB,
   publishRecordAsArticleInDB,
+  deleteRecordFromDB,
   getRecordsByEventFromDB,
   getMyRecordsFromDB,
   getEventAttendanceStatsFromDB,

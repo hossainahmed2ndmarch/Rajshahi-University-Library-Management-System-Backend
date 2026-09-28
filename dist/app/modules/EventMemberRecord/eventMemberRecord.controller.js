@@ -110,11 +110,22 @@ const publishRecordAsArticle = (0, catchAsync_1.default)((req, res) => __awaiter
         data: result,
     });
 }));
+const deleteRecord = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const result = yield eventMemberRecord_service_1.EventMemberRecordService.deleteRecordFromDB(Number(id));
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'রেকর্ডটি সফলভাবে মুছে ফেলা হয়েছে!',
+        data: result,
+    });
+}));
 exports.EventMemberRecordController = {
     bulkMarkAttendance,
     submitFeedback,
     submitCampaign,
     publishRecordAsArticle,
+    deleteRecord,
     selfAttendance,
     approveFeedback,
     getRecordsByEvent,

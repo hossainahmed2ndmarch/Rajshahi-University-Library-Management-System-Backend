@@ -62,4 +62,10 @@ router.post(
   EventMemberRecordController.publishRecordAsArticle,
 );
 
+router.delete(
+  '/:id',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  EventMemberRecordController.deleteRecord,
+);
+
 export const EventMemberRecordRoutes = router;

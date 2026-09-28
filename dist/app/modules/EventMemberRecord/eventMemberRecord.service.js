@@ -74,6 +74,9 @@ const submitFeedbackIntoDB = (userId, payload) => __awaiter(void 0, void 0, void
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Event not found!');
     }
     const meta = event.metadata || {};
+    if (meta.allowComments === false) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'এই অনুষ্ঠানে মন্তব্য বা ফিডব্যাক প্রদান বর্তমানে বন্ধ রয়েছে!');
+    }
     const allowOpenFeedback = Boolean(meta.allowOpenFeedback || meta.allowFeedbackWithoutAttendance);
     // Check if attendance already recorded by admin for this user & event
     let record = yield db_1.default.eventMemberRecord.findFirst({
@@ -91,6 +94,9 @@ const submitFeedbackIntoDB = (userId, payload) => __awaiter(void 0, void 0, void
         });
     }
     if (record) {
+        if (record.comment && record.comment.trim() !== '') {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'আপনি ইতিমধ্যে আপনার মতামত বা ফিডব্যাক জমা দিয়েছেন! একই অনুষ্ঠানে একাধিকবার মতামত প্রদান করা যাবে না।');
+        }
         // Update existing attendance record with feedback and set isApproved to false for admin review
         return yield db_1.default.eventMemberRecord.update({
             where: { id: record.id },
@@ -104,6 +110,17 @@ const submitFeedbackIntoDB = (userId, payload) => __awaiter(void 0, void 0, void
                 user: { select: { id: true, name: true, email: true, avatarUrl: true } },
             },
         });
+    }
+    // Check if user already submitted open feedback previously
+    const existingOpenFeedback = yield db_1.default.eventMemberRecord.findFirst({
+        where: {
+            eventId: payload.eventId,
+            userId,
+            comment: { not: null },
+        },
+    });
+    if (existingOpenFeedback) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'আপনি ইতিমধ্যে আপনার মতামত বা ফিডব্যাক জমা দিয়েছেন! একই অনুষ্ঠানে একাধিকবার মতামত প্রদান করা যাবে না।');
     }
     // If no record exists, verify if admin allowed open feedback for this event
     if (!allowOpenFeedback) {
@@ -312,6 +329,7 @@ const getEventAttendanceStatsFromDB = (eventId) => __awaiter(void 0, void 0, voi
     };
 });
 const submitCampaignIntoDB = (payload, userId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const sessionDate = normalizeDate(payload.sessionDate);
     // Verify event exists
     const event = yield db_1.default.event.findUnique({
@@ -321,26 +339,26 @@ const submitCampaignIntoDB = (payload, userId) => __awaiter(void 0, void 0, void
     if (!event) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Event not found!');
     }
-    // For authenticated users: try to find existing record and update it
+    const meta = event.metadata || {};
+    const isCampaignEnabled = ((_a = meta.campaign) === null || _a === void 0 ? void 0 : _a.enabled) === true ||
+        (meta.campaignType && meta.campaignType !== 'NONE' && meta.campaignEnabled !== false);
+    if (!isCampaignEnabled) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'এই অনুষ্ঠানে বর্তমানে কোনো সক্রিয় ক্যাম্পেইন চালু নেই বা বন্ধ রয়েছে!');
+    }
+    // Enforce one-time participation for logged-in users
     if (userId) {
         const existing = yield db_1.default.eventMemberRecord.findFirst({
-            where: Object.assign({ eventId: payload.eventId, userId }, (sessionDate ? { sessionDate } : {})),
-            orderBy: { createdAt: 'desc' },
+            where: {
+                eventId: payload.eventId,
+                userId,
+                OR: [
+                    { submissionData: { not: client_1.Prisma.JsonNull } },
+                    { comment: { not: null } },
+                ],
+            },
         });
         if (existing) {
-            return yield db_1.default.eventMemberRecord.update({
-                where: { id: existing.id },
-                data: {
-                    submissionData: payload.submissionData,
-                    rating: payload.rating !== undefined ? payload.rating : existing.rating,
-                    comment: payload.comment || existing.comment,
-                    isApproved: false, // Requires admin review
-                },
-                include: {
-                    event: { select: { id: true, title: true } },
-                    user: { select: { id: true, name: true, email: true } },
-                },
-            });
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'আপনি ইতিমধ্যে এই ক্যাম্পেইনে অংশ গ্রহণ করেছেন! একই ক্যাম্পেইনে একাধিকবার অংশগ্রহণ সম্ভব নয়।');
         }
         // Create a new record with INTERESTED status for authenticated user
         return yield db_1.default.eventMemberRecord.create({
@@ -361,7 +379,44 @@ const submitCampaignIntoDB = (payload, userId) => __awaiter(void 0, void 0, void
             },
         });
     }
-    // For guests (non-users): always create a new record without userId
+    // Enforce one-time participation for guests (non-users) by phone number or email
+    const subData = payload.submissionData || {};
+    const guestPhone = subData.phone ? String(subData.phone).trim() : null;
+    const guestEmail = subData.email ? String(subData.email).trim().toLowerCase() : null;
+    if (guestPhone || guestEmail) {
+        const existingGuests = yield db_1.default.eventMemberRecord.findMany({
+            where: {
+                eventId: payload.eventId,
+                userId: null,
+            },
+            select: {
+                id: true,
+                submissionData: true,
+            },
+        });
+        const isDuplicate = existingGuests.some((g) => {
+            const data = g.submissionData;
+            if (!data)
+                return false;
+            if (guestPhone && data.phone) {
+                const cleanPhone = String(data.phone).replace(/\D/g, '');
+                const currentCleanPhone = guestPhone.replace(/\D/g, '');
+                if (cleanPhone && cleanPhone.length >= 7 && cleanPhone === currentCleanPhone) {
+                    return true;
+                }
+            }
+            if (guestEmail && data.email) {
+                if (String(data.email).trim().toLowerCase() === guestEmail) {
+                    return true;
+                }
+            }
+            return false;
+        });
+        if (isDuplicate) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'এই ফোন নম্বর বা ইমেইল দিয়ে ইতিমধ্যে এই ক্যাম্পেইনে অংশ নেওয়া হয়েছে! একাধিকবার অংশগ্রহণ সম্ভব নয়।');
+        }
+    }
+    // For guests (non-users): create a new record without userId
     return yield db_1.default.eventMemberRecord.create({
         data: {
             eventId: payload.eventId,
@@ -376,6 +431,17 @@ const submitCampaignIntoDB = (payload, userId) => __awaiter(void 0, void 0, void
         include: {
             event: { select: { id: true, title: true } },
         },
+    });
+});
+const deleteRecordFromDB = (recordId) => __awaiter(void 0, void 0, void 0, function* () {
+    const record = yield db_1.default.eventMemberRecord.findUnique({
+        where: { id: recordId },
+    });
+    if (!record) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member record not found!');
+    }
+    return yield db_1.default.eventMemberRecord.delete({
+        where: { id: recordId },
     });
 });
 const publishRecordAsArticleInDB = (recordId, requestingUserId, payload) => __awaiter(void 0, void 0, void 0, function* () {
@@ -453,6 +519,7 @@ exports.EventMemberRecordService = {
     recordSelfAttendanceIntoDB,
     approveFeedbackInDB,
     publishRecordAsArticleInDB,
+    deleteRecordFromDB,
     getRecordsByEventFromDB,
     getMyRecordsFromDB,
     getEventAttendanceStatsFromDB,
