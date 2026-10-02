@@ -200,6 +200,7 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
 const createServiceReviewInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, function* () {
     return yield db_1.default.serviceReview.create({
         data: {
+            org: payload.org || client_1.Organization.RUIL,
             rating: payload.rating,
             comment: payload.comment || null,
             isAnonymous: payload.isAnonymous || false,
@@ -218,8 +219,25 @@ const createServiceReviewInDB = (payload, userId) => __awaiter(void 0, void 0, v
         },
     });
 });
-const getServiceReviewsFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
+const getServiceReviewsFromDB = (org) => __awaiter(void 0, void 0, void 0, function* () {
+    // Build where clause: if org=RUDC, include reviews with org IN (RUDC, BOTH) or user isRudcMember
+    const whereClause = {};
+    if (org && org !== 'ALL') {
+        if (org === 'RUDC') {
+            whereClause.OR = [
+                { org: { in: [client_1.Organization.RUDC, client_1.Organization.BOTH] } },
+                { user: { isRudcMember: true } },
+            ];
+        }
+        else if (org === 'RUIL') {
+            whereClause.org = { in: [client_1.Organization.RUIL, client_1.Organization.BOTH] };
+        }
+        else {
+            whereClause.org = org;
+        }
+    }
     const reviews = yield db_1.default.serviceReview.findMany({
+        where: whereClause,
         include: {
             user: {
                 select: {
@@ -228,6 +246,8 @@ const getServiceReviewsFromDB = () => __awaiter(void 0, void 0, void 0, function
                     email: true,
                     avatarUrl: true,
                     role: true,
+                    isRudcMember: true,
+                    rudcMemberType: true,
                 },
             },
         },

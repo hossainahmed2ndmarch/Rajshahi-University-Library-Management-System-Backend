@@ -1,0 +1,26 @@
+model RudcTeam {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique // Food Team, Graphics Team, Media Team etc.
+  description String?
+
+  members UserRudcTeam[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("rudc_teams")
+}
+
+model UserRudcTeam {
+  id     Int      @id @default(autoincrement())
+  userId Int
+  teamId Int
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  team   RudcTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  role   String?  @default("MEMBER") // LEADER, CO_LEADER, MEMBER
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, teamId])
+  @@map("user_rudc_teams")
+}

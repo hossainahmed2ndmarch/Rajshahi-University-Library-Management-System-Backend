@@ -16,6 +16,10 @@ import { EventRoutes } from '../modules/Event/event.routes';
 import { EventSessionRoutes } from '../modules/EventSession/eventSession.routes';
 import { EventMemberRecordRoutes } from '../modules/EventMemberRecord/eventMemberRecord.routes';
 import { GalleryRoutes } from '../modules/Gallery/gallery.routes';
+import { RudcRoutes } from '../modules/Rudc/rudc.routes';
+import { RudcMemberRoutes } from '../modules/RudcMember/rudcMember.routes';
+import { RudcTeamRoutes } from '../modules/RudcTeam/rudcTeam.routes';
+import { RudcIyanotRoutes } from '../modules/RudcIyanot/rudcIyanot.routes';
 
 const router = Router();
 
@@ -92,6 +96,22 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/gallery',
     route: GalleryRoutes,
+  },
+  {
+    path: '/rudc',
+    route: RudcRoutes,
+  },
+  {
+    path: '/rudc-members',
+    route: RudcMemberRoutes,
+  },
+  {
+    path: '/rudc-teams',
+    route: RudcTeamRoutes,
+  },
+  {
+    path: '/rudc-iyanot',
+    route: RudcIyanotRoutes,
   },
 ];
 

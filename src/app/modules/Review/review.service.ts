@@ -1,5 +1,5 @@
 import httpStatus from 'http-status';
-import { UserStatus } from '@prisma/client';
+import { Organization, UserStatus } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import { TCreateBookReview, TCreateServiceReview } from './review.interface';
@@ -211,6 +211,7 @@ const createBookReviewInDB = async (
 const createServiceReviewInDB = async (payload: TCreateServiceReview, userId?: number) => {
   return await prisma.serviceReview.create({
     data: {
+      org: payload.org || Organization.RUIL,
       rating: payload.rating,
       comment: payload.comment || null,
       isAnonymous: payload.isAnonymous || false,
@@ -230,8 +231,24 @@ const createServiceReviewInDB = async (payload: TCreateServiceReview, userId?: n
   });
 };
 
-const getServiceReviewsFromDB = async () => {
+const getServiceReviewsFromDB = async (org?: string) => {
+  // Build where clause: if org=RUDC, include reviews with org IN (RUDC, BOTH) or user isRudcMember
+  const whereClause: any = {};
+  if (org && org !== 'ALL') {
+    if (org === 'RUDC') {
+      whereClause.OR = [
+        { org: { in: [Organization.RUDC, Organization.BOTH] } },
+        { user: { isRudcMember: true } },
+      ];
+    } else if (org === 'RUIL') {
+      whereClause.org = { in: [Organization.RUIL, Organization.BOTH] };
+    } else {
+      whereClause.org = org as Organization;
+    }
+  }
+
   const reviews = await prisma.serviceReview.findMany({
+    where: whereClause,
     include: {
       user: {
         select: {
@@ -240,6 +257,8 @@ const getServiceReviewsFromDB = async () => {
           email: true,
           avatarUrl: true,
           role: true,
+          isRudcMember: true,
+          rudcMemberType: true,
         },
       },
     },

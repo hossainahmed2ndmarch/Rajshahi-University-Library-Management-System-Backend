@@ -81,6 +81,10 @@ const getAllGalleryItemsFromDB = async (query: Record<string, unknown>) => {
     if (typeof org === 'string' && org.includes(',')) {
       const orgList = org.split(',').map((o) => o.trim()) as Organization[];
       galleryQuery.where({ org: { in: orgList } });
+    } else if (org === 'RUDC') {
+      galleryQuery.where({ org: { in: [Organization.RUDC, Organization.BOTH] } });
+    } else if (org === 'RUIL') {
+      galleryQuery.where({ org: { in: [Organization.RUIL, Organization.BOTH] } });
     } else {
       galleryQuery.where({ org: org as Organization });
     }

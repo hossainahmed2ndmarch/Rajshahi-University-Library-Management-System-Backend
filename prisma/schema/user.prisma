@@ -7,6 +7,7 @@ model User {
   password String
   role     UserRole   @default(MEMBER)
   status   UserStatus @default(PENDING_APPROVAL)
+  org      Organization @default(RUIL)
 
   // Profile Details
   name             String
@@ -15,6 +16,32 @@ model User {
   institution      String?
   department       String?
   session          String?
+
+  // RUDC Specific Details
+  faculty               String?
+  whatsappNumber        String?
+  bloodGroup            BloodGroup?
+  skills                String[]               @default([])
+  accommodationType     AccommodationType?
+  accommodationName     String?
+  permanentAddress      String?
+  isAffiliatedWithOther Boolean                @default(false)
+  otherOrgName          String?
+  rudcTermsAccepted     Boolean                @default(false)
+  isRudcMember          Boolean                @default(false)
+  rudcMemberType        RudcMemberType?
+  rudcStatus            RudcApplicationStatus?
+  rudcJoinedAt          DateTime?
+
+  // Supervisor Hierarchy (Self-relation)
+  supervisorId         Int?
+  supervisor           User?  @relation("UserSupervisor", fields: [supervisorId], references: [id])
+  supervisedVolunteers User[] @relation("UserSupervisor")
+
+  // Interview Info
+  interviewDate        DateTime?
+  interviewNotes       String?
+  interviewEmailSentAt DateTime?
 
   // Membership Payment & Window
   paymentMethod       PaymentMethod?
@@ -27,26 +54,34 @@ model User {
   updatedAt DateTime @updatedAt
 
   // Relation Arrays (1:N)
-  booksAdded         Book[]              @relation("BooksAdded")
-  booksDonated       Book[]              @relation("BooksDonated")
-  borrows            Borrow[]            @relation("UserBorrows")
-  approvedBorrows    Borrow[]            @relation("ApprovedBorrows")
-  returnedBorrows    Borrow[]            @relation("ReturnedBorrows")
-  purchases          Purchase[]          @relation("UserPurchases")
-  approvedPurchaseBy Purchase[]          @relation("ApprovedPurchases")
-  donations          Donation[]          @relation("UserDonations")
-  receivedDonations  Donation[]          @relation("ReceivedDonations")
-  shifts             ShiftLog[]          @relation("UserShifts")
-  schedules          ShifterSchedule[]   @relation("UserSchedules")
-  verifiedShifts     ShiftLog[]          @relation("VerifiedShifts")
-  bookReviews        BookReview[]
-  serviceReviews     ServiceReview[]
-  payments           Payment[]
-  articles           Article[]           @relation("AuthorUser")
-  memberRecords      EventMemberRecord[]
+  booksAdded          Book[]              @relation("BooksAdded")
+  booksDonated        Book[]              @relation("BooksDonated")
+  borrows             Borrow[]            @relation("UserBorrows")
+  approvedBorrows     Borrow[]            @relation("ApprovedBorrows")
+  returnedBorrows     Borrow[]            @relation("ReturnedBorrows")
+  purchases           Purchase[]          @relation("UserPurchases")
+  approvedPurchaseBy  Purchase[]          @relation("ApprovedPurchases")
+  donations           Donation[]          @relation("UserDonations")
+  receivedDonations   Donation[]          @relation("ReceivedDonations")
+  shifts              ShiftLog[]          @relation("UserShifts")
+  schedules           ShifterSchedule[]   @relation("UserSchedules")
+  verifiedShifts      ShiftLog[]          @relation("VerifiedShifts")
+  bookReviews         BookReview[]
+  serviceReviews      ServiceReview[]
+  payments            Payment[]
+  articles            Article[]           @relation("AuthorUser")
+  memberRecords       EventMemberRecord[]
+  rudcTeams           UserRudcTeam[]
+  iyanotPayments      RudcIyanot[]        @relation("UserIyanot")
+  iyanotCollectedByMe RudcIyanot[]        @relation("IyanotCollector")
 
   @@index([role])
   @@index([status])
+  @@index([org])
   @@index([membershipExpiresAt])
+  @@index([isRudcMember])
+  @@index([rudcMemberType])
+  @@index([rudcStatus])
+  @@index([supervisorId])
   @@map("users")
 }

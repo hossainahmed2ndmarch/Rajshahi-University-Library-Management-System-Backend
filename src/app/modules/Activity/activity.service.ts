@@ -52,7 +52,13 @@ const getAllActivitiesFromDB = async (query: Record<string, unknown>) => {
   }
 
   if (org && org !== 'ALL') {
-    activityQuery.where({ org });
+    if (org === 'RUDC') {
+      activityQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
+    } else if (org === 'RUIL') {
+      activityQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+    } else {
+      activityQuery.where({ org });
+    }
   }
 
   activityQuery.orderBy({ createdAt: 'desc' });

@@ -1,10 +1,11 @@
 // Model Article
 
 model Article {
-  id         Int     @id @default(autoincrement())
+  id         Int          @id @default(autoincrement())
+  org        Organization @default(RUIL)
   title      String
-  slug       String  @unique
-  content    String  @db.Text
+  slug       String       @unique
+  content    String       @db.Text
   coverImage String? // Cloudinary URL
   category   String
 
@@ -27,5 +28,6 @@ model Article {
 
   @@index([category])
   @@index([isPublished])
+  @@index([org])
   @@map("articles")
 }

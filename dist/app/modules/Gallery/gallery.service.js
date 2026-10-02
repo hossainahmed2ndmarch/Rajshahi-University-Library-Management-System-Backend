@@ -81,6 +81,12 @@ const getAllGalleryItemsFromDB = (query) => __awaiter(void 0, void 0, void 0, fu
             const orgList = org.split(',').map((o) => o.trim());
             galleryQuery.where({ org: { in: orgList } });
         }
+        else if (org === 'RUDC') {
+            galleryQuery.where({ org: { in: [client_1.Organization.RUDC, client_1.Organization.BOTH] } });
+        }
+        else if (org === 'RUIL') {
+            galleryQuery.where({ org: { in: [client_1.Organization.RUIL, client_1.Organization.BOTH] } });
+        }
         else {
             galleryQuery.where({ org: org });
         }

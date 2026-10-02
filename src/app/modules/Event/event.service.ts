@@ -82,7 +82,13 @@ const getAllEventsFromDB = async (query: Record<string, unknown>) => {
   }
 
   if (org && org !== 'ALL') {
-    eventQuery.where({ org });
+    if (org === 'RUDC') {
+      eventQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
+    } else if (org === 'RUIL') {
+      eventQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+    } else {
+      eventQuery.where({ org });
+    }
   }
 
   if (activityId) {
@@ -166,6 +172,7 @@ const getEventByIdOrSlugFromDB = async (idOrSlug: string) => {
           status: true,
           sessionDate: true,
           createdAt: true,
+          isApproved: true,
           user: {
             select: {
               id: true,
@@ -188,6 +195,11 @@ const getEventByIdOrSlugFromDB = async (idOrSlug: string) => {
 
   if (!event) {
     throw new AppError(httpStatus.NOT_FOUND, 'Event not found!');
+  }
+
+  const meta = (event.metadata as Record<string, any>) || {};
+  if (meta.allowComments === false || meta.showComments === false || meta.hideComments === true) {
+    event.memberRecords = [];
   }
 
   return event;

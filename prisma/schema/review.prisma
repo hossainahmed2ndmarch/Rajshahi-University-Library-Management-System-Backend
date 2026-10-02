@@ -28,9 +28,10 @@ model BookReview {
 
 // Service Reviews Model 
 model ServiceReview {
-  id      Int     @id @default(autoincrement())
+  id      Int          @id @default(autoincrement())
+  org     Organization @default(RUIL)
   rating  Int
-  comment String? @db.Text
+  comment String?      @db.Text
 
   // Anonymous Feature
   isAnonymous Boolean @default(false)
@@ -46,5 +47,6 @@ model ServiceReview {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+  @@index([org])
   @@map("service_reviews")
 }

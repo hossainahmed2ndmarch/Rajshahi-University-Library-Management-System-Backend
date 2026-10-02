@@ -18,6 +18,10 @@ const event_routes_1 = require("../modules/Event/event.routes");
 const eventSession_routes_1 = require("../modules/EventSession/eventSession.routes");
 const eventMemberRecord_routes_1 = require("../modules/EventMemberRecord/eventMemberRecord.routes");
 const gallery_routes_1 = require("../modules/Gallery/gallery.routes");
+const rudc_routes_1 = require("../modules/Rudc/rudc.routes");
+const rudcMember_routes_1 = require("../modules/RudcMember/rudcMember.routes");
+const rudcTeam_routes_1 = require("../modules/RudcTeam/rudcTeam.routes");
+const rudcIyanot_routes_1 = require("../modules/RudcIyanot/rudcIyanot.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -87,6 +91,22 @@ const moduleRoutes = [
     {
         path: '/gallery',
         route: gallery_routes_1.GalleryRoutes,
+    },
+    {
+        path: '/rudc',
+        route: rudc_routes_1.RudcRoutes,
+    },
+    {
+        path: '/rudc-members',
+        route: rudcMember_routes_1.RudcMemberRoutes,
+    },
+    {
+        path: '/rudc-teams',
+        route: rudcTeam_routes_1.RudcTeamRoutes,
+    },
+    {
+        path: '/rudc-iyanot',
+        route: rudcIyanot_routes_1.RudcIyanotRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

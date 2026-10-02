@@ -9,7 +9,7 @@ model Activity {
   bannerImage String?
   status      ActivityStatus @default(ONGOING)
 
-  events Event[]
+  events       Event[]
   galleryItems GalleryItem[]
 
   createdAt DateTime @default(now())

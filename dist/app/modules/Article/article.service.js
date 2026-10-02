@@ -25,6 +25,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ArticleService = void 0;
 const http_status_1 = __importDefault(require("http-status"));
+const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const queryBuilder_1 = __importDefault(require("../../builder/queryBuilder"));
@@ -66,6 +67,7 @@ const createArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, voi
     const authorUserId = (_b = (_a = payload.authorUserId) !== null && _a !== void 0 ? _a : requestingUserId) !== null && _b !== void 0 ? _b : null;
     return yield db_1.default.article.create({
         data: {
+            org: payload.org || client_1.Organization.RUIL,
             title: payload.title,
             slug: uniqueSlug,
             content: payload.content,
@@ -100,7 +102,7 @@ const createArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, voi
     });
 });
 const getAllArticlesFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { category, isPublished, sortBy, sortOrder = 'desc' } = query, queryParams = __rest(query, ["category", "isPublished", "sortBy", "sortOrder"]);
+    const { category, isPublished, org, sortBy, sortOrder = 'desc' } = query, queryParams = __rest(query, ["category", "isPublished", "org", "sortBy", "sortOrder"]);
     const articleQuery = new queryBuilder_1.default(db_1.default.article, queryParams, {
         searchableFields: ['title', 'content', 'authorName', 'category', 'slug'],
         filterableFields: ['category', 'isPublished', 'authorUserId'],
@@ -126,6 +128,17 @@ const getAllArticlesFromDB = (query) => __awaiter(void 0, void 0, void 0, functi
         articleQuery.where({
             isPublished: publishedBool,
         });
+    }
+    if (org && org !== 'ALL') {
+        if (org === 'RUDC') {
+            articleQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
+        }
+        else if (org === 'RUIL') {
+            articleQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+        }
+        else {
+            articleQuery.where({ org });
+        }
     }
     // Include relations
     articleQuery.include({

@@ -30,7 +30,8 @@ const createServiceReview = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getServiceReviews = catchAsync(async (req: Request, res: Response) => {
-  const result = await ReviewService.getServiceReviewsFromDB();
+  const org = req.query.org as string | undefined;
+  const result = await ReviewService.getServiceReviewsFromDB(org);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

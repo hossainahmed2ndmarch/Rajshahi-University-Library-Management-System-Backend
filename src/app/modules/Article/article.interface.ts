@@ -1,4 +1,7 @@
+import { Organization } from '@prisma/client';
+
 export type TCreateArticle = {
+  org?: Organization;
   title: string;
   slug?: string;
   content: string;

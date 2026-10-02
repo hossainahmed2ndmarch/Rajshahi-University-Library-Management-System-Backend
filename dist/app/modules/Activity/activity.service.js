@@ -62,7 +62,15 @@ const getAllActivitiesFromDB = (query) => __awaiter(void 0, void 0, void 0, func
         activityQuery.where({ status });
     }
     if (org && org !== 'ALL') {
-        activityQuery.where({ org });
+        if (org === 'RUDC') {
+            activityQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
+        }
+        else if (org === 'RUIL') {
+            activityQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+        }
+        else {
+            activityQuery.where({ org });
+        }
     }
     activityQuery.orderBy({ createdAt: 'desc' });
     // Include events count

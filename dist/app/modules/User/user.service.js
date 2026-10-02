@@ -120,7 +120,8 @@ const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
             isPaid: false,
         },
     });
-    const userQuery = new queryBuilder_1.default(db_1.default.user, query, {
+    const { org, isRudcMember } = query, remainingQuery = __rest(query, ["org", "isRudcMember"]);
+    const userQuery = new queryBuilder_1.default(db_1.default.user, remainingQuery, {
         searchableFields: ['name', 'email', 'phone', 'studentOrVoterId', 'department', 'institution'],
         filterableFields: ['role', 'status', 'department', 'session', 'paymentMethod', 'isPaid'],
     })
@@ -129,6 +130,25 @@ const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
         .sort()
         .paginate()
         .fields();
+    if (org && org !== 'ALL') {
+        if (org === 'RUDC') {
+            userQuery.where({
+                OR: [
+                    { org: { in: ['RUDC', 'BOTH'] } },
+                    { isRudcMember: true },
+                ],
+            });
+        }
+        else if (org === 'RUIL') {
+            userQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+        }
+        else {
+            userQuery.where({ org });
+        }
+    }
+    if (isRudcMember !== undefined && isRudcMember !== 'ALL') {
+        userQuery.where({ isRudcMember: isRudcMember === 'true' || isRudcMember === true });
+    }
     const result = yield userQuery.execute();
     const sanitizedData = result.data.map((user) => {
         const { password } = user, rest = __rest(user, ["password"]);

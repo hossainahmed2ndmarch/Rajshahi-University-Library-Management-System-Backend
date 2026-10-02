@@ -96,7 +96,15 @@ const getAllEventsFromDB = (query) => __awaiter(void 0, void 0, void 0, function
         eventQuery.where({ status });
     }
     if (org && org !== 'ALL') {
-        eventQuery.where({ org });
+        if (org === 'RUDC') {
+            eventQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
+        }
+        else if (org === 'RUIL') {
+            eventQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+        }
+        else {
+            eventQuery.where({ org });
+        }
     }
     if (activityId) {
         eventQuery.where({ activityId: Number(activityId) });
@@ -173,6 +181,7 @@ const getEventByIdOrSlugFromDB = (idOrSlug) => __awaiter(void 0, void 0, void 0,
                     status: true,
                     sessionDate: true,
                     createdAt: true,
+                    isApproved: true,
                     user: {
                         select: {
                             id: true,
@@ -194,6 +203,10 @@ const getEventByIdOrSlugFromDB = (idOrSlug) => __awaiter(void 0, void 0, void 0,
     });
     if (!event) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Event not found!');
+    }
+    const meta = event.metadata || {};
+    if (meta.allowComments === false || meta.showComments === false || meta.hideComments === true) {
+        event.memberRecords = [];
     }
     return event;
 });

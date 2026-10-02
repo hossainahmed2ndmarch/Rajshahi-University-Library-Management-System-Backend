@@ -110,7 +110,9 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
     },
   });
 
-  const userQuery = new QueryBuilder(prisma.user, query, {
+  const { org, isRudcMember, ...remainingQuery } = query;
+
+  const userQuery = new QueryBuilder(prisma.user, remainingQuery, {
     searchableFields: ['name', 'email', 'phone', 'studentOrVoterId', 'department', 'institution'],
     filterableFields: ['role', 'status', 'department', 'session', 'paymentMethod', 'isPaid'],
   })
@@ -119,6 +121,25 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
     .sort()
     .paginate()
     .fields();
+
+  if (org && org !== 'ALL') {
+    if (org === 'RUDC') {
+      userQuery.where({
+        OR: [
+          { org: { in: ['RUDC', 'BOTH'] } },
+          { isRudcMember: true },
+        ],
+      });
+    } else if (org === 'RUIL') {
+      userQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+    } else {
+      userQuery.where({ org });
+    }
+  }
+
+  if (isRudcMember !== undefined && isRudcMember !== 'ALL') {
+    userQuery.where({ isRudcMember: isRudcMember === 'true' || isRudcMember === true });
+  }
 
   const result = await userQuery.execute();
 

@@ -1,4 +1,5 @@
 import httpStatus from 'http-status';
+import { Organization } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
@@ -49,6 +50,7 @@ const createArticleIntoDB = async (payload: TCreateArticle, requestingUserId?: n
 
   return await prisma.article.create({
     data: {
+      org: payload.org || Organization.RUIL,
       title: payload.title,
       slug: uniqueSlug,
       content: payload.content,
@@ -84,7 +86,7 @@ const createArticleIntoDB = async (payload: TCreateArticle, requestingUserId?: n
 };
 
 const getAllArticlesFromDB = async (query: Record<string, unknown>) => {
-  const { category, isPublished, sortBy, sortOrder = 'desc', ...queryParams } = query;
+  const { category, isPublished, org, sortBy, sortOrder = 'desc', ...queryParams } = query;
 
   const articleQuery = new QueryBuilder(prisma.article, queryParams, {
     searchableFields: ['title', 'content', 'authorName', 'category', 'slug'],
@@ -117,6 +119,16 @@ const getAllArticlesFromDB = async (query: Record<string, unknown>) => {
     articleQuery.where({
       isPublished: publishedBool,
     });
+  }
+
+  if (org && org !== 'ALL') {
+    if (org === 'RUDC') {
+      articleQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
+    } else if (org === 'RUIL') {
+      articleQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
+    } else {
+      articleQuery.where({ org });
+    }
   }
 
   // Include relations
