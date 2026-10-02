@@ -101,6 +101,42 @@ const createArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, voi
         },
     });
 });
+const submitArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, void 0, void 0, function* () {
+    const baseSlug = createSlug(payload.title);
+    const uniqueSlug = yield ensureUniqueSlug(baseSlug);
+    const readTime = calculateReadTime(payload.content);
+    let authorUser = null;
+    if (requestingUserId) {
+        authorUser = yield db_1.default.user.findUnique({ where: { id: requestingUserId } });
+    }
+    const authorName = payload.authorName || (authorUser === null || authorUser === void 0 ? void 0 : authorUser.name) || 'Guest Contributor';
+    const designation = payload.authorDesignation || (payload.authorEmail ? `Email: ${payload.authorEmail}` : null);
+    return yield db_1.default.article.create({
+        data: {
+            org: payload.org || client_1.Organization.RUIL,
+            title: payload.title,
+            slug: uniqueSlug,
+            content: payload.content,
+            coverImage: payload.coverImage || null,
+            category: payload.category || 'General',
+            authorUserId: requestingUserId || null,
+            authorName,
+            authorDesignation: designation,
+            totalReadTime: readTime,
+            isPublished: false, // Must be reviewed and approved by admin / super admin
+        },
+        include: {
+            authorUser: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    avatarUrl: true,
+                },
+            },
+        },
+    });
+});
 const getAllArticlesFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
     const { category, isPublished, org, sortBy, sortOrder = 'desc' } = query, queryParams = __rest(query, ["category", "isPublished", "org", "sortBy", "sortOrder"]);
     const articleQuery = new queryBuilder_1.default(db_1.default.article, queryParams, {
@@ -248,6 +284,8 @@ const updateArticleInDB = (id, payload) => __awaiter(void 0, void 0, void 0, fun
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Article not found!');
     }
     const updateData = {};
+    if (payload.org !== undefined)
+        updateData.org = payload.org;
     if (payload.title !== undefined)
         updateData.title = payload.title;
     if (payload.content !== undefined)
@@ -336,6 +374,7 @@ const getArticleCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, funct
 });
 exports.ArticleService = {
     createArticleIntoDB,
+    submitArticleIntoDB,
     getAllArticlesFromDB,
     getArticleByIdOrSlugFromDB,
     updateArticleInDB,

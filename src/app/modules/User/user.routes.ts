@@ -47,9 +47,16 @@ router.post(
   UserController.renewMembership
 );
 
+router.post(
+  '/convert-membership',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  validateRequest(UserValidation.convertMembershipValidationSchema),
+  UserController.convertMembership
+);
+
 router.get(
   '/options',
-  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER),
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER, UserRole.MEMBER),
   UserController.getUserOptions
 );
 

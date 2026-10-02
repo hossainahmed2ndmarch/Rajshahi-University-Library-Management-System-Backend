@@ -1,4 +1,13 @@
-import { PaymentMethod, UserRole, UserStatus } from '@prisma/client';
+import {
+  AccommodationType,
+  BloodGroup,
+  Organization,
+  PaymentMethod,
+  RudcApplicationStatus,
+  RudcMemberType,
+  UserRole,
+  UserStatus,
+} from '@prisma/client';
 
 export type TRegisterMember = {
   email: string;
@@ -6,9 +15,16 @@ export type TRegisterMember = {
   password: string;
   name: string;
   studentOrVoterId: string;
-  institution?: string;
-  department?: string;
-  session?: string;
+  institution?: string | null;
+  department?: string | null;
+  session?: string | null;
+  faculty?: string | null;
+  whatsappNumber?: string | null;
+  bloodGroup?: BloodGroup | null;
+  skills?: string[];
+  accommodationType?: AccommodationType | null;
+  accommodationName?: string | null;
+  permanentAddress?: string | null;
   paymentMethod?: PaymentMethod;
   membershipStartedAt?: Date | string;
   membershipExpiresAt?: Date | string;
@@ -25,6 +41,18 @@ export type TUpdateUser = {
   institution?: string;
   department?: string;
   session?: string;
+  faculty?: string | null;
+  whatsappNumber?: string | null;
+  bloodGroup?: BloodGroup | null;
+  skills?: string[];
+  accommodationType?: AccommodationType | null;
+  accommodationName?: string | null;
+  permanentAddress?: string | null;
+  org?: Organization;
+  isRudcMember?: boolean;
+  rudcMemberType?: RudcMemberType | null;
+  rudcStatus?: RudcApplicationStatus | null;
+  supervisorId?: number | null;
   status?: UserStatus;
   role?: UserRole;
   isPaid?: boolean;
@@ -39,6 +67,7 @@ export type TUserFilterRequest = {
   status?: UserStatus;
   department?: string;
   session?: string;
+  org?: Organization | string;
 };
 
 export type TUpdateMyProfile = {
@@ -50,10 +79,25 @@ export type TUpdateMyProfile = {
   phone?: string;
   email?: string;
   studentOrVoterId?: string;
+  faculty?: string | null;
+  whatsappNumber?: string | null;
+  bloodGroup?: BloodGroup | null;
+  skills?: string[];
+  accommodationType?: AccommodationType | null;
+  accommodationName?: string | null;
+  permanentAddress?: string | null;
 };
 
 export type TRenewMembership = {
   paymentMethod?: PaymentMethod;
   amount?: number;
+  months?: number;
+};
+
+export type TConvertMembership = {
+  userIds: number[];
+  targetRoleOrOrg: 'MAKE_RUDC_MEMBER' | 'MAKE_RUDC_VOLUNTEER' | 'MAKE_RUIL_MEMBER';
+  confirmPayment?: boolean;
+  paymentMethod?: PaymentMethod;
   months?: number;
 };

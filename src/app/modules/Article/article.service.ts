@@ -85,6 +85,46 @@ const createArticleIntoDB = async (payload: TCreateArticle, requestingUserId?: n
   });
 };
 
+const submitArticleIntoDB = async (payload: import('./article.interface').TSubmitArticle, requestingUserId?: number) => {
+  const baseSlug = createSlug(payload.title);
+  const uniqueSlug = await ensureUniqueSlug(baseSlug);
+  const readTime = calculateReadTime(payload.content);
+
+  let authorUser = null;
+  if (requestingUserId) {
+    authorUser = await prisma.user.findUnique({ where: { id: requestingUserId } });
+  }
+
+  const authorName = payload.authorName || authorUser?.name || 'Guest Contributor';
+  const designation = payload.authorDesignation || (payload.authorEmail ? `Email: ${payload.authorEmail}` : null);
+
+  return await prisma.article.create({
+    data: {
+      org: payload.org || Organization.RUIL,
+      title: payload.title,
+      slug: uniqueSlug,
+      content: payload.content,
+      coverImage: payload.coverImage || null,
+      category: payload.category || 'General',
+      authorUserId: requestingUserId || null,
+      authorName,
+      authorDesignation: designation,
+      totalReadTime: readTime,
+      isPublished: false, // Must be reviewed and approved by admin / super admin
+    },
+    include: {
+      authorUser: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  });
+};
+
 const getAllArticlesFromDB = async (query: Record<string, unknown>) => {
   const { category, isPublished, org, sortBy, sortOrder = 'desc', ...queryParams } = query;
 
@@ -248,6 +288,7 @@ const updateArticleInDB = async (id: number, payload: TUpdateArticle) => {
 
   const updateData: Record<string, any> = {};
 
+  if (payload.org !== undefined) updateData.org = payload.org;
   if (payload.title !== undefined) updateData.title = payload.title;
   if (payload.content !== undefined) updateData.content = payload.content;
   if (payload.coverImage !== undefined) updateData.coverImage = payload.coverImage;
@@ -334,6 +375,7 @@ const getArticleCategoriesFromDB = async () => {
 
 export const ArticleService = {
   createArticleIntoDB,
+  submitArticleIntoDB,
   getAllArticlesFromDB,
   getArticleByIdOrSlugFromDB,
   updateArticleInDB,

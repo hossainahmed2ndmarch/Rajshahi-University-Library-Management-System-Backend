@@ -133,7 +133,7 @@ export class QueryBuilder<
     return this;
   }
 
-  public filter(excludeFields: string[] = ['searchTerm', 'search', 'page', 'limit', 'sortBy', 'sortOrder', 'fields', 'include']): this {
+  public filter(excludeFields: string[] = ['searchTerm', 'search', 'page', 'limit', 'sortBy', 'sortOrder', 'fields', 'include', 'org']): this {
     const filterableFields = this.config.filterableFields;
     const filterParams: Record<string, unknown> = {};
 
@@ -303,6 +303,21 @@ export class QueryBuilder<
 
     migrateStray(currentWhere);
     migrateStray(currentCountWhere);
+
+    // If new condition keys already exist in AND, filter them out so they don't conflict
+    const condKeys = Object.keys(condObj);
+    if (condKeys.length > 0) {
+      if (Array.isArray(currentWhere.AND)) {
+        currentWhere.AND = (currentWhere.AND as Record<string, unknown>[]).filter(
+          (item) => typeof item !== 'object' || item === null || !condKeys.some((k) => Object.prototype.hasOwnProperty.call(item, k))
+        );
+      }
+      if (Array.isArray(currentCountWhere.AND)) {
+        currentCountWhere.AND = (currentCountWhere.AND as Record<string, unknown>[]).filter(
+          (item) => typeof item !== 'object' || item === null || !condKeys.some((k) => Object.prototype.hasOwnProperty.call(item, k))
+        );
+      }
+    }
 
     (currentWhere.AND as unknown[]).push(condObj);
     (currentCountWhere.AND as unknown[]).push(condObj);

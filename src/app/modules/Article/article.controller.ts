@@ -19,6 +19,21 @@ const createArticle = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const submitArticle = catchAsync(async (req: Request, res: Response) => {
+  const requestingUserId =
+    req.user?.userId || req.user?.id
+      ? Number(req.user.userId || req.user.id)
+      : undefined;
+  const result = await ArticleService.submitArticleIntoDB(req.body, requestingUserId);
+
+  sendResponse(res, {
+    statusCode: httpStatus.CREATED,
+    success: true,
+    message: 'Your article has been submitted successfully! It will be reviewed and published by an administrator.',
+    data: result,
+  });
+});
+
 const getAllArticles = catchAsync(async (req: Request, res: Response) => {
   // If request is from unauthenticated user or member, only show published articles by default
   const query = { ...req.query };
@@ -125,6 +140,7 @@ const uploadArticleCover = catchAsync(async (req: Request, res: Response) => {
 
 export const ArticleController = {
   createArticle,
+  submitArticle,
   getAllArticles,
   getArticleByIdOrSlug,
   updateArticle,

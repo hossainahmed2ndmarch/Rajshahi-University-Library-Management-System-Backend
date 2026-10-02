@@ -165,6 +165,17 @@ const getUserOptions = catchAsync(async (_req: Request, res: Response) => {
   });
 });
 
+const convertMembership = catchAsync(async (req: Request, res: Response) => {
+  const result = await UserService.convertMembershipInDB(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Membership converted successfully for selected member(s)!',
+    data: result,
+  });
+});
+
 export const UserController = {
   registerUser,
   getAllUsers,
@@ -175,6 +186,7 @@ export const UserController = {
   updateMyProfile,
   uploadAvatar,
   renewMembership,
+  convertMembership,
   approveCashPayment,
   sendNoticeToUser,
   deleteUser,

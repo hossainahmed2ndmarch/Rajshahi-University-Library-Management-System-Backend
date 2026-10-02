@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReviewValidation = void 0;
 const zod_1 = require("zod");
+const client_1 = require("@prisma/client");
 const createBookReviewValidationSchema = zod_1.z.object({
     body: zod_1.z.object({
         bookId: zod_1.z.number().int('Book ID must be an integer').positive('Book ID must be a positive integer'),
@@ -14,6 +15,7 @@ const createBookReviewValidationSchema = zod_1.z.object({
 });
 const createServiceReviewValidationSchema = zod_1.z.object({
     body: zod_1.z.object({
+        org: zod_1.z.nativeEnum(client_1.Organization).optional(),
         rating: zod_1.z.number().int('Rating must be an integer').min(1, 'Rating must be at least 1').max(5, 'Rating cannot exceed 5'),
         comment: zod_1.z.string().optional(),
         isAnonymous: zod_1.z.boolean().optional(),

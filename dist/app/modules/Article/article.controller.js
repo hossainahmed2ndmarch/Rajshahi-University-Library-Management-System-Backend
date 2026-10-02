@@ -30,6 +30,19 @@ const createArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
         data: result,
     });
 }));
+const submitArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const requestingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)
+        ? Number(req.user.userId || req.user.id)
+        : undefined;
+    const result = yield article_service_1.ArticleService.submitArticleIntoDB(req.body, requestingUserId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.CREATED,
+        success: true,
+        message: 'Your article has been submitted successfully! It will be reviewed and published by an administrator.',
+        data: result,
+    });
+}));
 const getAllArticles = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     // If request is from unauthenticated user or member, only show published articles by default
@@ -120,6 +133,7 @@ const uploadArticleCover = (0, catchAsync_1.default)((req, res) => __awaiter(voi
 }));
 exports.ArticleController = {
     createArticle,
+    submitArticle,
     getAllArticles,
     getArticleByIdOrSlug,
     updateArticle,

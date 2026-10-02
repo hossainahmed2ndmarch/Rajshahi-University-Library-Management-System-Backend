@@ -1,11 +1,25 @@
 import httpStatus from 'http-status';
-import { PaymentMethod, PaymentStatus, UserRole, UserStatus } from '@prisma/client';
+import {
+  Organization,
+  PaymentMethod,
+  PaymentStatus,
+  RudcApplicationStatus,
+  RudcMemberType,
+  UserRole,
+  UserStatus,
+} from '@prisma/client';
 import config from '../../config';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
 import { hashPassword } from '../../utils/passwordHelpers';
-import { TRegisterMember, TUpdateUser, TUpdateMyProfile, TRenewMembership } from './user.interface';
+import {
+  TRegisterMember,
+  TUpdateUser,
+  TUpdateMyProfile,
+  TRenewMembership,
+  TConvertMembership,
+} from './user.interface';
 
 const registerMember = async (payload: TRegisterMember) => {
   if (!payload.email || !payload.phone || !payload.studentOrVoterId) {
@@ -88,6 +102,13 @@ const registerMember = async (payload: TRegisterMember) => {
       institution: payload.institution || null,
       department: payload.department || null,
       session: payload.session || null,
+      faculty: payload.faculty || null,
+      whatsappNumber: payload.whatsappNumber || null,
+      bloodGroup: payload.bloodGroup || null,
+      skills: payload.skills || [],
+      accommodationType: payload.accommodationType || null,
+      accommodationName: payload.accommodationName || null,
+      permanentAddress: payload.permanentAddress || null,
     },
   });
 
@@ -362,7 +383,6 @@ const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) =>
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  // Strictly only allow safe profile fields to be updated
   const safeData: Partial<TUpdateMyProfile> = {};
   if (payload.name !== undefined) safeData.name = payload.name;
   if (payload.avatarUrl !== undefined) safeData.avatarUrl = payload.avatarUrl;
@@ -370,6 +390,13 @@ const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) =>
   if (payload.session !== undefined) safeData.session = payload.session;
   if (payload.institution !== undefined) safeData.institution = payload.institution;
   if (payload.phone !== undefined) safeData.phone = payload.phone;
+  if (payload.faculty !== undefined) safeData.faculty = payload.faculty;
+  if (payload.whatsappNumber !== undefined) safeData.whatsappNumber = payload.whatsappNumber;
+  if (payload.bloodGroup !== undefined) safeData.bloodGroup = payload.bloodGroup;
+  if (payload.skills !== undefined) safeData.skills = payload.skills;
+  if (payload.accommodationType !== undefined) safeData.accommodationType = payload.accommodationType;
+  if (payload.accommodationName !== undefined) safeData.accommodationName = payload.accommodationName;
+  if (payload.permanentAddress !== undefined) safeData.permanentAddress = payload.permanentAddress;
 
   // A member can also update their Registered Email and Student / National Voter ID
   if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
@@ -550,17 +577,40 @@ const getUserOptionsFromDB = async () => {
       department: true,
       session: true,
       institution: true,
+      faculty: true,
+      accommodationName: true,
+      skills: true,
+      permanentAddress: true,
     },
   });
 
   const departmentsSet = new Set<string>();
   const sessionsSet = new Set<string>();
   const institutionsSet = new Set<string>();
+  const facultiesSet = new Set<string>();
+  const accommodationNamesSet = new Set<string>();
+  const skillsSet = new Set<string>();
+  const villagesSet = new Set<string>();
 
   users.forEach((u) => {
     if (u.department?.trim()) departmentsSet.add(u.department.trim());
     if (u.session?.trim()) sessionsSet.add(u.session.trim());
     if (u.institution?.trim()) institutionsSet.add(u.institution.trim());
+    if (u.faculty?.trim()) facultiesSet.add(u.faculty.trim());
+    if (u.accommodationName?.trim()) accommodationNamesSet.add(u.accommodationName.trim());
+    if (Array.isArray(u.skills)) {
+      u.skills.forEach((s) => {
+        if (s?.trim()) skillsSet.add(s.trim());
+      });
+    }
+    if (u.permanentAddress?.trim()) {
+      try {
+        const parsed = JSON.parse(u.permanentAddress);
+        if (parsed?.village?.trim()) villagesSet.add(parsed.village.trim());
+      } catch {
+        // Plain text address or non-JSON
+      }
+    }
   });
 
   const defaultDepts = [
@@ -576,17 +626,161 @@ const getUserOptionsFromDB = async () => {
   ];
   defaultDepts.forEach((d) => departmentsSet.add(d));
 
+  const defaultFaculties = [
+    'Faculty of Arts',
+    'Faculty of Law',
+    'Faculty of Science',
+    'Faculty of Business Studies',
+    'Faculty of Social Science',
+    'Faculty of Agriculture',
+    'Faculty of Engineering',
+    'Faculty of Fine Arts',
+    'Faculty of Geosciences',
+    'Faculty of Fisheries',
+    'Faculty of Veterinary and Animal Sciences',
+    'Institute of Bangladesh Studies',
+    'Institute of Biological Sciences',
+  ];
+  defaultFaculties.forEach((f) => facultiesSet.add(f));
+
   const defaultSessions = [
     '2016-2017', '2017-2018', '2018-2019', '2019-2020', '2020-2021',
     '2021-2022', '2022-2023', '2023-2024', '2024-2025', '2025-2026', '2026-2027',
   ];
   defaultSessions.forEach((s) => sessionsSet.add(s));
 
+  const defaultAccommodations = [
+    'Shah Makhdum Hall', 'Nawab Abdul Latif Hall', 'Syed Amir Ali Hall',
+    'Shahid Shamsuzzoha Hall', 'Shahid Habibur Rahman Hall', 'Motihar Hall',
+    'Madar Bux Hall', 'Suhrawardy Hall', 'Shahid Ziaur Rahman Hall',
+    'Bangabandhu Sheikh Mujibur Rahman Hall', 'Mannujan Hall', 'Rokeya Hall',
+    'Tapashi Rabeya Hall', 'Begum Khaleda Zia Hall', 'Rahamatunnesa Hall',
+    'Bangamata Sheikh Fazilatunnesa Mujib Hall', 'Resident Area / Mess'
+  ];
+  defaultAccommodations.forEach((a) => accommodationNamesSet.add(a));
+
+  const defaultSkills = [
+    'Dawah & Public Speaking', 'Content Writing', 'Graphic Design',
+    'Video Editing', 'Web Development', 'Event Management', 'Social Media Management',
+    'Photography', 'Recitation (Qirat)', 'Teaching / Mentoring', 'Logistics & Coordination'
+  ];
+  defaultSkills.forEach((s) => skillsSet.add(s));
+
   return {
     departments: Array.from(departmentsSet).sort((a, b) => a.localeCompare(b)),
+    faculties: Array.from(facultiesSet).sort((a, b) => a.localeCompare(b)),
     sessions: Array.from(sessionsSet).sort((a, b) => a.localeCompare(b)),
     institutions: Array.from(institutionsSet).sort((a, b) => a.localeCompare(b)),
+    accommodationNames: Array.from(accommodationNamesSet).sort((a, b) => a.localeCompare(b)),
+    skills: Array.from(skillsSet).sort((a, b) => a.localeCompare(b)),
+    villages: Array.from(villagesSet).sort((a, b) => a.localeCompare(b)),
   };
+};
+
+const convertMembershipInDB = async (payload: TConvertMembership) => {
+  const {
+    userIds,
+    targetRoleOrOrg,
+    confirmPayment = false,
+    paymentMethod = PaymentMethod.CASH,
+    months = 12,
+  } = payload;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds } },
+  });
+
+  if (users.length === 0) {
+    throw new AppError(httpStatus.NOT_FOUND, 'No users found for the provided IDs!');
+  }
+
+  const results = [];
+
+  for (const user of users) {
+    const updateData: Record<string, any> = {};
+    let paymentRecord: any = null;
+
+    if (targetRoleOrOrg === 'MAKE_RUDC_MEMBER') {
+      updateData.isRudcMember = true;
+      updateData.rudcMemberType = RudcMemberType.MEMBER;
+      updateData.rudcStatus = RudcApplicationStatus.APPROVED;
+      if (!user.rudcJoinedAt) updateData.rudcJoinedAt = new Date();
+      if (user.org === Organization.RUIL) {
+        updateData.org = Organization.BOTH;
+      }
+    } else if (targetRoleOrOrg === 'MAKE_RUDC_VOLUNTEER') {
+      updateData.isRudcMember = true;
+      updateData.rudcMemberType = RudcMemberType.VOLUNTEER;
+      updateData.rudcStatus = RudcApplicationStatus.APPROVED;
+      if (!user.rudcJoinedAt) updateData.rudcJoinedAt = new Date();
+      if (user.org === Organization.RUIL) {
+        updateData.org = Organization.BOTH;
+      }
+    } else if (targetRoleOrOrg === 'MAKE_RUIL_MEMBER') {
+      const now = new Date();
+      const hasActivePaidMembership =
+        user.isPaid &&
+        user.membershipExpiresAt &&
+        new Date(user.membershipExpiresAt) > now;
+
+      if (!hasActivePaidMembership && !confirmPayment) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `User "${user.name}" (#${user.id}) does not have an active RUIL paid membership! Please confirm payment to grant RUIL membership.`
+        );
+      }
+
+      if (!hasActivePaidMembership && confirmPayment) {
+        let baseDate = now;
+        if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
+          baseDate = new Date(user.membershipExpiresAt);
+        }
+        const expireDate = new Date(baseDate.getTime());
+        expireDate.setMonth(expireDate.getMonth() + (months || 12));
+
+        updateData.isPaid = true;
+        updateData.status = UserStatus.ACTIVE;
+        updateData.paymentMethod = paymentMethod;
+        updateData.membershipStartedAt = user.membershipStartedAt || now;
+        updateData.membershipExpiresAt = expireDate;
+
+        const membershipAmount = ((months || 12) / 3) * 100;
+        const transactionId = `CONVERT-MEM-${user.id}-${Date.now()}`;
+        paymentRecord = {
+          transactionId,
+          userId: user.id,
+          amount: membershipAmount,
+          paymentMethod,
+          status: PaymentStatus.COMPLETED,
+          paidAt: now,
+        };
+      }
+
+      if (user.org === Organization.RUDC) {
+        updateData.org = Organization.BOTH;
+      }
+    }
+
+    const updatedUser = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({
+        where: { id: user.id },
+        data: updateData,
+      });
+
+      if (paymentRecord) {
+        await tx.payment.create({
+          data: paymentRecord,
+        });
+      }
+
+      return u;
+    });
+
+    const { password: _, ...userData } = updatedUser;
+    results.push(userData);
+  }
+
+  return results;
 };
 
 export const UserService = {
@@ -597,6 +791,7 @@ export const UserService = {
   updateUserInDB,
   updateMyProfileInDB,
   renewMembershipInDB,
+  convertMembershipInDB,
   approveCashPaymentInDB,
   sendNoticeToUserInDB,
   deleteUserFromDB,

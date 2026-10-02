@@ -101,6 +101,13 @@ const registerMember = (payload) => __awaiter(void 0, void 0, void 0, function* 
             institution: payload.institution || null,
             department: payload.department || null,
             session: payload.session || null,
+            faculty: payload.faculty || null,
+            whatsappNumber: payload.whatsappNumber || null,
+            bloodGroup: payload.bloodGroup || null,
+            skills: payload.skills || [],
+            accommodationType: payload.accommodationType || null,
+            accommodationName: payload.accommodationName || null,
+            permanentAddress: payload.permanentAddress || null,
         },
     });
     const { password: _ } = newUser, userData = __rest(newUser, ["password"]);
@@ -328,7 +335,6 @@ const updateMyProfileInDB = (userId, payload) => __awaiter(void 0, void 0, void 
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
-    // Strictly only allow safe profile fields to be updated
     const safeData = {};
     if (payload.name !== undefined)
         safeData.name = payload.name;
@@ -342,6 +348,20 @@ const updateMyProfileInDB = (userId, payload) => __awaiter(void 0, void 0, void 
         safeData.institution = payload.institution;
     if (payload.phone !== undefined)
         safeData.phone = payload.phone;
+    if (payload.faculty !== undefined)
+        safeData.faculty = payload.faculty;
+    if (payload.whatsappNumber !== undefined)
+        safeData.whatsappNumber = payload.whatsappNumber;
+    if (payload.bloodGroup !== undefined)
+        safeData.bloodGroup = payload.bloodGroup;
+    if (payload.skills !== undefined)
+        safeData.skills = payload.skills;
+    if (payload.accommodationType !== undefined)
+        safeData.accommodationType = payload.accommodationType;
+    if (payload.accommodationName !== undefined)
+        safeData.accommodationName = payload.accommodationName;
+    if (payload.permanentAddress !== undefined)
+        safeData.permanentAddress = payload.permanentAddress;
     // A member can also update their Registered Email and Student / National Voter ID
     if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
         const emailExists = yield db_1.default.user.findFirst({
@@ -486,19 +506,47 @@ const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
             department: true,
             session: true,
             institution: true,
+            faculty: true,
+            accommodationName: true,
+            skills: true,
+            permanentAddress: true,
         },
     });
     const departmentsSet = new Set();
     const sessionsSet = new Set();
     const institutionsSet = new Set();
+    const facultiesSet = new Set();
+    const accommodationNamesSet = new Set();
+    const skillsSet = new Set();
+    const villagesSet = new Set();
     users.forEach((u) => {
-        var _a, _b, _c;
+        var _a, _b, _c, _d, _e, _f, _g;
         if ((_a = u.department) === null || _a === void 0 ? void 0 : _a.trim())
             departmentsSet.add(u.department.trim());
         if ((_b = u.session) === null || _b === void 0 ? void 0 : _b.trim())
             sessionsSet.add(u.session.trim());
         if ((_c = u.institution) === null || _c === void 0 ? void 0 : _c.trim())
             institutionsSet.add(u.institution.trim());
+        if ((_d = u.faculty) === null || _d === void 0 ? void 0 : _d.trim())
+            facultiesSet.add(u.faculty.trim());
+        if ((_e = u.accommodationName) === null || _e === void 0 ? void 0 : _e.trim())
+            accommodationNamesSet.add(u.accommodationName.trim());
+        if (Array.isArray(u.skills)) {
+            u.skills.forEach((s) => {
+                if (s === null || s === void 0 ? void 0 : s.trim())
+                    skillsSet.add(s.trim());
+            });
+        }
+        if ((_f = u.permanentAddress) === null || _f === void 0 ? void 0 : _f.trim()) {
+            try {
+                const parsed = JSON.parse(u.permanentAddress);
+                if ((_g = parsed === null || parsed === void 0 ? void 0 : parsed.village) === null || _g === void 0 ? void 0 : _g.trim())
+                    villagesSet.add(parsed.village.trim());
+            }
+            catch (_h) {
+                // Plain text address or non-JSON
+            }
+        }
     });
     const defaultDepts = [
         'Islamic Studies', 'Arabic', 'Philosophy', 'History', 'Sociology', 'Social Work', 'Economics',
@@ -512,16 +560,135 @@ const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
         'Fisheries', 'Education', 'Physical Education', 'Fine Arts', 'Music', 'Theater',
     ];
     defaultDepts.forEach((d) => departmentsSet.add(d));
+    const defaultFaculties = [
+        'Faculty of Arts',
+        'Faculty of Law',
+        'Faculty of Science',
+        'Faculty of Business Studies',
+        'Faculty of Social Science',
+        'Faculty of Agriculture',
+        'Faculty of Engineering',
+        'Faculty of Fine Arts',
+        'Faculty of Geosciences',
+        'Faculty of Fisheries',
+        'Faculty of Veterinary and Animal Sciences',
+        'Institute of Bangladesh Studies',
+        'Institute of Biological Sciences',
+    ];
+    defaultFaculties.forEach((f) => facultiesSet.add(f));
     const defaultSessions = [
         '2016-2017', '2017-2018', '2018-2019', '2019-2020', '2020-2021',
         '2021-2022', '2022-2023', '2023-2024', '2024-2025', '2025-2026', '2026-2027',
     ];
     defaultSessions.forEach((s) => sessionsSet.add(s));
+    const defaultAccommodations = [
+        'Shah Makhdum Hall', 'Nawab Abdul Latif Hall', 'Syed Amir Ali Hall',
+        'Shahid Shamsuzzoha Hall', 'Shahid Habibur Rahman Hall', 'Motihar Hall',
+        'Madar Bux Hall', 'Suhrawardy Hall', 'Shahid Ziaur Rahman Hall',
+        'Bangabandhu Sheikh Mujibur Rahman Hall', 'Mannujan Hall', 'Rokeya Hall',
+        'Tapashi Rabeya Hall', 'Begum Khaleda Zia Hall', 'Rahamatunnesa Hall',
+        'Bangamata Sheikh Fazilatunnesa Mujib Hall', 'Resident Area / Mess'
+    ];
+    defaultAccommodations.forEach((a) => accommodationNamesSet.add(a));
+    const defaultSkills = [
+        'Dawah & Public Speaking', 'Content Writing', 'Graphic Design',
+        'Video Editing', 'Web Development', 'Event Management', 'Social Media Management',
+        'Photography', 'Recitation (Qirat)', 'Teaching / Mentoring', 'Logistics & Coordination'
+    ];
+    defaultSkills.forEach((s) => skillsSet.add(s));
     return {
         departments: Array.from(departmentsSet).sort((a, b) => a.localeCompare(b)),
+        faculties: Array.from(facultiesSet).sort((a, b) => a.localeCompare(b)),
         sessions: Array.from(sessionsSet).sort((a, b) => a.localeCompare(b)),
         institutions: Array.from(institutionsSet).sort((a, b) => a.localeCompare(b)),
+        accommodationNames: Array.from(accommodationNamesSet).sort((a, b) => a.localeCompare(b)),
+        skills: Array.from(skillsSet).sort((a, b) => a.localeCompare(b)),
+        villages: Array.from(villagesSet).sort((a, b) => a.localeCompare(b)),
     };
+});
+const convertMembershipInDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const { userIds, targetRoleOrOrg, confirmPayment = false, paymentMethod = client_1.PaymentMethod.CASH, months = 12, } = payload;
+    const users = yield db_1.default.user.findMany({
+        where: { id: { in: userIds } },
+    });
+    if (users.length === 0) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No users found for the provided IDs!');
+    }
+    const results = [];
+    for (const user of users) {
+        const updateData = {};
+        let paymentRecord = null;
+        if (targetRoleOrOrg === 'MAKE_RUDC_MEMBER') {
+            updateData.isRudcMember = true;
+            updateData.rudcMemberType = client_1.RudcMemberType.MEMBER;
+            updateData.rudcStatus = client_1.RudcApplicationStatus.APPROVED;
+            if (!user.rudcJoinedAt)
+                updateData.rudcJoinedAt = new Date();
+            if (user.org === client_1.Organization.RUIL) {
+                updateData.org = client_1.Organization.BOTH;
+            }
+        }
+        else if (targetRoleOrOrg === 'MAKE_RUDC_VOLUNTEER') {
+            updateData.isRudcMember = true;
+            updateData.rudcMemberType = client_1.RudcMemberType.VOLUNTEER;
+            updateData.rudcStatus = client_1.RudcApplicationStatus.APPROVED;
+            if (!user.rudcJoinedAt)
+                updateData.rudcJoinedAt = new Date();
+            if (user.org === client_1.Organization.RUIL) {
+                updateData.org = client_1.Organization.BOTH;
+            }
+        }
+        else if (targetRoleOrOrg === 'MAKE_RUIL_MEMBER') {
+            const now = new Date();
+            const hasActivePaidMembership = user.isPaid &&
+                user.membershipExpiresAt &&
+                new Date(user.membershipExpiresAt) > now;
+            if (!hasActivePaidMembership && !confirmPayment) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `User "${user.name}" (#${user.id}) does not have an active RUIL paid membership! Please confirm payment to grant RUIL membership.`);
+            }
+            if (!hasActivePaidMembership && confirmPayment) {
+                let baseDate = now;
+                if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
+                    baseDate = new Date(user.membershipExpiresAt);
+                }
+                const expireDate = new Date(baseDate.getTime());
+                expireDate.setMonth(expireDate.getMonth() + (months || 12));
+                updateData.isPaid = true;
+                updateData.status = client_1.UserStatus.ACTIVE;
+                updateData.paymentMethod = paymentMethod;
+                updateData.membershipStartedAt = user.membershipStartedAt || now;
+                updateData.membershipExpiresAt = expireDate;
+                const membershipAmount = ((months || 12) / 3) * 100;
+                const transactionId = `CONVERT-MEM-${user.id}-${Date.now()}`;
+                paymentRecord = {
+                    transactionId,
+                    userId: user.id,
+                    amount: membershipAmount,
+                    paymentMethod,
+                    status: client_1.PaymentStatus.COMPLETED,
+                    paidAt: now,
+                };
+            }
+            if (user.org === client_1.Organization.RUDC) {
+                updateData.org = client_1.Organization.BOTH;
+            }
+        }
+        const updatedUser = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            const u = yield tx.user.update({
+                where: { id: user.id },
+                data: updateData,
+            });
+            if (paymentRecord) {
+                yield tx.payment.create({
+                    data: paymentRecord,
+                });
+            }
+            return u;
+        }));
+        const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
+        results.push(userData);
+    }
+    return results;
 });
 exports.UserService = {
     registerMember,
@@ -531,6 +698,7 @@ exports.UserService = {
     updateUserInDB,
     updateMyProfileInDB,
     renewMembershipInDB,
+    convertMembershipInDB,
     approveCashPaymentInDB,
     sendNoticeToUserInDB,
     deleteUserFromDB,

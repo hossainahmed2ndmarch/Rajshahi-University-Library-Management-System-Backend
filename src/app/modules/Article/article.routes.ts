@@ -11,12 +11,20 @@ const router = Router();
 // ── Upload article cover image ──────────────────────────────────────────────
 router.post(
   '/upload-cover',
-  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  optionalAuth,
   uploadArticleCover,
   ArticleController.uploadArticleCover
 );
 
-// ── Create new article ───────────────────────────────────────────────────────
+// ── Submit article for review (Public: guests or authenticated users) ─────────
+router.post(
+  '/submit',
+  optionalAuth,
+  validateRequest(ArticleValidation.submitArticleValidationSchema),
+  ArticleController.submitArticle
+);
+
+// ── Create new article (Admin / Super Admin direct publication) ──────────────
 router.post(
   '/',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),

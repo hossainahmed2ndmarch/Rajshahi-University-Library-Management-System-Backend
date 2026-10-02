@@ -16,3 +16,14 @@ export type TCreateArticle = {
 };
 
 export type TUpdateArticle = Partial<TCreateArticle>;
+
+export type TSubmitArticle = {
+  org?: Organization;
+  title: string;
+  content: string;
+  category: string;
+  authorName: string;
+  authorDesignation?: string | null;
+  authorEmail?: string | null;
+  coverImage?: string | null;
+};

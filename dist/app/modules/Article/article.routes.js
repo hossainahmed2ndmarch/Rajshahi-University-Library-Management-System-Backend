@@ -46,8 +46,10 @@ const article_controller_1 = require("./article.controller");
 const article_validation_1 = require("./article.validation");
 const router = (0, express_1.Router)();
 // ── Upload article cover image ──────────────────────────────────────────────
-router.post('/upload-cover', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), uploadImage_1.uploadArticleCover, article_controller_1.ArticleController.uploadArticleCover);
-// ── Create new article ───────────────────────────────────────────────────────
+router.post('/upload-cover', auth_1.optionalAuth, uploadImage_1.uploadArticleCover, article_controller_1.ArticleController.uploadArticleCover);
+// ── Submit article for review (Public: guests or authenticated users) ─────────
+router.post('/submit', auth_1.optionalAuth, (0, validateRequest_1.default)(article_validation_1.ArticleValidation.submitArticleValidationSchema), article_controller_1.ArticleController.submitArticle);
+// ── Create new article (Admin / Super Admin direct publication) ──────────────
 router.post('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(article_validation_1.ArticleValidation.createArticleValidationSchema), article_controller_1.ArticleController.createArticle);
 // ── Get all articles (with optional auth, filtering, search, pagination) ────
 router.get('/', auth_1.optionalAuth, article_controller_1.ArticleController.getAllArticles);

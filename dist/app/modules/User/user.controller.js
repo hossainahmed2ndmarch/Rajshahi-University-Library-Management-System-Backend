@@ -155,6 +155,15 @@ const getUserOptions = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0
         data: result,
     });
 }));
+const convertMembership = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.convertMembershipInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Membership converted successfully for selected member(s)!',
+        data: result,
+    });
+}));
 exports.UserController = {
     registerUser,
     getAllUsers,
@@ -165,6 +174,7 @@ exports.UserController = {
     updateMyProfile,
     uploadAvatar,
     renewMembership,
+    convertMembership,
     approveCashPayment,
     sendNoticeToUser,
     deleteUser,

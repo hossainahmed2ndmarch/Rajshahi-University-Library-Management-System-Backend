@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Organization } from '@prisma/client';
 
 const createBookReviewValidationSchema = z.object({
   body: z.object({
@@ -13,6 +14,7 @@ const createBookReviewValidationSchema = z.object({
 
 const createServiceReviewValidationSchema = z.object({
   body: z.object({
+    org: z.nativeEnum(Organization).optional(),
     rating: z.number().int('Rating must be an integer').min(1, 'Rating must be at least 1').max(5, 'Rating cannot exceed 5'),
     comment: z.string().optional(),
     isAnonymous: z.boolean().optional(),

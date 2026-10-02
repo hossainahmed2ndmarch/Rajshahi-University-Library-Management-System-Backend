@@ -82,7 +82,7 @@ class QueryBuilder {
         }
         return this;
     }
-    filter(excludeFields = ['searchTerm', 'search', 'page', 'limit', 'sortBy', 'sortOrder', 'fields', 'include']) {
+    filter(excludeFields = ['searchTerm', 'search', 'page', 'limit', 'sortBy', 'sortOrder', 'fields', 'include', 'org']) {
         const filterableFields = this.config.filterableFields;
         const filterParams = {};
         Object.keys(this.queryParams).forEach((key) => {
@@ -220,6 +220,16 @@ class QueryBuilder {
         };
         migrateStray(currentWhere);
         migrateStray(currentCountWhere);
+        // If new condition keys already exist in AND, filter them out so they don't conflict
+        const condKeys = Object.keys(condObj);
+        if (condKeys.length > 0) {
+            if (Array.isArray(currentWhere.AND)) {
+                currentWhere.AND = currentWhere.AND.filter((item) => typeof item !== 'object' || item === null || !condKeys.some((k) => Object.prototype.hasOwnProperty.call(item, k)));
+            }
+            if (Array.isArray(currentCountWhere.AND)) {
+                currentCountWhere.AND = currentCountWhere.AND.filter((item) => typeof item !== 'object' || item === null || !condKeys.some((k) => Object.prototype.hasOwnProperty.call(item, k)));
+            }
+        }
         currentWhere.AND.push(condObj);
         currentCountWhere.AND.push(condObj);
         return this;
