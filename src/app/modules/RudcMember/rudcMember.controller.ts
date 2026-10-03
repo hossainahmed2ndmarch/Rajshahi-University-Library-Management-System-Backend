@@ -17,7 +17,7 @@ const applyForRudc = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyRudcProfile = catchAsync(async (req: Request, res: Response) => {
-  const userId = (req as any).user.id;
+  const userId = Number((req as any).user?.userId || (req as any).user?.id);
   const result = await RudcMemberService.getMyRudcProfile(userId);
 
   sendResponse(res, {

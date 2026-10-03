@@ -18,7 +18,11 @@ const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const rudcIyanot_service_1 = require("./rudcIyanot.service");
 const getRudcIyanotRecords = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const user = req.user;
+    const reqUser = req.user;
+    const user = {
+        id: Number((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
+        role: reqUser === null || reqUser === void 0 ? void 0 : reqUser.role,
+    };
     const result = yield rudcIyanot_service_1.RudcIyanotService.getRudcIyanotRecords(req.query, user);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -29,7 +33,11 @@ const getRudcIyanotRecords = (0, catchAsync_1.default)((req, res) => __awaiter(v
     });
 }));
 const recordIyanotPayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const actingUser = req.user;
+    const reqUser = req.user;
+    const actingUser = {
+        id: Number((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
+        role: reqUser === null || reqUser === void 0 ? void 0 : reqUser.role,
+    };
     const result = yield rudcIyanot_service_1.RudcIyanotService.recordIyanotPayment(req.body, actingUser);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,

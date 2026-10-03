@@ -5,7 +5,11 @@ import sendResponse from '../../utils/sendResponse';
 import { RudcIyanotService } from './rudcIyanot.service';
 
 const getRudcIyanotRecords = catchAsync(async (req: Request, res: Response) => {
-  const user = (req as any).user;
+  const reqUser = (req as any).user;
+  const user = {
+    id: Number(reqUser?.userId || reqUser?.id),
+    role: reqUser?.role,
+  };
   const result = await RudcIyanotService.getRudcIyanotRecords(req.query, user);
 
   sendResponse(res, {
@@ -18,7 +22,11 @@ const getRudcIyanotRecords = catchAsync(async (req: Request, res: Response) => {
 });
 
 const recordIyanotPayment = catchAsync(async (req: Request, res: Response) => {
-  const actingUser = (req as any).user;
+  const reqUser = (req as any).user;
+  const actingUser = {
+    id: Number(reqUser?.userId || reqUser?.id),
+    role: reqUser?.role,
+  };
   const result = await RudcIyanotService.recordIyanotPayment(req.body, actingUser);
 
   sendResponse(res, {
