@@ -77,7 +77,7 @@ const recordIyanotPayment = async (
   payload: TRecordIyanotPayload,
   actingUser: { id: number; role: string }
 ) => {
-  const { userId, month, year, amount = 50, paymentMethod, transactionId, remarks } = payload;
+  const { userId, month, year, amount = 50, paymentMethod, transactionId, remarks, collectedById: payloadCollectedById } = payload;
 
   const targetUser = await prisma.user.findUnique({
     where: { id: userId },
@@ -92,12 +92,27 @@ const recordIyanotPayment = async (
     throw new AppError(httpStatus.FORBIDDEN, 'You can only submit iyanot payment for yourself!');
   }
 
-  let collectedById: number | null = null;
-  if (
-    paymentMethod === IyanotPaymentMethod.CASH_OFFLINE &&
-    (['SUPER_ADMIN', 'ADMIN', 'SHIFTER'] as string[]).includes(actingUser.role)
-  ) {
-    collectedById = actingUser.id;
+  const isAdmin = (['SUPER_ADMIN', 'ADMIN'] as string[]).includes(actingUser.role);
+  let status: IyanotStatus;
+  let paidAt: Date | null = null;
+  let collectedById: number | null = payloadCollectedById ? Number(payloadCollectedById) : null;
+
+  if (paymentMethod === IyanotPaymentMethod.ONLINE) {
+    status = IyanotStatus.PAID;
+    paidAt = new Date();
+  } else {
+    // CASH_OFFLINE
+    if (isAdmin) {
+      status = IyanotStatus.PAID;
+      paidAt = new Date();
+      if (!collectedById) {
+        collectedById = actingUser.id;
+      }
+    } else {
+      // Offline submission by volunteer/member: initially PENDING until admin approves
+      status = IyanotStatus.PENDING;
+      paidAt = null;
+    }
   }
 
   const receiptNo = `RUDC-IYN-${year}${String(month).padStart(2, '0')}-${userId}-${Date.now().toString(36).toUpperCase()}`;
@@ -116,21 +131,21 @@ const recordIyanotPayment = async (
       year,
       amount,
       paymentMethod,
-      status: IyanotStatus.PAID,
+      status,
       collectedById,
       transactionId,
       receiptNo,
       remarks,
-      paidAt: new Date(),
+      paidAt,
     },
     update: {
       amount,
       paymentMethod,
-      status: IyanotStatus.PAID,
-      collectedById: collectedById || undefined,
+      status,
+      collectedById: collectedById !== null ? collectedById : undefined,
       transactionId: transactionId || undefined,
       remarks: remarks || undefined,
-      paidAt: new Date(),
+      paidAt,
     },
     include: {
       user: {
@@ -155,7 +170,55 @@ const recordIyanotPayment = async (
   return record;
 };
 
+const updateIyanotStatus = async (
+  id: number,
+  payload: { status: IyanotStatus; remarks?: string; collectedById?: number },
+  actingUser: { id: number; role: string }
+) => {
+  const existing = await prisma.rudcIyanot.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Iyanot record not found!');
+  }
+
+  const isPaid = payload.status === IyanotStatus.PAID;
+
+  const updated = await prisma.rudcIyanot.update({
+    where: { id },
+    data: {
+      status: payload.status,
+      remarks: payload.remarks || existing.remarks,
+      paidAt: isPaid ? new Date() : existing.paidAt,
+      collectedById: payload.collectedById ? Number(payload.collectedById) : (existing.collectedById || actingUser.id),
+    },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          rudcMemberType: true,
+        },
+      },
+      collectedBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+        },
+      },
+    },
+  });
+
+  return updated;
+};
+
 export const RudcIyanotService = {
   getRudcIyanotRecords,
   recordIyanotPayment,
+  updateIyanotStatus,
 };

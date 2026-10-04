@@ -149,7 +149,11 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
             rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
             rudcJoinedAt: new Date(),
             role: client_1.UserRole.MEMBER,
-            status: client_1.UserStatus.ACTIVE,
+            status: client_1.UserStatus.PENDING_APPROVAL,
+            isPaid: false,
+            membershipStartedAt: null,
+            membershipExpiresAt: null,
+            paymentMethod: null,
         },
         select: {
             id: true,
@@ -157,6 +161,7 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
             email: true,
             phone: true,
             org: true,
+            status: true,
             rudcStatus: true,
             rudcMemberType: true,
             isRudcMember: true,
@@ -175,6 +180,7 @@ const getMyRudcProfile = (userId) => __awaiter(void 0, void 0, void 0, function*
                     name: true,
                     email: true,
                     phone: true,
+                    whatsappNumber: true,
                     avatarUrl: true,
                     rudcMemberType: true,
                 },
@@ -185,6 +191,7 @@ const getMyRudcProfile = (userId) => __awaiter(void 0, void 0, void 0, function*
                     name: true,
                     email: true,
                     phone: true,
+                    whatsappNumber: true,
                     avatarUrl: true,
                     department: true,
                     rudcMemberType: true,
@@ -194,12 +201,44 @@ const getMyRudcProfile = (userId) => __awaiter(void 0, void 0, void 0, function*
             },
             rudcTeams: {
                 include: {
-                    team: true,
+                    team: {
+                        include: {
+                            members: {
+                                include: {
+                                    user: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                            email: true,
+                                            phone: true,
+                                            whatsappNumber: true,
+                                            department: true,
+                                            faculty: true,
+                                            session: true,
+                                            skills: true,
+                                            rudcMemberType: true,
+                                            avatarUrl: true,
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
                 },
             },
             iyanotPayments: {
+                include: {
+                    collectedBy: {
+                        select: {
+                            id: true,
+                            name: true,
+                            role: true,
+                            phone: true,
+                        },
+                    },
+                },
                 orderBy: [{ year: 'desc' }, { month: 'desc' }],
-                take: 12,
+                take: 24,
             },
         },
     });
@@ -458,6 +497,41 @@ const updateRudcMember = (id, payload) => __awaiter(void 0, void 0, void 0, func
     if (!existing) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member not found!');
     }
+    // If status is REJECTED, delete pure RUDC applicant from database or un-affiliate BOTH user
+    if (payload.rudcStatus === client_1.RudcApplicationStatus.REJECTED) {
+        if (existing.org === client_1.Organization.RUDC) {
+            yield db_1.default.user.updateMany({
+                where: { supervisorId: id },
+                data: { supervisorId: null },
+            });
+            yield db_1.default.userRudcTeam.deleteMany({
+                where: { userId: id },
+            });
+            yield db_1.default.rudcIyanot.deleteMany({
+                where: { userId: id },
+            });
+            yield db_1.default.user.delete({
+                where: { id },
+            });
+            return { id, isDeleted: true, message: 'Applicant rejected and record deleted from database successfully.' };
+        }
+        else {
+            yield db_1.default.userRudcTeam.deleteMany({
+                where: { userId: id },
+            });
+            const updated = yield db_1.default.user.update({
+                where: { id },
+                data: {
+                    isRudcMember: false,
+                    rudcMemberType: null,
+                    rudcStatus: client_1.RudcApplicationStatus.REJECTED,
+                    supervisorId: null,
+                    org: client_1.Organization.RUIL,
+                },
+            });
+            return updated;
+        }
+    }
     if (payload.supervisorId && payload.supervisorId === id) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'A member cannot be their own supervisor!');
     }
@@ -482,6 +556,44 @@ const updateRudcMember = (id, payload) => __awaiter(void 0, void 0, void 0, func
         },
     });
     return getRudcMemberById(updated.id);
+});
+// Dedicated delete / reject applicant endpoint
+const deleteRudcMember = (id) => __awaiter(void 0, void 0, void 0, function* () {
+    const existing = yield db_1.default.user.findUnique({
+        where: { id },
+    });
+    if (!existing) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member not found!');
+    }
+    yield db_1.default.user.updateMany({
+        where: { supervisorId: id },
+        data: { supervisorId: null },
+    });
+    yield db_1.default.userRudcTeam.deleteMany({
+        where: { userId: id },
+    });
+    yield db_1.default.rudcIyanot.deleteMany({
+        where: { userId: id },
+    });
+    if (existing.org === client_1.Organization.RUDC) {
+        yield db_1.default.user.delete({
+            where: { id },
+        });
+        return { id, isDeleted: true, message: 'Applicant/Member deleted completely from database.' };
+    }
+    else {
+        yield db_1.default.user.update({
+            where: { id },
+            data: {
+                isRudcMember: false,
+                rudcMemberType: null,
+                rudcStatus: null,
+                supervisorId: null,
+                org: client_1.Organization.RUIL,
+            },
+        });
+        return { id, isDeleted: false, message: 'RUDC association removed; library user preserved.' };
+    }
 });
 // 7. Pre-existed RUDC Member Entry with ALL Recruitment Fields
 const createPreExistedRudcMember = (payload) => __awaiter(void 0, void 0, void 0, function* () {
@@ -632,6 +744,7 @@ exports.RudcMemberService = {
     getAllRudcMembers,
     getRudcMemberById,
     updateRudcMember,
+    deleteRudcMember,
     createPreExistedRudcMember,
     getPublicRudcStats,
 };

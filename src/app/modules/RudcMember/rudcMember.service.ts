@@ -147,7 +147,11 @@ const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: nu
       rudcStatus: RudcApplicationStatus.PENDING_REVIEW,
       rudcJoinedAt: new Date(),
       role: UserRole.MEMBER,
-      status: UserStatus.ACTIVE,
+      status: UserStatus.PENDING_APPROVAL,
+      isPaid: false,
+      membershipStartedAt: null,
+      membershipExpiresAt: null,
+      paymentMethod: null,
     },
     select: {
       id: true,
@@ -155,6 +159,7 @@ const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: nu
       email: true,
       phone: true,
       org: true,
+      status: true,
       rudcStatus: true,
       rudcMemberType: true,
       isRudcMember: true,
@@ -175,6 +180,7 @@ const getMyRudcProfile = async (userId: number) => {
           name: true,
           email: true,
           phone: true,
+          whatsappNumber: true,
           avatarUrl: true,
           rudcMemberType: true,
         },
@@ -185,6 +191,7 @@ const getMyRudcProfile = async (userId: number) => {
           name: true,
           email: true,
           phone: true,
+          whatsappNumber: true,
           avatarUrl: true,
           department: true,
           rudcMemberType: true,
@@ -194,12 +201,44 @@ const getMyRudcProfile = async (userId: number) => {
       },
       rudcTeams: {
         include: {
-          team: true,
+          team: {
+            include: {
+              members: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                      phone: true,
+                      whatsappNumber: true,
+                      department: true,
+                      faculty: true,
+                      session: true,
+                      skills: true,
+                      rudcMemberType: true,
+                      avatarUrl: true,
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
       },
       iyanotPayments: {
+        include: {
+          collectedBy: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+              phone: true,
+            },
+          },
+        },
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
-        take: 12,
+        take: 24,
       },
     },
   });
@@ -494,6 +533,41 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
     throw new AppError(httpStatus.NOT_FOUND, 'Member not found!');
   }
 
+  // If status is REJECTED, delete pure RUDC applicant from database or un-affiliate BOTH user
+  if (payload.rudcStatus === RudcApplicationStatus.REJECTED) {
+    if (existing.org === Organization.RUDC) {
+      await prisma.user.updateMany({
+        where: { supervisorId: id },
+        data: { supervisorId: null },
+      });
+      await prisma.userRudcTeam.deleteMany({
+        where: { userId: id },
+      });
+      await prisma.rudcIyanot.deleteMany({
+        where: { userId: id },
+      });
+      await prisma.user.delete({
+        where: { id },
+      });
+      return { id, isDeleted: true, message: 'Applicant rejected and record deleted from database successfully.' };
+    } else {
+      await prisma.userRudcTeam.deleteMany({
+        where: { userId: id },
+      });
+      const updated = await prisma.user.update({
+        where: { id },
+        data: {
+          isRudcMember: false,
+          rudcMemberType: null,
+          rudcStatus: RudcApplicationStatus.REJECTED,
+          supervisorId: null,
+          org: Organization.RUIL,
+        },
+      });
+      return updated;
+    }
+  }
+
   if (payload.supervisorId && payload.supervisorId === id) {
     throw new AppError(httpStatus.BAD_REQUEST, 'A member cannot be their own supervisor!');
   }
@@ -520,6 +594,49 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
   });
 
   return getRudcMemberById(updated.id);
+};
+
+// Dedicated delete / reject applicant endpoint
+const deleteRudcMember = async (id: number) => {
+  const existing = await prisma.user.findUnique({
+    where: { id },
+  });
+
+  if (!existing) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Member not found!');
+  }
+
+  await prisma.user.updateMany({
+    where: { supervisorId: id },
+    data: { supervisorId: null },
+  });
+
+  await prisma.userRudcTeam.deleteMany({
+    where: { userId: id },
+  });
+
+  await prisma.rudcIyanot.deleteMany({
+    where: { userId: id },
+  });
+
+  if (existing.org === Organization.RUDC) {
+    await prisma.user.delete({
+      where: { id },
+    });
+    return { id, isDeleted: true, message: 'Applicant/Member deleted completely from database.' };
+  } else {
+    await prisma.user.update({
+      where: { id },
+      data: {
+        isRudcMember: false,
+        rudcMemberType: null,
+        rudcStatus: null,
+        supervisorId: null,
+        org: Organization.RUIL,
+      },
+    });
+    return { id, isDeleted: false, message: 'RUDC association removed; library user preserved.' };
+  }
 };
 
 // 7. Pre-existed RUDC Member Entry with ALL Recruitment Fields
@@ -682,6 +799,7 @@ export const RudcMemberService = {
   getAllRudcMembers,
   getRudcMemberById,
   updateRudcMember,
+  deleteRudcMember,
   createPreExistedRudcMember,
   getPublicRudcStats,
 };

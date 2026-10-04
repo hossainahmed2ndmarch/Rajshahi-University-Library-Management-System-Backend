@@ -58,4 +58,5 @@ router.post('/pre-existed', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, c
 router.get('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), rudcMember_controller_1.RudcMemberController.getAllRudcMembers);
 router.get('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER, client_1.UserRole.MEMBER), rudcMember_controller_1.RudcMemberController.getRudcMemberById);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(rudcMember_validation_1.RudcMemberValidation.updateRudcMemberZodSchema), rudcMember_controller_1.RudcMemberController.updateRudcMember);
+router.delete('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), rudcMember_controller_1.RudcMemberController.deleteRudcMember);
 exports.RudcMemberRoutes = router;

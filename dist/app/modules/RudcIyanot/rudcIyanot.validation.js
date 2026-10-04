@@ -15,6 +15,14 @@ const recordIyanotZodSchema = zod_1.z.object({
         remarks: zod_1.z.string().optional(),
     }),
 });
+const updateIyanotStatusZodSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        status: zod_1.z.nativeEnum(client_1.IyanotStatus),
+        remarks: zod_1.z.string().optional(),
+        collectedById: zod_1.z.number().optional(),
+    }),
+});
 exports.RudcIyanotValidation = {
     recordIyanotZodSchema,
+    updateIyanotStatusZodSchema,
 };

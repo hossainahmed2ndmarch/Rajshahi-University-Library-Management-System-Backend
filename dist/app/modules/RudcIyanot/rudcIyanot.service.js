@@ -79,7 +79,7 @@ const getRudcIyanotRecords = (query, user) => __awaiter(void 0, void 0, void 0, 
     };
 });
 const recordIyanotPayment = (payload, actingUser) => __awaiter(void 0, void 0, void 0, function* () {
-    const { userId, month, year, amount = 50, paymentMethod, transactionId, remarks } = payload;
+    const { userId, month, year, amount = 50, paymentMethod, transactionId, remarks, collectedById: payloadCollectedById } = payload;
     const targetUser = yield db_1.default.user.findUnique({
         where: { id: userId },
     });
@@ -90,10 +90,28 @@ const recordIyanotPayment = (payload, actingUser) => __awaiter(void 0, void 0, v
     if (actingUser.role === client_1.UserRole.MEMBER && actingUser.id !== userId) {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'You can only submit iyanot payment for yourself!');
     }
-    let collectedById = null;
-    if (paymentMethod === client_1.IyanotPaymentMethod.CASH_OFFLINE &&
-        ['SUPER_ADMIN', 'ADMIN', 'SHIFTER'].includes(actingUser.role)) {
-        collectedById = actingUser.id;
+    const isAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(actingUser.role);
+    let status;
+    let paidAt = null;
+    let collectedById = payloadCollectedById ? Number(payloadCollectedById) : null;
+    if (paymentMethod === client_1.IyanotPaymentMethod.ONLINE) {
+        status = client_1.IyanotStatus.PAID;
+        paidAt = new Date();
+    }
+    else {
+        // CASH_OFFLINE
+        if (isAdmin) {
+            status = client_1.IyanotStatus.PAID;
+            paidAt = new Date();
+            if (!collectedById) {
+                collectedById = actingUser.id;
+            }
+        }
+        else {
+            // Offline submission by volunteer/member: initially PENDING until admin approves
+            status = client_1.IyanotStatus.PENDING;
+            paidAt = null;
+        }
     }
     const receiptNo = `RUDC-IYN-${year}${String(month).padStart(2, '0')}-${userId}-${Date.now().toString(36).toUpperCase()}`;
     const record = yield db_1.default.rudcIyanot.upsert({
@@ -110,21 +128,21 @@ const recordIyanotPayment = (payload, actingUser) => __awaiter(void 0, void 0, v
             year,
             amount,
             paymentMethod,
-            status: client_1.IyanotStatus.PAID,
+            status,
             collectedById,
             transactionId,
             receiptNo,
             remarks,
-            paidAt: new Date(),
+            paidAt,
         },
         update: {
             amount,
             paymentMethod,
-            status: client_1.IyanotStatus.PAID,
-            collectedById: collectedById || undefined,
+            status,
+            collectedById: collectedById !== null ? collectedById : undefined,
             transactionId: transactionId || undefined,
             remarks: remarks || undefined,
-            paidAt: new Date(),
+            paidAt,
         },
         include: {
             user: {
@@ -147,7 +165,46 @@ const recordIyanotPayment = (payload, actingUser) => __awaiter(void 0, void 0, v
     });
     return record;
 });
+const updateIyanotStatus = (id, payload, actingUser) => __awaiter(void 0, void 0, void 0, function* () {
+    const existing = yield db_1.default.rudcIyanot.findUnique({
+        where: { id },
+    });
+    if (!existing) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Iyanot record not found!');
+    }
+    const isPaid = payload.status === client_1.IyanotStatus.PAID;
+    const updated = yield db_1.default.rudcIyanot.update({
+        where: { id },
+        data: {
+            status: payload.status,
+            remarks: payload.remarks || existing.remarks,
+            paidAt: isPaid ? new Date() : existing.paidAt,
+            collectedById: payload.collectedById ? Number(payload.collectedById) : (existing.collectedById || actingUser.id),
+        },
+        include: {
+            user: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    phone: true,
+                    rudcMemberType: true,
+                },
+            },
+            collectedBy: {
+                select: {
+                    id: true,
+                    name: true,
+                    email: true,
+                    role: true,
+                },
+            },
+        },
+    });
+    return updated;
+});
 exports.RudcIyanotService = {
     getRudcIyanotRecords,
     recordIyanotPayment,
+    updateIyanotStatus,
 };

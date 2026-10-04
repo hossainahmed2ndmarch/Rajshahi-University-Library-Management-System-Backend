@@ -96,6 +96,16 @@ const getPublicRudcStats = (0, catchAsync_1.default)((req, res) => __awaiter(voi
         data: result,
     });
 }));
+const deleteRudcMember = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const result = yield rudcMember_service_1.RudcMemberService.deleteRudcMember(Number(id));
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: result.message || 'RUDC Member/Applicant deleted successfully!',
+        data: result,
+    });
+}));
 exports.RudcMemberController = {
     applyForRudc,
     getMyRudcProfile,
@@ -103,6 +113,7 @@ exports.RudcMemberController = {
     getAllRudcMembers,
     getRudcMemberById,
     updateRudcMember,
+    deleteRudcMember,
     createPreExistedRudcMember,
     getPublicRudcStats,
 };

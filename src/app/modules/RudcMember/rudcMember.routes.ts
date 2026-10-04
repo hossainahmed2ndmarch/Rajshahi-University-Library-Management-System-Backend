@@ -61,4 +61,10 @@ router.patch(
   RudcMemberController.updateRudcMember
 );
 
+router.delete(
+  '/:id',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  RudcMemberController.deleteRudcMember
+);
+
 export const RudcMemberRoutes = router;

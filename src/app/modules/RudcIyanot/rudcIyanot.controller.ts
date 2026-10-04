@@ -37,7 +37,25 @@ const recordIyanotPayment = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const updateIyanotStatus = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const reqUser = (req as any).user;
+  const actingUser = {
+    id: Number(reqUser?.userId || reqUser?.id),
+    role: reqUser?.role,
+  };
+  const result = await RudcIyanotService.updateIyanotStatus(Number(id), req.body, actingUser);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'RUDC Iyanot status updated successfully!',
+    data: result,
+  });
+});
+
 export const RudcIyanotController = {
   getRudcIyanotRecords,
   recordIyanotPayment,
+  updateIyanotStatus,
 };

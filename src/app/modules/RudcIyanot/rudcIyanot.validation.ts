@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { IyanotPaymentMethod } from '@prisma/client';
+import { IyanotPaymentMethod, IyanotStatus } from '@prisma/client';
 
 const recordIyanotZodSchema = z.object({
   body: z.object({
@@ -14,6 +14,15 @@ const recordIyanotZodSchema = z.object({
   }),
 });
 
+const updateIyanotStatusZodSchema = z.object({
+  body: z.object({
+    status: z.nativeEnum(IyanotStatus),
+    remarks: z.string().optional(),
+    collectedById: z.number().optional(),
+  }),
+});
+
 export const RudcIyanotValidation = {
   recordIyanotZodSchema,
+  updateIyanotStatusZodSchema,
 };
