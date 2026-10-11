@@ -40,7 +40,7 @@ const generateSlug = (title) => {
     return `${base}-${Date.now().toString(36)}`;
 };
 const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c;
+    var _a, _b, _c, _d, _e, _f;
     const slug = generateSlug(payload.title);
     const eventData = {
         title: payload.title,
@@ -53,11 +53,13 @@ const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
         bannerImage: payload.bannerImage,
         startDate: payload.startDate ? new Date(payload.startDate) : null,
         endDate: payload.endDate ? new Date(payload.endDate) : null,
-        currentChapter: payload.currentChapter,
-        metadata: (_a = payload.metadata) !== null && _a !== void 0 ? _a : undefined,
-        isActive: (_b = payload.isActive) !== null && _b !== void 0 ? _b : true,
+        isFundraiser: (_a = payload.isFundraiser) !== null && _a !== void 0 ? _a : false,
+        targetAmount: (_b = payload.targetAmount) !== null && _b !== void 0 ? _b : null,
+        raisedAmount: (_c = payload.raisedAmount) !== null && _c !== void 0 ? _c : 0.0,
+        metadata: (_d = payload.metadata) !== null && _d !== void 0 ? _d : undefined,
+        isActive: (_e = payload.isActive) !== null && _e !== void 0 ? _e : true,
         activity: payload.activityId ? { connect: { id: payload.activityId } } : undefined,
-        books: ((_c = payload.bookIds) === null || _c === void 0 ? void 0 : _c.length)
+        books: ((_f = payload.bookIds) === null || _f === void 0 ? void 0 : _f.length)
             ? { connect: payload.bookIds.map((id) => ({ id })) }
             : undefined,
     };
@@ -83,7 +85,7 @@ const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
     });
 });
 const getAllEventsFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { status, org, activityId, isActive } = query, queryParams = __rest(query, ["status", "org", "activityId", "isActive"]);
+    const { status, org, activityId, isActive, isFundraiser } = query, queryParams = __rest(query, ["status", "org", "activityId", "isActive", "isFundraiser"]);
     const eventQuery = new queryBuilder_1.default(db_1.default.event, Object.assign({}, queryParams), {
         searchableFields: ['title', 'category', 'location', 'scheduleText', 'currentChapter'],
         filterableFields: [],
@@ -112,6 +114,9 @@ const getAllEventsFromDB = (query) => __awaiter(void 0, void 0, void 0, function
     if (isActive !== undefined) {
         eventQuery.where({ isActive: isActive === 'true' || isActive === true });
     }
+    if (isFundraiser !== undefined) {
+        eventQuery.where({ isFundraiser: isFundraiser === 'true' || isFundraiser === true });
+    }
     eventQuery.orderBy({ createdAt: 'desc' });
     eventQuery.include({
         activity: {
@@ -133,6 +138,7 @@ const getAllEventsFromDB = (query) => __awaiter(void 0, void 0, void 0, function
             select: {
                 sessions: true,
                 memberRecords: true,
+                fundDonations: true,
             },
         },
     });
@@ -233,6 +239,12 @@ const updateEventInDB = (id, payload) => __awaiter(void 0, void 0, void 0, funct
         updateData.bannerImage = payload.bannerImage;
     if (payload.currentChapter !== undefined)
         updateData.currentChapter = payload.currentChapter;
+    if (payload.isFundraiser !== undefined)
+        updateData.isFundraiser = payload.isFundraiser;
+    if (payload.targetAmount !== undefined)
+        updateData.targetAmount = payload.targetAmount;
+    if (payload.raisedAmount !== undefined)
+        updateData.raisedAmount = payload.raisedAmount;
     if (payload.metadata !== undefined)
         updateData.metadata = (_a = payload.metadata) !== null && _a !== void 0 ? _a : client_1.Prisma.JsonNull;
     if (payload.isActive !== undefined)

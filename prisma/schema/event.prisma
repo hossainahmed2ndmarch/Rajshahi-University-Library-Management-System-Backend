@@ -4,27 +4,31 @@ model Event {
   activityId Int?
   activity   Activity?    @relation(fields: [activityId], references: [id], onDelete: SetNull)
 
-  title    String // e.g., "শনিবারের পাঠচক্র - সেশন ১", "বাৎসরিক বইমেলা ২০২৬"
+  title    String
   slug     String      @unique
-  category String? // Dynamic string category
+  category String?
   status   EventStatus @default(UPCOMING)
 
-  scheduleText String? // e.g., "প্রতি শনিবার বিকেল ৪:০০ টা"
+  scheduleText String?
   location     String?
-  bannerImage  String? // Cloudinary URL
+  bannerImage  String?
   startDate    DateTime?
   endDate      DateTime?
 
-  // Book Connection (For Pathchokro or Boimela active book)
-  books          Book[]
-  currentChapter String? // e.g., "অধ্যায় ৩: সালাতের গুরুত্ব"
+  // --- Fundraising Specific New Fields ---
+  isFundraiser Boolean @default(false)
+  targetAmount Float? // Fund Target Goal (e.g. 500000.00)
+  raisedAmount Float   @default(0.0) // Total Collected Amount
 
-  metadata Json? // Dynamic attributes (trainer, stall number, etc.)
+  books          Book[]
+  currentChapter String?
+
+  metadata Json?
   isActive Boolean @default(true)
 
-  // Relations
   sessions      EventSession[]
   memberRecords EventMemberRecord[]
+  fundDonations FundDonation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

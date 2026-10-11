@@ -20,6 +20,7 @@ import { RudcRoutes } from '../modules/Rudc/rudc.routes';
 import { RudcMemberRoutes } from '../modules/RudcMember/rudcMember.routes';
 import { RudcTeamRoutes } from '../modules/RudcTeam/rudcTeam.routes';
 import { RudcIyanotRoutes } from '../modules/RudcIyanot/rudcIyanot.routes';
+import { FundDonationRoutes } from '../modules/FundDonation/fundDonation.routes';
 
 const router = Router();
 
@@ -112,6 +113,10 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/rudc-iyanot',
     route: RudcIyanotRoutes,
+  },
+  {
+    path: '/fund-donations',
+    route: FundDonationRoutes,
   },
 ];
 

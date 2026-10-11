@@ -22,6 +22,7 @@ const rudc_routes_1 = require("../modules/Rudc/rudc.routes");
 const rudcMember_routes_1 = require("../modules/RudcMember/rudcMember.routes");
 const rudcTeam_routes_1 = require("../modules/RudcTeam/rudcTeam.routes");
 const rudcIyanot_routes_1 = require("../modules/RudcIyanot/rudcIyanot.routes");
+const fundDonation_routes_1 = require("../modules/FundDonation/fundDonation.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -107,6 +108,10 @@ const moduleRoutes = [
     {
         path: '/rudc-iyanot',
         route: rudcIyanot_routes_1.RudcIyanotRoutes,
+    },
+    {
+        path: '/fund-donations',
+        route: fundDonation_routes_1.FundDonationRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

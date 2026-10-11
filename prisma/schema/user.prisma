@@ -56,6 +56,7 @@ model User {
   // Relation Arrays (1:N)
   booksAdded          Book[]              @relation("BooksAdded")
   booksDonated        Book[]              @relation("BooksDonated")
+  fundDonations FundDonation[] @relation("UserFundDonations")
   borrows             Borrow[]            @relation("UserBorrows")
   approvedBorrows     Borrow[]            @relation("ApprovedBorrows")
   returnedBorrows     Borrow[]            @relation("ReturnedBorrows")

@@ -13,6 +13,9 @@ export interface TCreateEvent {
   endDate?: string | Date;
   currentChapter?: string;
   bookIds?: number[];
+  isFundraiser?: boolean;
+  targetAmount?: number | null;
+  raisedAmount?: number;
   metadata?: Prisma.InputJsonValue;
   isActive?: boolean;
 }
@@ -30,6 +33,10 @@ export interface TUpdateEvent {
   endDate?: string | Date | null;
   currentChapter?: string;
   bookIds?: number[];
+  isFundraiser?: boolean;
+  targetAmount?: number | null;
+  raisedAmount?: number;
   metadata?: Prisma.InputJsonValue;
   isActive?: boolean;
 }
+

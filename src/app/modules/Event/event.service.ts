@@ -30,7 +30,9 @@ const createEventIntoDB = async (payload: TCreateEvent) => {
     bannerImage: payload.bannerImage,
     startDate: payload.startDate ? new Date(payload.startDate) : null,
     endDate: payload.endDate ? new Date(payload.endDate) : null,
-    currentChapter: payload.currentChapter,
+    isFundraiser: payload.isFundraiser ?? false,
+    targetAmount: payload.targetAmount ?? null,
+    raisedAmount: payload.raisedAmount ?? 0.0,
     metadata: payload.metadata ?? undefined,
     isActive: payload.isActive ?? true,
     activity: payload.activityId ? { connect: { id: payload.activityId } } : undefined,
@@ -62,7 +64,7 @@ const createEventIntoDB = async (payload: TCreateEvent) => {
 };
 
 const getAllEventsFromDB = async (query: Record<string, unknown>) => {
-  const { status, org, activityId, isActive, ...queryParams } = query;
+  const { status, org, activityId, isActive, isFundraiser, ...queryParams } = query;
 
   const eventQuery = new QueryBuilder(
     prisma.event,
@@ -99,6 +101,10 @@ const getAllEventsFromDB = async (query: Record<string, unknown>) => {
     eventQuery.where({ isActive: isActive === 'true' || isActive === true });
   }
 
+  if (isFundraiser !== undefined) {
+    eventQuery.where({ isFundraiser: isFundraiser === 'true' || isFundraiser === true });
+  }
+
   eventQuery.orderBy({ createdAt: 'desc' });
 
   eventQuery.include({
@@ -121,6 +127,7 @@ const getAllEventsFromDB = async (query: Record<string, unknown>) => {
       select: {
         sessions: true,
         memberRecords: true,
+        fundDonations: true,
       },
     },
   });
@@ -222,6 +229,9 @@ const updateEventInDB = async (id: number, payload: TUpdateEvent) => {
   if (payload.location !== undefined) updateData.location = payload.location;
   if (payload.bannerImage !== undefined) updateData.bannerImage = payload.bannerImage;
   if (payload.currentChapter !== undefined) updateData.currentChapter = payload.currentChapter;
+  if (payload.isFundraiser !== undefined) updateData.isFundraiser = payload.isFundraiser;
+  if (payload.targetAmount !== undefined) updateData.targetAmount = payload.targetAmount;
+  if (payload.raisedAmount !== undefined) updateData.raisedAmount = payload.raisedAmount;
   if (payload.metadata !== undefined) updateData.metadata = payload.metadata ?? Prisma.JsonNull;
   if (payload.isActive !== undefined) updateData.isActive = payload.isActive;
 
