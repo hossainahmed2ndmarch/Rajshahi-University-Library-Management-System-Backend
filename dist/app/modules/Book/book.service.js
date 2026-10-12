@@ -23,12 +23,72 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BookService = void 0;
+exports.BookService = exports.formatBookResponse = void 0;
 const http_status_1 = __importDefault(require("http-status"));
 const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const queryBuilder_1 = __importDefault(require("../../builder/queryBuilder"));
+const formatBookResponse = (book) => {
+    var _a, _b, _c;
+    if (!book)
+        return book;
+    const authorNames = Array.isArray(book.authors)
+        ? book.authors.map((ba) => { var _a; return ((_a = ba.author) === null || _a === void 0 ? void 0 : _a.name) || ba.name; }).filter(Boolean).join(', ')
+        : '';
+    const effectiveDiscount = book.customDiscount !== null && book.customDiscount !== undefined
+        ? Number(book.customDiscount)
+        : ((_a = book.publisher) === null || _a === void 0 ? void 0 : _a.defaultDiscount) !== null && ((_b = book.publisher) === null || _b === void 0 ? void 0 : _b.defaultDiscount) !== undefined
+            ? Number(book.publisher.defaultDiscount)
+            : 0;
+    return Object.assign(Object.assign({}, book), { author: authorNames || book.author || 'Unknown Author', publisher: ((_c = book.publisher) === null || _c === void 0 ? void 0 : _c.name) || null, publisherDetails: book.publisher || null, discount: effectiveDiscount });
+};
+exports.formatBookResponse = formatBookResponse;
+const resolvePublisherId = (publisherId, publisherName) => __awaiter(void 0, void 0, void 0, function* () {
+    if (publisherId) {
+        const pub = yield db_1.default.publisher.findUnique({ where: { id: publisherId } });
+        if (pub)
+            return pub.id;
+    }
+    if (publisherName && publisherName.trim()) {
+        const trimmed = publisherName.trim();
+        const existing = yield db_1.default.publisher.findUnique({ where: { name: trimmed } });
+        if (existing)
+            return existing.id;
+        const created = yield db_1.default.publisher.create({ data: { name: trimmed } });
+        return created.id;
+    }
+    return null;
+});
+const resolveAuthorItems = (authors, authorStr) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = [];
+    if (Array.isArray(authors) && authors.length > 0) {
+        for (const item of authors) {
+            if (item.authorId) {
+                result.push({ authorId: item.authorId, role: item.role || 'WRITER' });
+            }
+            else if (item.name && item.name.trim()) {
+                const trimmed = item.name.trim();
+                let author = yield db_1.default.author.findFirst({ where: { name: trimmed } });
+                if (!author) {
+                    author = yield db_1.default.author.create({ data: { name: trimmed } });
+                }
+                result.push({ authorId: author.id, role: item.role || 'WRITER' });
+            }
+        }
+    }
+    else if (authorStr && authorStr.trim()) {
+        const splitNames = authorStr.split(',').map((s) => s.trim()).filter(Boolean);
+        for (const name of splitNames) {
+            let author = yield db_1.default.author.findFirst({ where: { name } });
+            if (!author) {
+                author = yield db_1.default.author.create({ data: { name } });
+            }
+            result.push({ authorId: author.id, role: 'WRITER' });
+        }
+    }
+    return result;
+});
 const createBookIntoDB = (payload, adminId) => __awaiter(void 0, void 0, void 0, function* () {
     const existingIsbn = yield db_1.default.book.findUnique({
         where: { isbn: payload.isbn },
@@ -48,35 +108,89 @@ const createBookIntoDB = (payload, adminId) => __awaiter(void 0, void 0, void 0,
             .filter(Boolean);
     }
     const categoryStr = categories.length > 0 ? categories.join(', ') : payload.category || 'General';
-    // Handle multiple authors with roles (WRITER / TRANSLATOR)
-    let authors = payload.authors;
-    let authorStr = payload.author || '';
-    if (Array.isArray(authors) && authors.length > 0) {
-        authorStr = authors
-            .map((a) => (a.role === 'TRANSLATOR' ? `${a.name.trim()} (Translator)` : a.name.trim()))
-            .join(', ');
-    }
-    else if (payload.author) {
-        authors = [{ name: payload.author.trim(), role: 'WRITER' }];
-    }
-    const bookData = Object.assign(Object.assign({}, payload), { author: authorStr, authors: authors || undefined, category: categoryStr, categories, addedById: adminId || null });
-    return yield db_1.default.book.create({
-        data: bookData,
+    const publisherId = yield resolvePublisherId(payload.publisherId, payload.publisher);
+    const resolvedAuthors = yield resolveAuthorItems(payload.authors, payload.author);
+    const customDiscountValue = payload.customDiscount !== undefined && payload.customDiscount !== null
+        ? payload.customDiscount
+        : payload.discount !== undefined && payload.discount !== null
+            ? payload.discount
+            : null;
+    const book = yield db_1.default.book.create({
+        data: {
+            title: payload.title,
+            isbn: payload.isbn,
+            locationCell: payload.locationCell,
+            category: categoryStr,
+            categories,
+            pages: payload.pages !== undefined ? Number(payload.pages) : null,
+            type: payload.type,
+            buyPrice: payload.buyPrice !== undefined && payload.buyPrice !== null ? payload.buyPrice : null,
+            sellPrice: payload.sellPrice !== undefined && payload.sellPrice !== null ? payload.sellPrice : null,
+            customDiscount: customDiscountValue,
+            borrowStock: payload.borrowStock !== undefined ? Number(payload.borrowStock) : 0,
+            sellStock: payload.sellStock !== undefined ? Number(payload.sellStock) : 0,
+            coverImage: payload.coverImage || null,
+            images: payload.images || [],
+            description: payload.description || null,
+            addedById: adminId || null,
+            donatedById: payload.donatedById || null,
+            publisherId,
+            authors: {
+                create: resolvedAuthors.map((a) => ({
+                    authorId: a.authorId,
+                    role: a.role,
+                })),
+            },
+        },
+        include: {
+            publisher: true,
+            authors: {
+                include: {
+                    author: true,
+                },
+            },
+        },
     });
+    return (0, exports.formatBookResponse)(book);
 });
 const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, categories, author, authors, publisher, publishers, type, minPrice, maxPrice } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "categories", "author", "authors", "publisher", "publishers", "type", "minPrice", "maxPrice"]);
-    // Set up QueryBuilder with searchable and filterable fields
-    // Default isArchived to false so deleted/archived books are hidden from regular listings
+    const { isBorrowable, isSellable, sortBy, sortOrder = 'desc', isArchived, category, categories, author, authors, authorId, publisher, publishers, publisherId, type, minPrice, maxPrice } = query, queryParams = __rest(query, ["isBorrowable", "isSellable", "sortBy", "sortOrder", "isArchived", "category", "categories", "author", "authors", "authorId", "publisher", "publishers", "publisherId", "type", "minPrice", "maxPrice"]);
     const bookQuery = new queryBuilder_1.default(db_1.default.book, Object.assign(Object.assign({}, queryParams), { isArchived: isArchived !== null && isArchived !== void 0 ? isArchived : false }), {
-        searchableFields: ['title', 'author', 'isbn', 'category', 'publisher', 'locationCell', 'description'],
+        searchableFields: ['title', 'isbn', 'category', 'locationCell', 'description'],
         filterableFields: ['isArchived'],
     })
         .search()
         .filter()
         .paginate()
         .fields();
-    // ── Category filter: supports single value, array, or comma-separated multi-values ────
+    // Search in related author name or publisher name if searchTerm provided
+    if (queryParams.searchTerm) {
+        const term = String(queryParams.searchTerm).trim();
+        bookQuery.where({
+            OR: [
+                { title: { contains: term, mode: 'insensitive' } },
+                { isbn: { contains: term, mode: 'insensitive' } },
+                { locationCell: { contains: term, mode: 'insensitive' } },
+                { category: { contains: term, mode: 'insensitive' } },
+                { description: { contains: term, mode: 'insensitive' } },
+                {
+                    authors: {
+                        some: {
+                            author: {
+                                name: { contains: term, mode: 'insensitive' },
+                            },
+                        },
+                    },
+                },
+                {
+                    publisher: {
+                        name: { contains: term, mode: 'insensitive' },
+                    },
+                },
+            ],
+        });
+    }
+    // ── Category filter ────────────────────────────────────────────────────────
     const rawCategory = category !== null && category !== void 0 ? category : categories;
     if (rawCategory) {
         const categoryValues = Array.isArray(rawCategory)
@@ -101,7 +215,7 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
             });
         }
     }
-    // ── Author filter: supports single value, array, or comma-separated multi-values ──────
+    // ── Author filter ──────────────────────────────────────────────────────────
     const rawAuthor = author !== null && author !== void 0 ? author : authors;
     if (rawAuthor) {
         const authorValues = Array.isArray(rawAuthor)
@@ -111,16 +225,39 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
                 : [];
         if (authorValues.length === 1) {
             bookQuery.where({
-                author: { contains: authorValues[0], mode: 'insensitive' },
+                authors: {
+                    some: {
+                        author: {
+                            name: { contains: authorValues[0], mode: 'insensitive' },
+                        },
+                    },
+                },
             });
         }
         else if (authorValues.length > 1) {
             bookQuery.where({
-                OR: authorValues.map((a) => ({ author: { contains: a, mode: 'insensitive' } })),
+                OR: authorValues.map((a) => ({
+                    authors: {
+                        some: {
+                            author: {
+                                name: { contains: a, mode: 'insensitive' },
+                            },
+                        },
+                    },
+                })),
             });
         }
     }
-    // ── Publisher filter: supports single value, array, or comma-separated multi-values ───
+    if (authorId) {
+        bookQuery.where({
+            authors: {
+                some: {
+                    authorId: Number(authorId),
+                },
+            },
+        });
+    }
+    // ── Publisher filter ───────────────────────────────────────────────────────
     const rawPublisher = publisher !== null && publisher !== void 0 ? publisher : publishers;
     if (rawPublisher) {
         const publisherValues = Array.isArray(rawPublisher)
@@ -130,16 +267,27 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
                 : [];
         if (publisherValues.length === 1) {
             bookQuery.where({
-                publisher: { contains: publisherValues[0], mode: 'insensitive' },
+                publisher: {
+                    name: { contains: publisherValues[0], mode: 'insensitive' },
+                },
             });
         }
         else if (publisherValues.length > 1) {
             bookQuery.where({
-                OR: publisherValues.map((p) => ({ publisher: { contains: p, mode: 'insensitive' } })),
+                OR: publisherValues.map((p) => ({
+                    publisher: {
+                        name: { contains: p, mode: 'insensitive' },
+                    },
+                })),
             });
         }
     }
-    // ── Price range filter on sellPrice ──────────────────────────────────────────
+    if (publisherId) {
+        bookQuery.where({
+            publisherId: Number(publisherId),
+        });
+    }
+    // ── Price range filter ─────────────────────────────────────────────────────
     const minPriceNum = minPrice !== undefined && minPrice !== '' ? Number(minPrice) : null;
     const maxPriceNum = maxPrice !== undefined && maxPrice !== '' ? Number(maxPrice) : null;
     if (minPriceNum !== null && !isNaN(minPriceNum) && maxPriceNum !== null && !isNaN(maxPriceNum)) {
@@ -151,83 +299,84 @@ const getAllBooksFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
     else if (maxPriceNum !== null && !isNaN(maxPriceNum)) {
         bookQuery.where({ sellPrice: { lte: maxPriceNum } });
     }
-    // ── Type filter ─────────────────────────────────────────────────────────────
-    const typeParam = typeof type === 'string' ? type.trim().toUpperCase() : undefined;
-    if (typeParam && typeParam !== 'ALL') {
-        if (typeParam === 'BORROW_ONLY' || typeParam === 'BORROW') {
-            bookQuery.where({
-                type: {
-                    in: [client_1.BookType.BORROW_ONLY, client_1.BookType.HYBRID],
-                },
-            });
-        }
-        else if (typeParam === 'SELL_ONLY' || typeParam === 'SELL' || typeParam === 'BUY') {
-            bookQuery.where({
-                type: {
-                    in: [client_1.BookType.SELL_ONLY, client_1.BookType.HYBRID],
-                },
-            });
-        }
-        else if (typeParam === 'HYBRID') {
-            bookQuery.where({
-                type: client_1.BookType.HYBRID,
-            });
-        }
-        else if (Object.values(client_1.BookType).includes(typeParam)) {
-            bookQuery.where({
-                type: typeParam,
-            });
-        }
+    // ── Type and Capability filters ────────────────────────────────────────────
+    if (type) {
+        bookQuery.where({ type });
     }
-    // Filter for borrowable books (BORROW_ONLY or HYBRID)
-    if (isBorrowable === 'true' || isBorrowable === true) {
+    const isBorrowableBool = isBorrowable === true || isBorrowable === 'true'
+        ? true
+        : isBorrowable === false || isBorrowable === 'false'
+            ? false
+            : undefined;
+    const isSellableBool = isSellable === true || isSellable === 'true'
+        ? true
+        : isSellable === false || isSellable === 'false'
+            ? false
+            : undefined;
+    if (isBorrowableBool === true) {
         bookQuery.where({
             type: {
                 in: [client_1.BookType.BORROW_ONLY, client_1.BookType.HYBRID],
             },
         });
     }
-    // Filter for sellable books (SELL_ONLY or HYBRID)
-    if (isSellable === 'true' || isSellable === true) {
+    else if (isBorrowableBool === false) {
+        bookQuery.where({
+            type: client_1.BookType.SELL_ONLY,
+        });
+    }
+    if (isSellableBool === true) {
         bookQuery.where({
             type: {
                 in: [client_1.BookType.SELL_ONLY, client_1.BookType.HYBRID],
             },
         });
     }
+    else if (isSellableBool === false) {
+        bookQuery.where({
+            type: client_1.BookType.BORROW_ONLY,
+        });
+    }
     // Custom Sorting Logic
     if (sortBy === 'createdAt') {
-        // 1. New Arrivals: Sort by creation timestamp
         bookQuery.orderBy({
             createdAt: sortOrder === 'asc' ? 'asc' : 'desc',
         });
     }
-    else if (sortBy === 'borrowCount') {
-        // 2. Most Borrowed: Sort by relation count on borrowRecords table
-        bookQuery.orderBy({
-            borrowRecords: {
-                _count: sortOrder === 'asc' ? 'asc' : 'desc',
-            },
-        });
-    }
     else if (sortBy) {
-        // 3. Generic field sorting
         bookQuery.orderBy({
             [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc',
         });
     }
     else {
-        // Default fallback: Newest first
         bookQuery.orderBy({
             createdAt: 'desc',
         });
     }
-    return yield bookQuery.execute();
+    bookQuery.include({
+        publisher: true,
+        authors: {
+            include: {
+                author: true,
+            },
+        },
+    });
+    const result = yield bookQuery.execute();
+    return {
+        meta: result.meta,
+        data: result.data.map(exports.formatBookResponse),
+    };
 });
 const getBookByIdFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const book = yield db_1.default.book.findUnique({
         where: { id },
         include: {
+            publisher: true,
+            authors: {
+                include: {
+                    author: true,
+                },
+            },
             reviews: {
                 select: {
                     id: true,
@@ -266,19 +415,17 @@ const getBookByIdFromDB = (id) => __awaiter(void 0, void 0, void 0, function* ()
     const averageRating = totalReviews > 0
         ? Number((book.reviews.reduce((acc, review) => acc + review.rating, 0) / totalReviews).toFixed(2))
         : 0;
-    return Object.assign(Object.assign({}, book), { reviewSummary: {
-            totalReviews,
-            averageRating,
-        } });
+    return (0, exports.formatBookResponse)(Object.assign(Object.assign({}, book), { totalReviews,
+        averageRating }));
 });
 const updateBookInDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
-    const book = yield db_1.default.book.findUnique({
+    const existingBook = yield db_1.default.book.findUnique({
         where: { id },
     });
-    if (!book) {
+    if (!existingBook) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Book not found!');
     }
-    if (payload.isbn && payload.isbn !== book.isbn) {
+    if (payload.isbn && payload.isbn !== existingBook.isbn) {
         const existingIsbn = yield db_1.default.book.findUnique({
             where: { isbn: payload.isbn },
         });
@@ -289,22 +436,6 @@ const updateBookInDB = (id, payload) => __awaiter(void 0, void 0, void 0, functi
     const updateData = {};
     if (payload.title !== undefined)
         updateData.title = payload.title;
-    // Handle authors
-    if (payload.authors !== undefined) {
-        updateData.authors = payload.authors;
-        if (Array.isArray(payload.authors) && payload.authors.length > 0) {
-            updateData.author = payload.authors
-                .map((a) => (a.role === 'TRANSLATOR' ? `${a.name.trim()} (Translator)` : a.name.trim()))
-                .join(', ');
-        }
-        else if (payload.author !== undefined) {
-            updateData.author = payload.author;
-        }
-    }
-    else if (payload.author !== undefined) {
-        updateData.author = payload.author;
-        updateData.authors = [{ name: payload.author.trim(), role: 'WRITER' }];
-    }
     // Handle categories
     if (payload.categories !== undefined) {
         const cats = Array.from(new Set(payload.categories.map((c) => c.trim()).filter(Boolean)));
@@ -319,8 +450,10 @@ const updateBookInDB = (id, payload) => __awaiter(void 0, void 0, void 0, functi
         updateData.isbn = payload.isbn;
     if (payload.locationCell !== undefined)
         updateData.locationCell = payload.locationCell;
-    if (payload.publisher !== undefined)
-        updateData.publisher = payload.publisher;
+    // Handle Publisher
+    if (payload.publisherId !== undefined || payload.publisher !== undefined) {
+        updateData.publisherId = yield resolvePublisherId(payload.publisherId, payload.publisher);
+    }
     if (payload.pages !== undefined)
         updateData.pages = Number(payload.pages);
     if (payload.type !== undefined)
@@ -329,8 +462,13 @@ const updateBookInDB = (id, payload) => __awaiter(void 0, void 0, void 0, functi
         updateData.buyPrice = payload.buyPrice !== null ? Number(payload.buyPrice) : null;
     if (payload.sellPrice !== undefined)
         updateData.sellPrice = payload.sellPrice !== null ? Number(payload.sellPrice) : null;
-    if (payload.discount !== undefined)
-        updateData.discount = Number(payload.discount);
+    // Handle custom discount
+    if (payload.customDiscount !== undefined) {
+        updateData.customDiscount = payload.customDiscount !== null ? Number(payload.customDiscount) : null;
+    }
+    else if (payload.discount !== undefined) {
+        updateData.customDiscount = payload.discount !== null ? Number(payload.discount) : null;
+    }
     if (payload.borrowStock !== undefined)
         updateData.borrowStock = Number(payload.borrowStock);
     if (payload.sellStock !== undefined)
@@ -343,10 +481,34 @@ const updateBookInDB = (id, payload) => __awaiter(void 0, void 0, void 0, functi
         updateData.description = payload.description;
     if (payload.isArchived !== undefined)
         updateData.isArchived = Boolean(payload.isArchived);
-    return yield db_1.default.book.update({
+    // Handle Authors
+    if (payload.authors !== undefined || payload.author !== undefined) {
+        const resolvedAuthors = yield resolveAuthorItems(payload.authors, payload.author);
+        yield db_1.default.bookAuthor.deleteMany({ where: { bookId: id } });
+        if (resolvedAuthors.length > 0) {
+            yield db_1.default.bookAuthor.createMany({
+                data: resolvedAuthors.map((a) => ({
+                    bookId: id,
+                    authorId: a.authorId,
+                    role: a.role,
+                })),
+                skipDuplicates: true,
+            });
+        }
+    }
+    const updated = yield db_1.default.book.update({
         where: { id },
         data: updateData,
+        include: {
+            publisher: true,
+            authors: {
+                include: {
+                    author: true,
+                },
+            },
+        },
     });
+    return (0, exports.formatBookResponse)(updated);
 });
 const deleteBookFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const book = yield db_1.default.book.findUnique({
@@ -355,7 +517,6 @@ const deleteBookFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () 
     if (!book) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Book not found!');
     }
-    // Hard delete: permanently remove the book record
     return yield db_1.default.book.delete({
         where: { id },
     });
@@ -367,9 +528,13 @@ const getBookCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, function
             id: true,
             title: true,
             coverImage: true,
-            author: true,
             category: true,
             categories: true,
+            authors: {
+                include: {
+                    author: true,
+                },
+            },
             createdAt: true,
         },
         orderBy: {
@@ -393,11 +558,12 @@ const getBookCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, function
                     cats.add(trimmed);
             });
         }
+        const authorStr = book.authors.map((ba) => { var _a; return (_a = ba.author) === null || _a === void 0 ? void 0 : _a.name; }).filter(Boolean).join(', ') || 'Unknown';
         const previewBook = {
             id: book.id,
             title: book.title,
             coverImage: book.coverImage,
-            author: book.author,
+            author: authorStr,
         };
         cats.forEach((cat) => {
             if (!categoryMap.has(cat)) {
@@ -406,98 +572,53 @@ const getBookCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, function
             categoryMap.get(cat).books.push(previewBook);
         });
     }
-    const result = Array.from(categoryMap.values())
+    return Array.from(categoryMap.values())
         .map((item) => ({
         category: item.category,
         count: item.books.length,
         books: item.books.slice(0, 4),
     }))
         .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
-    return result;
 });
 const getBookOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    const books = yield db_1.default.book.findMany({
-        where: { isArchived: false },
-        select: {
-            category: true,
-            categories: true,
-            locationCell: true,
-            publisher: true,
-            author: true,
-            authors: true,
-        },
-    });
+    const [categoriesRaw, locationCellsRaw, publishers, authors] = yield Promise.all([
+        db_1.default.book.findMany({
+            where: { isArchived: false },
+            select: { category: true, categories: true },
+        }),
+        db_1.default.book.findMany({
+            where: { isArchived: false },
+            select: { locationCell: true },
+        }),
+        db_1.default.publisher.findMany({
+            select: { id: true, name: true, defaultDiscount: true, logo: true },
+            orderBy: { name: 'asc' },
+        }),
+        db_1.default.author.findMany({
+            select: { id: true, name: true, avatar: true, authorDesignation: true },
+            orderBy: { name: 'asc' },
+        }),
+    ]);
     const categoriesSet = new Set();
+    categoriesRaw.forEach((b) => {
+        if (Array.isArray(b.categories))
+            b.categories.forEach((c) => c && categoriesSet.add(c.trim()));
+        if (b.category)
+            b.category.split(',').forEach((c) => c && categoriesSet.add(c.trim()));
+    });
     const locationCellsSet = new Set();
-    const publishersSet = new Set();
-    const authorsMap = new Map();
-    for (const book of books) {
-        // Categories
-        if (Array.isArray(book.categories) && book.categories.length > 0) {
-            book.categories.forEach((c) => {
-                const trimmed = c === null || c === void 0 ? void 0 : c.trim();
-                if (trimmed)
-                    categoriesSet.add(trimmed);
-            });
+    locationCellsRaw.forEach((b) => {
+        if (b.locationCell && b.locationCell !== 'Rack-Unassigned' && b.locationCell !== 'Cell-Unassigned') {
+            locationCellsSet.add(b.locationCell.trim());
         }
-        if (book.category) {
-            book.category.split(',').forEach((c) => {
-                const trimmed = c === null || c === void 0 ? void 0 : c.trim();
-                if (trimmed)
-                    categoriesSet.add(trimmed);
-            });
-        }
-        // Location Cells
-        if (book.locationCell) {
-            const trimmed = book.locationCell.trim();
-            if (trimmed && trimmed !== 'Rack-Unassigned' && trimmed !== 'Cell-Unassigned') {
-                locationCellsSet.add(trimmed);
-            }
-        }
-        // Publishers
-        if (book.publisher) {
-            const trimmed = book.publisher.trim();
-            if (trimmed && trimmed !== 'N/A') {
-                publishersSet.add(trimmed);
-            }
-        }
-        // Authors
-        if (Array.isArray(book.authors) && book.authors.length > 0) {
-            book.authors.forEach((a) => {
-                var _a;
-                const name = (_a = a.name) === null || _a === void 0 ? void 0 : _a.trim();
-                const role = a.role === 'TRANSLATOR' ? 'TRANSLATOR' : 'WRITER';
-                if (name) {
-                    if (!authorsMap.has(name) || role === 'WRITER') {
-                        authorsMap.set(name, role);
-                    }
-                }
-            });
-        }
-        else if (book.author) {
-            book.author.split(',').forEach((part) => {
-                const trimmed = part.trim();
-                if (!trimmed)
-                    return;
-                const isTrans = trimmed.toLowerCase().includes('(translator)');
-                const cleanName = trimmed.replace(/\(translator\)/i, '').trim();
-                if (cleanName) {
-                    const role = isTrans ? 'TRANSLATOR' : 'WRITER';
-                    if (!authorsMap.has(cleanName) || role === 'WRITER') {
-                        authorsMap.set(cleanName, role);
-                    }
-                }
-            });
-        }
-    }
-    const authors = Array.from(authorsMap.entries())
-        .map(([name, role]) => ({ name, role }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+    });
     return {
         categories: Array.from(categoriesSet).sort((a, b) => a.localeCompare(b)),
         locationCells: Array.from(locationCellsSet).sort((a, b) => a.localeCompare(b)),
-        publishers: Array.from(publishersSet).sort((a, b) => a.localeCompare(b)),
-        authors,
+        publishers: publishers.map((p) => p.name),
+        publisherList: publishers,
+        authors: authors.map((a) => ({ id: a.id, name: a.name, role: 'WRITER' })),
+        authorList: authors,
     };
 });
 exports.BookService = {

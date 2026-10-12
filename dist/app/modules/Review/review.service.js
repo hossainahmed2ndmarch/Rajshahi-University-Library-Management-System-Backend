@@ -66,7 +66,16 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
                         select: {
                             id: true,
                             title: true,
-                            author: true,
+                            authors: {
+                                include: {
+                                    author: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
+                                },
+                            },
                             type: true,
                         },
                     },
@@ -96,7 +105,16 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
                     select: {
                         id: true,
                         title: true,
-                        author: true,
+                        authors: {
+                            include: {
+                                author: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                        },
                         type: true,
                     },
                 },
@@ -138,7 +156,16 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
                         select: {
                             id: true,
                             title: true,
-                            author: true,
+                            authors: {
+                                include: {
+                                    author: {
+                                        select: {
+                                            id: true,
+                                            name: true,
+                                        },
+                                    },
+                                },
+                            },
                             type: true,
                         },
                     },
@@ -168,7 +195,16 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
                     select: {
                         id: true,
                         title: true,
-                        author: true,
+                        authors: {
+                            include: {
+                                author: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                        },
                         type: true,
                     },
                 },
@@ -192,7 +228,16 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
                     select: {
                         id: true,
                         title: true,
-                        author: true,
+                        authors: {
+                            include: {
+                                author: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                        },
                         type: true,
                     },
                 },
@@ -339,7 +384,16 @@ const getAllReviewsFromDB = () => __awaiter(void 0, void 0, void 0, function* ()
                     select: {
                         id: true,
                         title: true,
-                        author: true,
+                        authors: {
+                            include: {
+                                author: {
+                                    select: {
+                                        id: true,
+                                        name: true,
+                                    },
+                                },
+                            },
+                        },
                         type: true,
                     },
                 },

@@ -80,7 +80,13 @@ const approveDonationInDB = (donationId, adminId, payload) => __awaiter(void 0, 
                     existingBook = yield tx.book.findFirst({
                         where: {
                             title: { equals: trimmedTitle, mode: 'insensitive' },
-                            author: { equals: trimmedAuthor, mode: 'insensitive' },
+                            authors: {
+                                some: {
+                                    author: {
+                                        name: { equals: trimmedAuthor, mode: 'insensitive' },
+                                    },
+                                },
+                            },
                         },
                     });
                 }
@@ -106,10 +112,21 @@ const approveDonationInDB = (donationId, adminId, payload) => __awaiter(void 0, 
                 const initialPages = (payload === null || payload === void 0 ? void 0 : payload.pages) || 150;
                 const initialLocation = (payload === null || payload === void 0 ? void 0 : payload.locationCell) || 'DONATION-DESK';
                 const assignedCat = (payload === null || payload === void 0 ? void 0 : payload.assignedCategory) || donation.category || 'General';
+                // Find or create author in normalized Author table
+                let authorRecord = null;
+                if (trimmedAuthor && trimmedAuthor.toLowerCase() !== 'unknown author') {
+                    authorRecord = yield tx.author.findFirst({
+                        where: { name: { equals: trimmedAuthor, mode: 'insensitive' } },
+                    });
+                    if (!authorRecord) {
+                        authorRecord = yield tx.author.create({
+                            data: { name: trimmedAuthor },
+                        });
+                    }
+                }
                 const newBook = yield tx.book.create({
                     data: {
                         title: donation.bookTitle || 'Donated Book',
-                        author: donation.author || 'Unknown Author',
                         isbn: generatedIsbn,
                         locationCell: initialLocation,
                         category: assignedCat,
@@ -122,6 +139,16 @@ const approveDonationInDB = (donationId, adminId, payload) => __awaiter(void 0, 
                             'Donated book added into library catalog collection as borrowable. Further details can be updated by admin/shifter.',
                         addedById: adminId,
                         donatedById: donation.donorId || null,
+                        authors: authorRecord
+                            ? {
+                                create: [
+                                    {
+                                        authorId: authorRecord.id,
+                                        role: 'WRITER',
+                                    },
+                                ],
+                            }
+                            : undefined,
                     },
                 });
                 bookId = newBook.id;
@@ -198,7 +225,13 @@ const convertDonationToStock = (donationId, payload, adminId) => __awaiter(void 
             existingBook = yield db_1.default.book.findFirst({
                 where: {
                     title: { equals: trimmedTitle, mode: 'insensitive' },
-                    author: { equals: trimmedAuthor, mode: 'insensitive' },
+                    authors: {
+                        some: {
+                            author: {
+                                name: { equals: trimmedAuthor, mode: 'insensitive' },
+                            },
+                        },
+                    },
                 },
             });
         }
@@ -224,10 +257,20 @@ const convertDonationToStock = (donationId, payload, adminId) => __awaiter(void 
             });
         }
         else {
+            let authorRecord = null;
+            if (trimmedAuthor && trimmedAuthor.toLowerCase() !== 'unknown author') {
+                authorRecord = yield tx.author.findFirst({
+                    where: { name: { equals: trimmedAuthor, mode: 'insensitive' } },
+                });
+                if (!authorRecord) {
+                    authorRecord = yield tx.author.create({
+                        data: { name: trimmedAuthor },
+                    });
+                }
+            }
             const book = yield tx.book.create({
                 data: {
                     title: donation.bookTitle || 'Donated Book',
-                    author: donation.author || 'Unknown Author',
                     isbn: payload.isbn,
                     locationCell: payload.locationCell,
                     category: donation.category || 'General',
@@ -240,6 +283,16 @@ const convertDonationToStock = (donationId, payload, adminId) => __awaiter(void 
                     description: payload.description || donation.donorNote || null,
                     addedById: adminId,
                     donatedById: donation.donorId || null,
+                    authors: authorRecord
+                        ? {
+                            create: [
+                                {
+                                    authorId: authorRecord.id,
+                                    role: 'WRITER',
+                                },
+                            ],
+                        }
+                        : undefined,
                 },
             });
             bookId = book.id;
@@ -351,7 +404,13 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                     existingBook = yield tx.book.findFirst({
                         where: {
                             title: { equals: bookTitle, mode: 'insensitive' },
-                            author: { equals: author, mode: 'insensitive' },
+                            authors: {
+                                some: {
+                                    author: {
+                                        name: { equals: author, mode: 'insensitive' },
+                                    },
+                                },
+                            },
                         },
                     });
                 }
@@ -374,10 +433,20 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                 const generatedIsbn = ((_c = payload.isbn) === null || _c === void 0 ? void 0 : _c.trim()) || `DON-POS-${Date.now().toString().slice(-6)}`;
                 const initialPages = payload.pages || 150;
                 const initialLocation = ((_d = payload.locationCell) === null || _d === void 0 ? void 0 : _d.trim()) || 'DONATION-DESK';
+                let authorRecord = null;
+                if (author && author.toLowerCase() !== 'unknown author') {
+                    authorRecord = yield tx.author.findFirst({
+                        where: { name: { equals: author, mode: 'insensitive' } },
+                    });
+                    if (!authorRecord) {
+                        authorRecord = yield tx.author.create({
+                            data: { name: author },
+                        });
+                    }
+                }
                 const newBook = yield tx.book.create({
                     data: {
                         title: bookTitle,
-                        author,
                         isbn: generatedIsbn,
                         locationCell: initialLocation,
                         category,
@@ -390,6 +459,16 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                             `In-person donation received at POS Desk by staff. Condition: ${payload.condition || 'GOOD'}.`,
                         addedById: shifterId,
                         donatedById: donorId,
+                        authors: authorRecord
+                            ? {
+                                create: [
+                                    {
+                                        authorId: authorRecord.id,
+                                        role: 'WRITER',
+                                    },
+                                ],
+                            }
+                            : undefined,
                     },
                 });
                 catalogedBookId = newBook.id;

@@ -1,10 +1,9 @@
-import { BookType } from '@prisma/client';
-
-export type TAuthorRole = 'WRITER' | 'TRANSLATOR';
+import { AuthorRole, BookType } from '@prisma/client';
 
 export type TAuthorItem = {
-  name: string;
-  role: TAuthorRole;
+  authorId?: number;
+  name?: string;
+  role?: AuthorRole;
 };
 
 export type TCreateBook = {
@@ -15,19 +14,21 @@ export type TCreateBook = {
   locationCell: string;
   category?: string;
   categories?: string[];
-  publisher?: string;
-  pages: number;
+  publisher?: string | null;
+  publisherId?: number | null;
+  pages?: number;
   type: BookType;
-  buyPrice?: number;
-  sellPrice?: number;
-  discount?: number;
+  buyPrice?: number | null;
+  sellPrice?: number | null;
+  discount?: number | null;
+  customDiscount?: number | null;
   borrowStock?: number;
   sellStock?: number;
-  coverImage?: string;
+  coverImage?: string | null;
   images?: string[];
-  description?: string;
-  addedById?: number;
-  donatedById?: number;
+  description?: string | null;
+  addedById?: number | null;
+  donatedById?: number | null;
 };
 
 export type TUpdateBook = Partial<TCreateBook> & {
@@ -38,9 +39,11 @@ export type TBookFilterRequest = {
   searchTerm?: string;
   category?: string;
   author?: string;
+  authorId?: number | string;
   isBorrowable?: boolean | string;
   isSellable?: boolean | string;
   type?: BookType;
   publisher?: string;
+  publisherId?: number | string;
   isArchived?: boolean | string;
 };

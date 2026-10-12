@@ -335,25 +335,94 @@ function seedBooks(adminId) {
     return __awaiter(this, void 0, void 0, function* () {
         console.log('📚 [SEED] Synchronizing Islamic Library books catalog...');
         for (const book of INITIAL_BOOKS) {
-            yield prisma.book.upsert({
+            let publisherRecord = null;
+            if (book.publisher) {
+                publisherRecord = yield prisma.publisher.upsert({
+                    where: { name: book.publisher },
+                    update: {},
+                    create: { name: book.publisher },
+                });
+            }
+            let authorRecord = null;
+            if (book.author) {
+                authorRecord = yield prisma.author.findFirst({
+                    where: { name: book.author },
+                });
+                if (!authorRecord) {
+                    authorRecord = yield prisma.author.create({
+                        data: { name: book.author },
+                    });
+                }
+            }
+            const existingBook = yield prisma.book.findUnique({
                 where: { isbn: book.isbn },
-                update: {
-                    title: book.title,
-                    author: book.author,
-                    locationCell: book.locationCell,
-                    category: book.category,
-                    publisher: book.publisher,
-                    pages: book.pages,
-                    type: book.type,
-                    sellPrice: book.sellPrice,
-                    borrowStock: book.borrowStock,
-                    sellStock: book.sellStock,
-                    coverImage: book.coverImage,
-                    description: book.description,
-                    isArchived: false,
-                },
-                create: Object.assign(Object.assign({}, book), { addedById: adminId }),
             });
+            if (existingBook) {
+                yield prisma.book.update({
+                    where: { id: existingBook.id },
+                    data: {
+                        title: book.title,
+                        locationCell: book.locationCell,
+                        category: book.category,
+                        publisherId: (publisherRecord === null || publisherRecord === void 0 ? void 0 : publisherRecord.id) || null,
+                        pages: book.pages,
+                        type: book.type,
+                        sellPrice: book.sellPrice,
+                        borrowStock: book.borrowStock,
+                        sellStock: book.sellStock,
+                        coverImage: book.coverImage,
+                        description: book.description,
+                        isArchived: false,
+                    },
+                });
+                if (authorRecord) {
+                    yield prisma.bookAuthor.upsert({
+                        where: {
+                            bookId_authorId_role: {
+                                bookId: existingBook.id,
+                                authorId: authorRecord.id,
+                                role: 'WRITER',
+                            },
+                        },
+                        update: {},
+                        create: {
+                            bookId: existingBook.id,
+                            authorId: authorRecord.id,
+                            role: 'WRITER',
+                        },
+                    });
+                }
+            }
+            else {
+                yield prisma.book.create({
+                    data: {
+                        title: book.title,
+                        isbn: book.isbn,
+                        locationCell: book.locationCell,
+                        category: book.category,
+                        publisherId: (publisherRecord === null || publisherRecord === void 0 ? void 0 : publisherRecord.id) || null,
+                        pages: book.pages,
+                        type: book.type,
+                        sellPrice: book.sellPrice,
+                        borrowStock: book.borrowStock,
+                        sellStock: book.sellStock,
+                        coverImage: book.coverImage,
+                        description: book.description,
+                        isArchived: false,
+                        addedById: adminId,
+                        authors: authorRecord
+                            ? {
+                                create: [
+                                    {
+                                        authorId: authorRecord.id,
+                                        role: 'WRITER',
+                                    },
+                                ],
+                            }
+                            : undefined,
+                    },
+                });
+            }
         }
         console.log(`✅ [SEED SUCCESS] Successfully seeded ${INITIAL_BOOKS.length} books into the catalog.`);
     });
@@ -419,6 +488,20 @@ function seedArticles(adminId) {
     return __awaiter(this, void 0, void 0, function* () {
         console.log('📰 [SEED] Synchronizing Islamic Library publications & articles...');
         for (const article of INITIAL_ARTICLES) {
+            let authorRecord = null;
+            if (article.authorName) {
+                authorRecord = yield prisma.author.findFirst({
+                    where: { name: article.authorName },
+                });
+                if (!authorRecord) {
+                    authorRecord = yield prisma.author.create({
+                        data: {
+                            name: article.authorName,
+                            authorDesignation: article.authorDesignation || null,
+                        },
+                    });
+                }
+            }
             yield prisma.article.upsert({
                 where: { slug: article.slug },
                 update: {
@@ -430,9 +513,20 @@ function seedArticles(adminId) {
                     totalReadTime: article.totalReadTime,
                     isPublished: article.isPublished,
                     coverImage: article.coverImage,
-                    authorUserId: adminId,
+                    authorId: (authorRecord === null || authorRecord === void 0 ? void 0 : authorRecord.id) || null,
                 },
-                create: Object.assign(Object.assign({}, article), { authorUserId: adminId }),
+                create: {
+                    title: article.title,
+                    slug: article.slug,
+                    content: article.content,
+                    category: article.category,
+                    authorName: article.authorName,
+                    authorDesignation: article.authorDesignation,
+                    totalReadTime: article.totalReadTime,
+                    isPublished: article.isPublished,
+                    coverImage: article.coverImage,
+                    authorId: (authorRecord === null || authorRecord === void 0 ? void 0 : authorRecord.id) || null,
+                },
             });
         }
         console.log(`✅ [SEED SUCCESS] Successfully seeded ${INITIAL_ARTICLES.length} publications into the catalog.`);

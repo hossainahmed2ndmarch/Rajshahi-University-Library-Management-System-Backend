@@ -71,7 +71,16 @@ const createBookReviewInDB = async (
             select: {
               id: true,
               title: true,
-              author: true,
+              authors: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
               type: true,
             },
           },
@@ -102,7 +111,16 @@ const createBookReviewInDB = async (
           select: {
             id: true,
             title: true,
-            author: true,
+            authors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
             type: true,
           },
         },
@@ -149,7 +167,16 @@ const createBookReviewInDB = async (
             select: {
               id: true,
               title: true,
-              author: true,
+              authors: {
+                include: {
+                  author: {
+                    select: {
+                      id: true,
+                      name: true,
+                    },
+                  },
+                },
+              },
               type: true,
             },
           },
@@ -180,7 +207,16 @@ const createBookReviewInDB = async (
           select: {
             id: true,
             title: true,
-            author: true,
+            authors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
             type: true,
           },
         },
@@ -203,7 +239,16 @@ const createBookReviewInDB = async (
           select: {
             id: true,
             title: true,
-            author: true,
+            authors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
             type: true,
           },
         },
@@ -372,7 +417,16 @@ const getAllReviewsFromDB = async () => {
           select: {
             id: true,
             title: true,
-            author: true,
+            authors: {
+              include: {
+                author: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
             type: true,
           },
         },

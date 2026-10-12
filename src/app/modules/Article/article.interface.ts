@@ -7,9 +7,10 @@ export type TCreateArticle = {
   content: string;
   coverImage?: string | null;
   category: string;
-  authorUserId?: number | null;
-  authorName: string;
+  authorId?: number | null;
+  authorName?: string;
   authorDesignation?: string | null;
+  authorBio?: string | null;
   relatedBookId?: number | null;
   totalReadTime?: number;
   isPublished?: boolean;
@@ -24,6 +25,7 @@ export type TSubmitArticle = {
   category: string;
   authorName: string;
   authorDesignation?: string | null;
+  authorBio?: string | null;
   authorEmail?: string | null;
   coverImage?: string | null;
 };

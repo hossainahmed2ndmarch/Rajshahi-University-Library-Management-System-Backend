@@ -77,7 +77,16 @@ const createEventIntoDB = (payload) => __awaiter(void 0, void 0, void 0, functio
                 select: {
                     id: true,
                     title: true,
-                    author: true,
+                    authors: {
+                        include: {
+                            author: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
                     coverImage: true,
                 },
             },
@@ -164,7 +173,16 @@ const getEventByIdOrSlugFromDB = (idOrSlug) => __awaiter(void 0, void 0, void 0,
                 select: {
                     id: true,
                     title: true,
-                    author: true,
+                    authors: {
+                        include: {
+                            author: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
                     coverImage: true,
                 },
             },
@@ -283,7 +301,16 @@ const updateEventInDB = (id, payload) => __awaiter(void 0, void 0, void 0, funct
                 select: {
                     id: true,
                     title: true,
-                    author: true,
+                    authors: {
+                        include: {
+                            author: {
+                                select: {
+                                    id: true,
+                                    name: true,
+                                },
+                            },
+                        },
+                    },
                     coverImage: true,
                 },
             },

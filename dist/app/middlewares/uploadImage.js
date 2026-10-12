@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cloudinary = exports.uploadSingleImage = exports.uploadSessionAudio = exports.uploadGalleryMedia = exports.uploadEventBanner = exports.uploadActivityBanner = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
+exports.cloudinary = exports.uploadSingleImage = exports.uploadPublisherLogo = exports.uploadAuthorAvatar = exports.uploadSessionAudio = exports.uploadGalleryMedia = exports.uploadEventBanner = exports.uploadActivityBanner = exports.uploadArticleCover = exports.uploadMultipleBookImages = exports.uploadBookCover = exports.uploadAvatar = void 0;
 const multer_1 = __importDefault(require("multer"));
 const cloudinary_1 = __importDefault(require("cloudinary"));
 const multer_storage_cloudinary_1 = __importDefault(require("multer-storage-cloudinary"));
@@ -160,6 +160,38 @@ exports.uploadSessionAudio = (0, multer_1.default)({
     fileFilter: audioFileFilter,
     limits: { fileSize: 60 * 1024 * 1024 }, // 60MB max
 }).single('audio');
+// ── Cloudinary storage: Author Avatars ───────────────────────────────────────
+const authorAvatarStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/authors',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+        transformation: [
+            { width: 500, height: 500, crop: 'fill', gravity: 'face', quality: 'auto' },
+        ],
+    },
+});
+exports.uploadAuthorAvatar = (0, multer_1.default)({
+    storage: authorAvatarStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 },
+}).single('avatar');
+// ── Cloudinary storage: Publisher Logos ──────────────────────────────────────
+const publisherLogoStorage = (0, multer_storage_cloudinary_1.default)({
+    cloudinary: cloudinary_1.default,
+    params: {
+        folder: 'ruil-library/publishers',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'],
+        transformation: [
+            { width: 500, height: 500, crop: 'limit', quality: 'auto' },
+        ],
+    },
+});
+exports.uploadPublisherLogo = (0, multer_1.default)({
+    storage: publisherLogoStorage,
+    fileFilter: imageFileFilter,
+    limits: { fileSize: 5 * 1024 * 1024 },
+}).single('logo');
 // Legacy alias kept for backward compat
 exports.uploadSingleImage = exports.uploadBookCover;
 const cloudinaryV2 = cloudinary_1.default.v2;

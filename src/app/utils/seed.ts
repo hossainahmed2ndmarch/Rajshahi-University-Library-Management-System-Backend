@@ -305,28 +305,97 @@ async function seedBooks(adminId: number): Promise<void> {
   console.log('📚 [SEED] Synchronizing Islamic Library books catalog...');
 
   for (const book of INITIAL_BOOKS) {
-    await prisma.book.upsert({
+    let publisherRecord = null;
+    if (book.publisher) {
+      publisherRecord = await prisma.publisher.upsert({
+        where: { name: book.publisher },
+        update: {},
+        create: { name: book.publisher },
+      });
+    }
+
+    let authorRecord = null;
+    if (book.author) {
+      authorRecord = await prisma.author.findFirst({
+        where: { name: book.author },
+      });
+      if (!authorRecord) {
+        authorRecord = await prisma.author.create({
+          data: { name: book.author },
+        });
+      }
+    }
+
+    const existingBook = await prisma.book.findUnique({
       where: { isbn: book.isbn },
-      update: {
-        title: book.title,
-        author: book.author,
-        locationCell: book.locationCell,
-        category: book.category,
-        publisher: book.publisher,
-        pages: book.pages,
-        type: book.type,
-        sellPrice: book.sellPrice,
-        borrowStock: book.borrowStock,
-        sellStock: book.sellStock,
-        coverImage: book.coverImage,
-        description: book.description,
-        isArchived: false,
-      },
-      create: {
-        ...book,
-        addedById: adminId,
-      },
     });
+
+    if (existingBook) {
+      await prisma.book.update({
+        where: { id: existingBook.id },
+        data: {
+          title: book.title,
+          locationCell: book.locationCell,
+          category: book.category,
+          publisherId: publisherRecord?.id || null,
+          pages: book.pages,
+          type: book.type,
+          sellPrice: book.sellPrice,
+          borrowStock: book.borrowStock,
+          sellStock: book.sellStock,
+          coverImage: book.coverImage,
+          description: book.description,
+          isArchived: false,
+        },
+      });
+
+      if (authorRecord) {
+        await prisma.bookAuthor.upsert({
+          where: {
+            bookId_authorId_role: {
+              bookId: existingBook.id,
+              authorId: authorRecord.id,
+              role: 'WRITER',
+            },
+          },
+          update: {},
+          create: {
+            bookId: existingBook.id,
+            authorId: authorRecord.id,
+            role: 'WRITER',
+          },
+        });
+      }
+    } else {
+      await prisma.book.create({
+        data: {
+          title: book.title,
+          isbn: book.isbn,
+          locationCell: book.locationCell,
+          category: book.category,
+          publisherId: publisherRecord?.id || null,
+          pages: book.pages,
+          type: book.type,
+          sellPrice: book.sellPrice,
+          borrowStock: book.borrowStock,
+          sellStock: book.sellStock,
+          coverImage: book.coverImage,
+          description: book.description,
+          isArchived: false,
+          addedById: adminId,
+          authors: authorRecord
+            ? {
+                create: [
+                  {
+                    authorId: authorRecord.id,
+                    role: 'WRITER',
+                  },
+                ],
+              }
+            : undefined,
+        },
+      });
+    }
   }
 
   console.log(`✅ [SEED SUCCESS] Successfully seeded ${INITIAL_BOOKS.length} books into the catalog.`);
@@ -394,6 +463,21 @@ async function seedArticles(adminId: number): Promise<void> {
   console.log('📰 [SEED] Synchronizing Islamic Library publications & articles...');
 
   for (const article of INITIAL_ARTICLES) {
+    let authorRecord = null;
+    if (article.authorName) {
+      authorRecord = await prisma.author.findFirst({
+        where: { name: article.authorName },
+      });
+      if (!authorRecord) {
+        authorRecord = await prisma.author.create({
+          data: {
+            name: article.authorName,
+            authorDesignation: article.authorDesignation || null,
+          },
+        });
+      }
+    }
+
     await prisma.article.upsert({
       where: { slug: article.slug },
       update: {
@@ -405,11 +489,19 @@ async function seedArticles(adminId: number): Promise<void> {
         totalReadTime: article.totalReadTime,
         isPublished: article.isPublished,
         coverImage: article.coverImage,
-        authorUserId: adminId,
+        authorId: authorRecord?.id || null,
       },
       create: {
-        ...article,
-        authorUserId: adminId,
+        title: article.title,
+        slug: article.slug,
+        content: article.content,
+        category: article.category,
+        authorName: article.authorName,
+        authorDesignation: article.authorDesignation,
+        totalReadTime: article.totalReadTime,
+        isPublished: article.isPublished,
+        coverImage: article.coverImage,
+        authorId: authorRecord?.id || null,
       },
     });
   }

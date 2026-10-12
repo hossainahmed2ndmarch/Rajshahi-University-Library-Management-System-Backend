@@ -190,6 +190,42 @@ export const uploadSessionAudio = multer({
   limits: { fileSize: 60 * 1024 * 1024 }, // 60MB max
 }).single('audio');
 
+// ── Cloudinary storage: Author Avatars ───────────────────────────────────────
+const authorAvatarStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/authors',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif'],
+    transformation: [
+      { width: 500, height: 500, crop: 'fill', gravity: 'face', quality: 'auto' },
+    ],
+  },
+});
+
+export const uploadAuthorAvatar = multer({
+  storage: authorAvatarStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+}).single('avatar');
+
+// ── Cloudinary storage: Publisher Logos ──────────────────────────────────────
+const publisherLogoStorage = cloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'ruil-library/publishers',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp', 'avif', 'svg'],
+    transformation: [
+      { width: 500, height: 500, crop: 'limit', quality: 'auto' },
+    ],
+  },
+});
+
+export const uploadPublisherLogo = multer({
+  storage: publisherLogoStorage,
+  fileFilter: imageFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 },
+}).single('logo');
+
 // Legacy alias kept for backward compat
 export const uploadSingleImage = uploadBookCover;
 

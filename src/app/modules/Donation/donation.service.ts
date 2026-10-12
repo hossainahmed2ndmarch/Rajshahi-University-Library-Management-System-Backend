@@ -100,7 +100,13 @@ const approveDonationInDB = async (
           existingBook = await tx.book.findFirst({
             where: {
               title: { equals: trimmedTitle, mode: 'insensitive' },
-              author: { equals: trimmedAuthor, mode: 'insensitive' },
+              authors: {
+                some: {
+                  author: {
+                    name: { equals: trimmedAuthor, mode: 'insensitive' },
+                  },
+                },
+              },
             },
           });
         }
@@ -133,10 +139,22 @@ const approveDonationInDB = async (
         const initialLocation = payload?.locationCell || 'DONATION-DESK';
         const assignedCat = payload?.assignedCategory || donation.category || 'General';
 
+        // Find or create author in normalized Author table
+        let authorRecord = null;
+        if (trimmedAuthor && trimmedAuthor.toLowerCase() !== 'unknown author') {
+          authorRecord = await tx.author.findFirst({
+            where: { name: { equals: trimmedAuthor, mode: 'insensitive' } },
+          });
+          if (!authorRecord) {
+            authorRecord = await tx.author.create({
+              data: { name: trimmedAuthor },
+            });
+          }
+        }
+
         const newBook = await tx.book.create({
           data: {
             title: donation.bookTitle || 'Donated Book',
-            author: donation.author || 'Unknown Author',
             isbn: generatedIsbn,
             locationCell: initialLocation,
             category: assignedCat,
@@ -150,6 +168,16 @@ const approveDonationInDB = async (
               'Donated book added into library catalog collection as borrowable. Further details can be updated by admin/shifter.',
             addedById: adminId,
             donatedById: donation.donorId || null,
+            authors: authorRecord
+              ? {
+                  create: [
+                    {
+                      authorId: authorRecord.id,
+                      role: 'WRITER',
+                    },
+                  ],
+                }
+              : undefined,
           },
         });
 
@@ -243,7 +271,13 @@ const convertDonationToStock = async (
       existingBook = await prisma.book.findFirst({
         where: {
           title: { equals: trimmedTitle, mode: 'insensitive' },
-          author: { equals: trimmedAuthor, mode: 'insensitive' },
+          authors: {
+            some: {
+              author: {
+                name: { equals: trimmedAuthor, mode: 'insensitive' },
+              },
+            },
+          },
         },
       });
     }
@@ -276,10 +310,21 @@ const convertDonationToStock = async (
         },
       });
     } else {
+      let authorRecord = null;
+      if (trimmedAuthor && trimmedAuthor.toLowerCase() !== 'unknown author') {
+        authorRecord = await tx.author.findFirst({
+          where: { name: { equals: trimmedAuthor, mode: 'insensitive' } },
+        });
+        if (!authorRecord) {
+          authorRecord = await tx.author.create({
+            data: { name: trimmedAuthor },
+          });
+        }
+      }
+
       const book = await tx.book.create({
         data: {
           title: donation.bookTitle || 'Donated Book',
-          author: donation.author || 'Unknown Author',
           isbn: payload.isbn,
           locationCell: payload.locationCell,
           category: donation.category || 'General',
@@ -292,6 +337,16 @@ const convertDonationToStock = async (
           description: payload.description || donation.donorNote || null,
           addedById: adminId,
           donatedById: donation.donorId || null,
+          authors: authorRecord
+            ? {
+                create: [
+                  {
+                    authorId: authorRecord.id,
+                    role: 'WRITER',
+                  },
+                ],
+              }
+            : undefined,
         },
       });
       bookId = book.id;
@@ -438,7 +493,13 @@ const createPOSDonationInDB = async (
           existingBook = await tx.book.findFirst({
             where: {
               title: { equals: bookTitle, mode: 'insensitive' },
-              author: { equals: author, mode: 'insensitive' },
+              authors: {
+                some: {
+                  author: {
+                    name: { equals: author, mode: 'insensitive' },
+                  },
+                },
+              },
             },
           });
         }
@@ -466,10 +527,21 @@ const createPOSDonationInDB = async (
         const initialPages = payload.pages || 150;
         const initialLocation = payload.locationCell?.trim() || 'DONATION-DESK';
 
+        let authorRecord = null;
+        if (author && author.toLowerCase() !== 'unknown author') {
+          authorRecord = await tx.author.findFirst({
+            where: { name: { equals: author, mode: 'insensitive' } },
+          });
+          if (!authorRecord) {
+            authorRecord = await tx.author.create({
+              data: { name: author },
+            });
+          }
+        }
+
         const newBook = await tx.book.create({
           data: {
             title: bookTitle,
-            author,
             isbn: generatedIsbn,
             locationCell: initialLocation,
             category,
@@ -483,6 +555,16 @@ const createPOSDonationInDB = async (
               `In-person donation received at POS Desk by staff. Condition: ${payload.condition || 'GOOD'}.`,
             addedById: shifterId,
             donatedById: donorId,
+            authors: authorRecord
+              ? {
+                  create: [
+                    {
+                      authorId: authorRecord.id,
+                      role: 'WRITER',
+                    },
+                  ],
+                }
+              : undefined,
           },
         });
         catalogedBookId = newBook.id;

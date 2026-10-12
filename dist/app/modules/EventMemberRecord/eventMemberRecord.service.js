@@ -445,12 +445,12 @@ const deleteRecordFromDB = (recordId) => __awaiter(void 0, void 0, void 0, funct
     });
 });
 const publishRecordAsArticleInDB = (recordId, requestingUserId, payload) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
+    var _a, _b;
     const record = yield db_1.default.eventMemberRecord.findUnique({
         where: { id: recordId },
         include: {
             event: { select: { id: true, title: true, bannerImage: true } },
-            user: { select: { id: true, name: true, email: true, phone: true } },
+            user: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true } },
         },
     });
     if (!record) {
@@ -486,6 +486,35 @@ const publishRecordAsArticleInDB = (recordId, requestingUserId, payload) => __aw
         .replace(/[\s_-]+/g, '-')
         .replace(/^-+|-+$/g, '');
     const uniqueSlug = `${baseSlug || 'campaign-article'}-${Date.now().toString(36)}`;
+    let authorRecord = null;
+    if (record.userId) {
+        authorRecord = yield db_1.default.author.findUnique({
+            where: { userId: record.userId },
+        });
+        if (!authorRecord) {
+            authorRecord = yield db_1.default.author.create({
+                data: {
+                    userId: record.userId,
+                    name: authorName,
+                    authorDesignation: authorDesignation || undefined,
+                    avatar: ((_b = record.user) === null || _b === void 0 ? void 0 : _b.avatarUrl) || undefined,
+                },
+            });
+        }
+    }
+    else if (authorName) {
+        authorRecord = yield db_1.default.author.findFirst({
+            where: { name: { equals: authorName, mode: 'insensitive' } },
+        });
+        if (!authorRecord) {
+            authorRecord = yield db_1.default.author.create({
+                data: {
+                    name: authorName,
+                    authorDesignation: authorDesignation || undefined,
+                },
+            });
+        }
+    }
     const article = yield db_1.default.article.create({
         data: {
             title,
@@ -493,7 +522,7 @@ const publishRecordAsArticleInDB = (recordId, requestingUserId, payload) => __aw
             content,
             coverImage: (payload === null || payload === void 0 ? void 0 : payload.coverImage) || record.event.bannerImage || null,
             category: (payload === null || payload === void 0 ? void 0 : payload.category) || 'ক্যাম্পেইন',
-            authorUserId: record.userId || null,
+            authorId: (authorRecord === null || authorRecord === void 0 ? void 0 : authorRecord.id) || null,
             authorName,
             authorDesignation,
             isPublished: true,

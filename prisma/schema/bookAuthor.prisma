@@ -1,0 +1,13 @@
+model BookAuthor {
+  id        Int        @id @default(autoincrement())
+  bookId    Int
+  book      Book       @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  authorId  Int
+  author    Author     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  role      AuthorRole @default(WRITER)
+
+  @@unique([bookId, authorId, role])
+  @@index([bookId])
+  @@index([authorId])
+  @@map("book_authors")
+}

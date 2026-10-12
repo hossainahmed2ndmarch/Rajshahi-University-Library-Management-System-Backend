@@ -155,3 +155,10 @@ enum IyanotStatus {
   PAID
   OVERDUE
 }
+
+enum AuthorRole {
+  WRITER
+  TRANSLATOR
+  EDITOR
+  COMPILER
+}

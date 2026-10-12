@@ -1,9 +1,82 @@
 import httpStatus from 'http-status';
-import { BookType, Prisma } from '@prisma/client';
+import { AuthorRole, BookType } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
-import { TCreateBook, TUpdateBook } from './book.interface';
+import { TAuthorItem, TCreateBook, TUpdateBook } from './book.interface';
+
+export const formatBookResponse = (book: any) => {
+  if (!book) return book;
+  const authorNames = Array.isArray(book.authors)
+    ? book.authors.map((ba: any) => ba.author?.name || ba.name).filter(Boolean).join(', ')
+    : '';
+
+  const effectiveDiscount =
+    book.customDiscount !== null && book.customDiscount !== undefined
+      ? Number(book.customDiscount)
+      : book.publisher?.defaultDiscount !== null && book.publisher?.defaultDiscount !== undefined
+      ? Number(book.publisher.defaultDiscount)
+      : 0;
+
+  return {
+    ...book,
+    author: authorNames || book.author || 'Unknown Author',
+    publisher: book.publisher?.name || null,
+    publisherDetails: book.publisher || null,
+    discount: effectiveDiscount,
+  };
+};
+
+const resolvePublisherId = async (
+  publisherId?: number | null,
+  publisherName?: string | null
+): Promise<number | null> => {
+  if (publisherId) {
+    const pub = await prisma.publisher.findUnique({ where: { id: publisherId } });
+    if (pub) return pub.id;
+  }
+  if (publisherName && publisherName.trim()) {
+    const trimmed = publisherName.trim();
+    const existing = await prisma.publisher.findUnique({ where: { name: trimmed } });
+    if (existing) return existing.id;
+    const created = await prisma.publisher.create({ data: { name: trimmed } });
+    return created.id;
+  }
+  return null;
+};
+
+const resolveAuthorItems = async (
+  authors?: TAuthorItem[],
+  authorStr?: string
+): Promise<{ authorId: number; role: AuthorRole }[]> => {
+  const result: { authorId: number; role: AuthorRole }[] = [];
+
+  if (Array.isArray(authors) && authors.length > 0) {
+    for (const item of authors) {
+      if (item.authorId) {
+        result.push({ authorId: item.authorId, role: item.role || 'WRITER' });
+      } else if (item.name && item.name.trim()) {
+        const trimmed = item.name.trim();
+        let author = await prisma.author.findFirst({ where: { name: trimmed } });
+        if (!author) {
+          author = await prisma.author.create({ data: { name: trimmed } });
+        }
+        result.push({ authorId: author.id, role: item.role || 'WRITER' });
+      }
+    }
+  } else if (authorStr && authorStr.trim()) {
+    const splitNames = authorStr.split(',').map((s) => s.trim()).filter(Boolean);
+    for (const name of splitNames) {
+      let author = await prisma.author.findFirst({ where: { name } });
+      if (!author) {
+        author = await prisma.author.create({ data: { name } });
+      }
+      result.push({ authorId: author.id, role: 'WRITER' });
+    }
+  }
+
+  return result;
+};
 
 const createBookIntoDB = async (payload: TCreateBook, adminId?: number) => {
   const existingIsbn = await prisma.book.findUnique({
@@ -26,29 +99,54 @@ const createBookIntoDB = async (payload: TCreateBook, adminId?: number) => {
   }
   const categoryStr = categories.length > 0 ? categories.join(', ') : payload.category || 'General';
 
-  // Handle multiple authors with roles (WRITER / TRANSLATOR)
-  let authors = payload.authors;
-  let authorStr = payload.author || '';
-  if (Array.isArray(authors) && authors.length > 0) {
-    authorStr = authors
-      .map((a) => (a.role === 'TRANSLATOR' ? `${a.name.trim()} (Translator)` : a.name.trim()))
-      .join(', ');
-  } else if (payload.author) {
-    authors = [{ name: payload.author.trim(), role: 'WRITER' }];
-  }
+  const publisherId = await resolvePublisherId(payload.publisherId, payload.publisher);
+  const resolvedAuthors = await resolveAuthorItems(payload.authors, payload.author);
 
-  const bookData: any = {
-    ...payload,
-    author: authorStr,
-    authors: authors || undefined,
-    category: categoryStr,
-    categories,
-    addedById: adminId || null,
-  };
+  const customDiscountValue =
+    payload.customDiscount !== undefined && payload.customDiscount !== null
+      ? payload.customDiscount
+      : payload.discount !== undefined && payload.discount !== null
+      ? payload.discount
+      : null;
 
-  return await prisma.book.create({
-    data: bookData,
+  const book = await prisma.book.create({
+    data: {
+      title: payload.title,
+      isbn: payload.isbn,
+      locationCell: payload.locationCell,
+      category: categoryStr,
+      categories,
+      pages: payload.pages !== undefined ? Number(payload.pages) : null,
+      type: payload.type,
+      buyPrice: payload.buyPrice !== undefined && payload.buyPrice !== null ? payload.buyPrice : null,
+      sellPrice: payload.sellPrice !== undefined && payload.sellPrice !== null ? payload.sellPrice : null,
+      customDiscount: customDiscountValue,
+      borrowStock: payload.borrowStock !== undefined ? Number(payload.borrowStock) : 0,
+      sellStock: payload.sellStock !== undefined ? Number(payload.sellStock) : 0,
+      coverImage: payload.coverImage || null,
+      images: payload.images || [],
+      description: payload.description || null,
+      addedById: adminId || null,
+      donatedById: payload.donatedById || null,
+      publisherId,
+      authors: {
+        create: resolvedAuthors.map((a) => ({
+          authorId: a.authorId,
+          role: a.role,
+        })),
+      },
+    },
+    include: {
+      publisher: true,
+      authors: {
+        include: {
+          author: true,
+        },
+      },
+    },
   });
+
+  return formatBookResponse(book);
 };
 
 const getAllBooksFromDB = async (query: Record<string, unknown>) => {
@@ -62,18 +160,18 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     categories,
     author,
     authors,
+    authorId,
     publisher,
     publishers,
+    publisherId,
     type,
     minPrice,
     maxPrice,
     ...queryParams
   } = query;
 
-  // Set up QueryBuilder with searchable and filterable fields
-  // Default isArchived to false so deleted/archived books are hidden from regular listings
   const bookQuery = new QueryBuilder(prisma.book, { ...queryParams, isArchived: isArchived ?? false }, {
-    searchableFields: ['title', 'author', 'isbn', 'category', 'publisher', 'locationCell', 'description'],
+    searchableFields: ['title', 'isbn', 'category', 'locationCell', 'description'],
     filterableFields: ['isArchived'],
   })
     .search()
@@ -81,7 +179,35 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     .paginate()
     .fields();
 
-  // ── Category filter: supports single value, array, or comma-separated multi-values ────
+  // Search in related author name or publisher name if searchTerm provided
+  if (queryParams.searchTerm) {
+    const term = String(queryParams.searchTerm).trim();
+    bookQuery.where({
+      OR: [
+        { title: { contains: term, mode: 'insensitive' } },
+        { isbn: { contains: term, mode: 'insensitive' } },
+        { locationCell: { contains: term, mode: 'insensitive' } },
+        { category: { contains: term, mode: 'insensitive' } },
+        { description: { contains: term, mode: 'insensitive' } },
+        {
+          authors: {
+            some: {
+              author: {
+                name: { contains: term, mode: 'insensitive' },
+              },
+            },
+          },
+        },
+        {
+          publisher: {
+            name: { contains: term, mode: 'insensitive' },
+          },
+        },
+      ],
+    });
+  }
+
+  // ── Category filter ────────────────────────────────────────────────────────
   const rawCategory = category ?? categories;
   if (rawCategory) {
     const categoryValues = Array.isArray(rawCategory)
@@ -107,7 +233,7 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     }
   }
 
-  // ── Author filter: supports single value, array, or comma-separated multi-values ──────
+  // ── Author filter ──────────────────────────────────────────────────────────
   const rawAuthor = author ?? authors;
   if (rawAuthor) {
     const authorValues = Array.isArray(rawAuthor)
@@ -118,16 +244,40 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
 
     if (authorValues.length === 1) {
       bookQuery.where({
-        author: { contains: authorValues[0], mode: 'insensitive' },
+        authors: {
+          some: {
+            author: {
+              name: { contains: authorValues[0], mode: 'insensitive' },
+            },
+          },
+        },
       });
     } else if (authorValues.length > 1) {
       bookQuery.where({
-        OR: authorValues.map((a) => ({ author: { contains: a, mode: 'insensitive' } })),
+        OR: authorValues.map((a) => ({
+          authors: {
+            some: {
+              author: {
+                name: { contains: a, mode: 'insensitive' },
+              },
+            },
+          },
+        })),
       });
     }
   }
 
-  // ── Publisher filter: supports single value, array, or comma-separated multi-values ───
+  if (authorId) {
+    bookQuery.where({
+      authors: {
+        some: {
+          authorId: Number(authorId),
+        },
+      },
+    });
+  }
+
+  // ── Publisher filter ───────────────────────────────────────────────────────
   const rawPublisher = publisher ?? publishers;
   if (rawPublisher) {
     const publisherValues = Array.isArray(rawPublisher)
@@ -138,16 +288,28 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
 
     if (publisherValues.length === 1) {
       bookQuery.where({
-        publisher: { contains: publisherValues[0], mode: 'insensitive' },
+        publisher: {
+          name: { contains: publisherValues[0], mode: 'insensitive' },
+        },
       });
     } else if (publisherValues.length > 1) {
       bookQuery.where({
-        OR: publisherValues.map((p) => ({ publisher: { contains: p, mode: 'insensitive' } })),
+        OR: publisherValues.map((p) => ({
+          publisher: {
+            name: { contains: p, mode: 'insensitive' },
+          },
+        })),
       });
     }
   }
 
-  // ── Price range filter on sellPrice ──────────────────────────────────────────
+  if (publisherId) {
+    bookQuery.where({
+      publisherId: Number(publisherId),
+    });
+  }
+
+  // ── Price range filter ─────────────────────────────────────────────────────
   const minPriceNum = minPrice !== undefined && minPrice !== '' ? Number(minPrice) : null;
   const maxPriceNum = maxPrice !== undefined && maxPrice !== '' ? Number(maxPrice) : null;
   if (minPriceNum !== null && !isNaN(minPriceNum) && maxPriceNum !== null && !isNaN(maxPriceNum)) {
@@ -158,82 +320,91 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
     bookQuery.where({ sellPrice: { lte: maxPriceNum } });
   }
 
-  // ── Type filter ─────────────────────────────────────────────────────────────
-  const typeParam = typeof type === 'string' ? type.trim().toUpperCase() : undefined;
-  if (typeParam && typeParam !== 'ALL') {
-    if (typeParam === 'BORROW_ONLY' || typeParam === 'BORROW') {
-      bookQuery.where({
-        type: {
-          in: [BookType.BORROW_ONLY, BookType.HYBRID],
-        },
-      });
-    } else if (typeParam === 'SELL_ONLY' || typeParam === 'SELL' || typeParam === 'BUY') {
-      bookQuery.where({
-        type: {
-          in: [BookType.SELL_ONLY, BookType.HYBRID],
-        },
-      });
-    } else if (typeParam === 'HYBRID') {
-      bookQuery.where({
-        type: BookType.HYBRID,
-      });
-    } else if (Object.values(BookType).includes(typeParam as BookType)) {
-      bookQuery.where({
-        type: typeParam as BookType,
-      });
-    }
+  // ── Type and Capability filters ────────────────────────────────────────────
+  if (type) {
+    bookQuery.where({ type });
   }
 
-  // Filter for borrowable books (BORROW_ONLY or HYBRID)
-  if (isBorrowable === 'true' || isBorrowable === true) {
+  const isBorrowableBool =
+    isBorrowable === true || isBorrowable === 'true'
+      ? true
+      : isBorrowable === false || isBorrowable === 'false'
+      ? false
+      : undefined;
+
+  const isSellableBool =
+    isSellable === true || isSellable === 'true'
+      ? true
+      : isSellable === false || isSellable === 'false'
+      ? false
+      : undefined;
+
+  if (isBorrowableBool === true) {
     bookQuery.where({
       type: {
         in: [BookType.BORROW_ONLY, BookType.HYBRID],
       },
     });
+  } else if (isBorrowableBool === false) {
+    bookQuery.where({
+      type: BookType.SELL_ONLY,
+    });
   }
 
-  // Filter for sellable books (SELL_ONLY or HYBRID)
-  if (isSellable === 'true' || isSellable === true) {
+  if (isSellableBool === true) {
     bookQuery.where({
       type: {
         in: [BookType.SELL_ONLY, BookType.HYBRID],
       },
     });
+  } else if (isSellableBool === false) {
+    bookQuery.where({
+      type: BookType.BORROW_ONLY,
+    });
   }
 
   // Custom Sorting Logic
   if (sortBy === 'createdAt') {
-    // 1. New Arrivals: Sort by creation timestamp
     bookQuery.orderBy({
       createdAt: sortOrder === 'asc' ? 'asc' : 'desc',
     });
-  } else if (sortBy === 'borrowCount') {
-    // 2. Most Borrowed: Sort by relation count on borrowRecords table
-    bookQuery.orderBy({
-      borrowRecords: {
-        _count: sortOrder === 'asc' ? 'asc' : 'desc',
-      },
-    });
   } else if (sortBy) {
-    // 3. Generic field sorting
     bookQuery.orderBy({
       [sortBy as string]: sortOrder === 'asc' ? 'asc' : 'desc',
     });
   } else {
-    // Default fallback: Newest first
     bookQuery.orderBy({
       createdAt: 'desc',
     });
   }
 
-  return await bookQuery.execute();
+  bookQuery.include({
+    publisher: true,
+    authors: {
+      include: {
+        author: true,
+      },
+    },
+  });
+
+  const result = await bookQuery.execute();
+
+  return {
+    meta: result.meta,
+    data: result.data.map(formatBookResponse),
+  };
 };
 
 const getBookByIdFromDB = async (id: number) => {
   const book = await prisma.book.findUnique({
     where: { id },
     include: {
+      publisher: true,
+      authors: {
+        include: {
+          author: true,
+        },
+      },
       reviews: {
         select: {
           id: true,
@@ -276,25 +447,23 @@ const getBookByIdFromDB = async (id: number) => {
       ? Number((book.reviews.reduce((acc, review) => acc + review.rating, 0) / totalReviews).toFixed(2))
       : 0;
 
-  return {
+  return formatBookResponse({
     ...book,
-    reviewSummary: {
-      totalReviews,
-      averageRating,
-    },
-  };
+    totalReviews,
+    averageRating,
+  });
 };
 
 const updateBookInDB = async (id: number, payload: TUpdateBook) => {
-  const book = await prisma.book.findUnique({
+  const existingBook = await prisma.book.findUnique({
     where: { id },
   });
 
-  if (!book) {
+  if (!existingBook) {
     throw new AppError(httpStatus.NOT_FOUND, 'Book not found!');
   }
 
-  if (payload.isbn && payload.isbn !== book.isbn) {
+  if (payload.isbn && payload.isbn !== existingBook.isbn) {
     const existingIsbn = await prisma.book.findUnique({
       where: { isbn: payload.isbn },
     });
@@ -306,21 +475,6 @@ const updateBookInDB = async (id: number, payload: TUpdateBook) => {
   const updateData: Record<string, any> = {};
 
   if (payload.title !== undefined) updateData.title = payload.title;
-
-  // Handle authors
-  if (payload.authors !== undefined) {
-    updateData.authors = payload.authors;
-    if (Array.isArray(payload.authors) && payload.authors.length > 0) {
-      updateData.author = payload.authors
-        .map((a) => (a.role === 'TRANSLATOR' ? `${a.name.trim()} (Translator)` : a.name.trim()))
-        .join(', ');
-    } else if (payload.author !== undefined) {
-      updateData.author = payload.author;
-    }
-  } else if (payload.author !== undefined) {
-    updateData.author = payload.author;
-    updateData.authors = [{ name: payload.author.trim(), role: 'WRITER' }];
-  }
 
   // Handle categories
   if (payload.categories !== undefined) {
@@ -334,12 +488,24 @@ const updateBookInDB = async (id: number, payload: TUpdateBook) => {
 
   if (payload.isbn !== undefined) updateData.isbn = payload.isbn;
   if (payload.locationCell !== undefined) updateData.locationCell = payload.locationCell;
-  if (payload.publisher !== undefined) updateData.publisher = payload.publisher;
+
+  // Handle Publisher
+  if (payload.publisherId !== undefined || payload.publisher !== undefined) {
+    updateData.publisherId = await resolvePublisherId(payload.publisherId, payload.publisher);
+  }
+
   if (payload.pages !== undefined) updateData.pages = Number(payload.pages);
   if (payload.type !== undefined) updateData.type = payload.type;
   if (payload.buyPrice !== undefined) updateData.buyPrice = payload.buyPrice !== null ? Number(payload.buyPrice) : null;
   if (payload.sellPrice !== undefined) updateData.sellPrice = payload.sellPrice !== null ? Number(payload.sellPrice) : null;
-  if (payload.discount !== undefined) updateData.discount = Number(payload.discount);
+
+  // Handle custom discount
+  if (payload.customDiscount !== undefined) {
+    updateData.customDiscount = payload.customDiscount !== null ? Number(payload.customDiscount) : null;
+  } else if (payload.discount !== undefined) {
+    updateData.customDiscount = payload.discount !== null ? Number(payload.discount) : null;
+  }
+
   if (payload.borrowStock !== undefined) updateData.borrowStock = Number(payload.borrowStock);
   if (payload.sellStock !== undefined) updateData.sellStock = Number(payload.sellStock);
   if (payload.coverImage !== undefined) updateData.coverImage = payload.coverImage;
@@ -347,10 +513,36 @@ const updateBookInDB = async (id: number, payload: TUpdateBook) => {
   if (payload.description !== undefined) updateData.description = payload.description;
   if (payload.isArchived !== undefined) updateData.isArchived = Boolean(payload.isArchived);
 
-  return await prisma.book.update({
+  // Handle Authors
+  if (payload.authors !== undefined || payload.author !== undefined) {
+    const resolvedAuthors = await resolveAuthorItems(payload.authors, payload.author);
+    await prisma.bookAuthor.deleteMany({ where: { bookId: id } });
+    if (resolvedAuthors.length > 0) {
+      await prisma.bookAuthor.createMany({
+        data: resolvedAuthors.map((a) => ({
+          bookId: id,
+          authorId: a.authorId,
+          role: a.role,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
+
+  const updated = await prisma.book.update({
     where: { id },
     data: updateData,
+    include: {
+      publisher: true,
+      authors: {
+        include: {
+          author: true,
+        },
+      },
+    },
   });
+
+  return formatBookResponse(updated);
 };
 
 const deleteBookFromDB = async (id: number) => {
@@ -362,7 +554,6 @@ const deleteBookFromDB = async (id: number) => {
     throw new AppError(httpStatus.NOT_FOUND, 'Book not found!');
   }
 
-  // Hard delete: permanently remove the book record
   return await prisma.book.delete({
     where: { id },
   });
@@ -375,9 +566,13 @@ const getBookCategoriesFromDB = async () => {
       id: true,
       title: true,
       coverImage: true,
-      author: true,
       category: true,
       categories: true,
+      authors: {
+        include: {
+          author: true,
+        },
+      },
       createdAt: true,
     },
     orderBy: {
@@ -408,11 +603,12 @@ const getBookCategoriesFromDB = async () => {
       });
     }
 
+    const authorStr = book.authors.map((ba) => ba.author?.name).filter(Boolean).join(', ') || 'Unknown';
     const previewBook = {
       id: book.id,
       title: book.title,
       coverImage: book.coverImage,
-      author: book.author,
+      author: authorStr,
     };
 
     cats.forEach((cat) => {
@@ -423,102 +619,55 @@ const getBookCategoriesFromDB = async () => {
     });
   }
 
-  const result = Array.from(categoryMap.values())
+  return Array.from(categoryMap.values())
     .map((item) => ({
       category: item.category,
       count: item.books.length,
       books: item.books.slice(0, 4),
     }))
     .sort((a, b) => b.count - a.count || a.category.localeCompare(b.category));
-
-  return result;
 };
 
 const getBookOptionsFromDB = async () => {
-  const books = await prisma.book.findMany({
-    where: { isArchived: false },
-    select: {
-      category: true,
-      categories: true,
-      locationCell: true,
-      publisher: true,
-      author: true,
-      authors: true,
-    },
-  });
+  const [categoriesRaw, locationCellsRaw, publishers, authors] = await Promise.all([
+    prisma.book.findMany({
+      where: { isArchived: false },
+      select: { category: true, categories: true },
+    }),
+    prisma.book.findMany({
+      where: { isArchived: false },
+      select: { locationCell: true },
+    }),
+    prisma.publisher.findMany({
+      select: { id: true, name: true, defaultDiscount: true, logo: true },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.author.findMany({
+      select: { id: true, name: true, avatar: true, authorDesignation: true },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
 
   const categoriesSet = new Set<string>();
+  categoriesRaw.forEach((b) => {
+    if (Array.isArray(b.categories)) b.categories.forEach((c) => c && categoriesSet.add(c.trim()));
+    if (b.category) b.category.split(',').forEach((c) => c && categoriesSet.add(c.trim()));
+  });
+
   const locationCellsSet = new Set<string>();
-  const publishersSet = new Set<string>();
-  const authorsMap = new Map<string, 'WRITER' | 'TRANSLATOR'>();
-
-  for (const book of books) {
-    // Categories
-    if (Array.isArray(book.categories) && book.categories.length > 0) {
-      book.categories.forEach((c) => {
-        const trimmed = c?.trim();
-        if (trimmed) categoriesSet.add(trimmed);
-      });
+  locationCellsRaw.forEach((b) => {
+    if (b.locationCell && b.locationCell !== 'Rack-Unassigned' && b.locationCell !== 'Cell-Unassigned') {
+      locationCellsSet.add(b.locationCell.trim());
     }
-    if (book.category) {
-      book.category.split(',').forEach((c) => {
-        const trimmed = c?.trim();
-        if (trimmed) categoriesSet.add(trimmed);
-      });
-    }
-
-    // Location Cells
-    if (book.locationCell) {
-      const trimmed = book.locationCell.trim();
-      if (trimmed && trimmed !== 'Rack-Unassigned' && trimmed !== 'Cell-Unassigned') {
-        locationCellsSet.add(trimmed);
-      }
-    }
-
-    // Publishers
-    if (book.publisher) {
-      const trimmed = book.publisher.trim();
-      if (trimmed && trimmed !== 'N/A') {
-        publishersSet.add(trimmed);
-      }
-    }
-
-    // Authors
-    if (Array.isArray(book.authors) && (book.authors as any[]).length > 0) {
-      (book.authors as any[]).forEach((a) => {
-        const name = a.name?.trim();
-        const role = a.role === 'TRANSLATOR' ? 'TRANSLATOR' : 'WRITER';
-        if (name) {
-          if (!authorsMap.has(name) || role === 'WRITER') {
-            authorsMap.set(name, role);
-          }
-        }
-      });
-    } else if (book.author) {
-      book.author.split(',').forEach((part) => {
-        const trimmed = part.trim();
-        if (!trimmed) return;
-        const isTrans = trimmed.toLowerCase().includes('(translator)');
-        const cleanName = trimmed.replace(/\(translator\)/i, '').trim();
-        if (cleanName) {
-          const role = isTrans ? 'TRANSLATOR' : 'WRITER';
-          if (!authorsMap.has(cleanName) || role === 'WRITER') {
-            authorsMap.set(cleanName, role);
-          }
-        }
-      });
-    }
-  }
-
-  const authors = Array.from(authorsMap.entries())
-    .map(([name, role]) => ({ name, role }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  });
 
   return {
     categories: Array.from(categoriesSet).sort((a, b) => a.localeCompare(b)),
     locationCells: Array.from(locationCellsSet).sort((a, b) => a.localeCompare(b)),
-    publishers: Array.from(publishersSet).sort((a, b) => a.localeCompare(b)),
-    authors,
+    publishers: publishers.map((p) => p.name),
+    publisherList: publishers,
+    authors: authors.map((a) => ({ id: a.id, name: a.name, role: 'WRITER' as AuthorRole })),
+    authorList: authors,
   };
 };
 

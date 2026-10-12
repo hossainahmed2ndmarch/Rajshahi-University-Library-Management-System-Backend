@@ -55,7 +55,16 @@ const createEventIntoDB = async (payload: TCreateEvent) => {
         select: {
           id: true,
           title: true,
-          author: true,
+          authors: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           coverImage: true,
         },
       },
@@ -156,7 +165,16 @@ const getEventByIdOrSlugFromDB = async (idOrSlug: string) => {
         select: {
           id: true,
           title: true,
-          author: true,
+          authors: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           coverImage: true,
         },
       },
@@ -271,7 +289,16 @@ const updateEventInDB = async (id: number, payload: TUpdateEvent) => {
         select: {
           id: true,
           title: true,
-          author: true,
+          authors: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
           coverImage: true,
         },
       },

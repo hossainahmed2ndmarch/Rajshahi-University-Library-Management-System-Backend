@@ -1,33 +1,33 @@
-// Model Article
-
 model Article {
-  id         Int          @id @default(autoincrement())
-  org        Organization @default(RUIL)
-  title      String
-  slug       String       @unique
-  content    String       @db.Text
-  coverImage String? // Cloudinary URL
-  category   String
+  id                Int          @id @default(autoincrement())
+  org               Organization @default(RUIL)
+  title             String
+  slug              String       @unique
+  content           String       @db.Text
+  coverImage        String?
+  category          String
 
-  // Relation to Existing Library Member / User (Optional)
-  authorUserId Int?
-  authorUser   User? @relation("AuthorUser", fields: [authorUserId], references: [id], onDelete: SetNull)
+  // Relational Author Link (Normalized)
+  authorId          Int?
+  author            Author?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
-  authorName        String
+  // Submitter Author Details (saved before admin review/approval)
+  authorName        String?
   authorDesignation String?
+  authorBio         String?      @db.Text
 
-  // Link to existing Book/Deyalika for advertisement excerpts
-  relatedBookId Int?
-  relatedBook   Book? @relation(fields: [relatedBookId], references: [id], onDelete: SetNull)
+  // Link to existing Book/Deyalika
+  relatedBookId     Int?
+  relatedBook       Book?        @relation(fields: [relatedBookId], references: [id], onDelete: SetNull)
 
-  totalViews    Int      @default(0)
-  totalReadTime Int      @default(0)
-  isPublished   Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  totalViews        Int          @default(0)
+  totalReadTime     Int          @default(0)
+  isPublished       Boolean      @default(false)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  @@index([category])
-  @@index([isPublished])
+  @@index([authorId])
+  @@index([category, isPublished])
   @@index([org])
   @@map("articles")
 }

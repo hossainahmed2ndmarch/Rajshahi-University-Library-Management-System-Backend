@@ -531,7 +531,7 @@ const publishRecordAsArticleInDB = async (
     where: { id: recordId },
     include: {
       event: { select: { id: true, title: true, bannerImage: true } },
-      user: { select: { id: true, name: true, email: true, phone: true } },
+      user: { select: { id: true, name: true, email: true, phone: true, avatarUrl: true } },
     },
   });
 
@@ -580,6 +580,35 @@ const publishRecordAsArticleInDB = async (
     .replace(/^-+|-+$/g, '');
   const uniqueSlug = `${baseSlug || 'campaign-article'}-${Date.now().toString(36)}`;
 
+  let authorRecord = null;
+  if (record.userId) {
+    authorRecord = await prisma.author.findUnique({
+      where: { userId: record.userId },
+    });
+    if (!authorRecord) {
+      authorRecord = await prisma.author.create({
+        data: {
+          userId: record.userId,
+          name: authorName,
+          authorDesignation: authorDesignation || undefined,
+          avatar: record.user?.avatarUrl || undefined,
+        },
+      });
+    }
+  } else if (authorName) {
+    authorRecord = await prisma.author.findFirst({
+      where: { name: { equals: authorName, mode: 'insensitive' } },
+    });
+    if (!authorRecord) {
+      authorRecord = await prisma.author.create({
+        data: {
+          name: authorName,
+          authorDesignation: authorDesignation || undefined,
+        },
+      });
+    }
+  }
+
   const article = await prisma.article.create({
     data: {
       title,
@@ -587,7 +616,7 @@ const publishRecordAsArticleInDB = async (
       content,
       coverImage: payload?.coverImage || record.event.bannerImage || null,
       category: payload?.category || 'ক্যাম্পেইন',
-      authorUserId: record.userId || null,
+      authorId: authorRecord?.id || null,
       authorName,
       authorDesignation,
       isPublished: true,

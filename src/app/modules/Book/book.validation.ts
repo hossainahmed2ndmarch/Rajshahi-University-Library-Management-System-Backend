@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import { BookType } from '@prisma/client';
+import { AuthorRole, BookType } from '@prisma/client';
 
 const authorItemValidationSchema = z.object({
-  name: z.string().min(1, 'Author name is required'),
-  role: z.enum(['WRITER', 'TRANSLATOR']).default('WRITER'),
+  authorId: z.number().int().positive().optional(),
+  name: z.string().optional(),
+  role: z.nativeEnum(AuthorRole).default('WRITER'),
 });
 
 const createBookValidationSchema = z.object({
@@ -17,11 +18,13 @@ const createBookValidationSchema = z.object({
       category: z.string().optional(),
       categories: z.array(z.string()).optional(),
       publisher: z.string().nullable().optional(),
+      publisherId: z.number().int().positive().nullable().optional(),
       pages: z.number().int('Pages must be an integer').min(0, 'Pages must be non-negative').optional(),
       type: z.nativeEnum(BookType),
       buyPrice: z.number().min(0, 'Buy price must be non-negative').nullable().optional(),
       sellPrice: z.number().min(0, 'Sell price must be non-negative').nullable().optional(),
-      discount: z.number().min(0).max(100).optional().default(0),
+      discount: z.number().min(0).max(100).nullable().optional(),
+      customDiscount: z.number().min(0).max(100).nullable().optional(),
       borrowStock: z.number().int('Borrow stock must be an integer').min(0, 'Borrow stock cannot be negative').optional().default(0),
       sellStock: z.number().int('Sell stock must be an integer').min(0, 'Sell stock cannot be negative').optional().default(0),
       coverImage: z.string().nullable().optional(),
@@ -63,11 +66,13 @@ const updateBookValidationSchema = z.object({
     category: z.string().min(1).optional(),
     categories: z.array(z.string()).optional(),
     publisher: z.string().nullable().optional(),
+    publisherId: z.number().int().positive().nullable().optional(),
     pages: z.number().int().min(0).optional(),
     type: z.nativeEnum(BookType).optional(),
     buyPrice: z.number().min(0).nullable().optional(),
     sellPrice: z.number().min(0).nullable().optional(),
-    discount: z.number().min(0).max(100).optional(),
+    discount: z.number().min(0).max(100).nullable().optional(),
+    customDiscount: z.number().min(0).max(100).nullable().optional(),
     borrowStock: z.number().int().min(0).optional(),
     sellStock: z.number().int().min(0).optional(),
     coverImage: z.string().nullable().optional(),

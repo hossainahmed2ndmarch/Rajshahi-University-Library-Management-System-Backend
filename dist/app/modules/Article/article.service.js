@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ArticleService = void 0;
+exports.ArticleService = exports.formatArticleResponse = void 0;
 const http_status_1 = __importDefault(require("http-status"));
 const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
@@ -57,15 +57,36 @@ const ensureUniqueSlug = (baseSlug, currentArticleId) => __awaiter(void 0, void 
         counter++;
     }
 });
-const createArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, void 0, void 0, function* () {
+const formatArticleResponse = (article) => {
     var _a, _b, _c;
+    if (!article)
+        return article;
+    return Object.assign(Object.assign({}, article), { authorName: ((_a = article.author) === null || _a === void 0 ? void 0 : _a.name) || article.authorName || 'Contributor', authorDesignation: ((_b = article.author) === null || _b === void 0 ? void 0 : _b.authorDesignation) || article.authorDesignation || null, authorAvatar: ((_c = article.author) === null || _c === void 0 ? void 0 : _c.avatar) || null });
+};
+exports.formatArticleResponse = formatArticleResponse;
+const createArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const baseSlug = payload.slug ? createSlug(payload.slug) : createSlug(payload.title);
     const uniqueSlug = yield ensureUniqueSlug(baseSlug);
     const readTime = payload.totalReadTime && payload.totalReadTime > 0
         ? payload.totalReadTime
         : calculateReadTime(payload.content);
-    const authorUserId = (_b = (_a = payload.authorUserId) !== null && _a !== void 0 ? _a : requestingUserId) !== null && _b !== void 0 ? _b : null;
-    return yield db_1.default.article.create({
+    let authorId = payload.authorId || null;
+    if (!authorId && payload.authorName && payload.authorName.trim()) {
+        const name = payload.authorName.trim();
+        let author = yield db_1.default.author.findFirst({ where: { name } });
+        if (!author) {
+            author = yield db_1.default.author.create({
+                data: {
+                    name,
+                    authorDesignation: payload.authorDesignation || null,
+                    bio: payload.authorBio || null,
+                },
+            });
+        }
+        authorId = author.id;
+    }
+    const article = yield db_1.default.article.create({
         data: {
             org: payload.org || client_1.Organization.RUIL,
             title: payload.title,
@@ -73,33 +94,27 @@ const createArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, voi
             content: payload.content,
             coverImage: payload.coverImage || null,
             category: payload.category || 'General',
-            authorUserId: authorUserId,
+            authorId,
             authorName: payload.authorName,
             authorDesignation: payload.authorDesignation || null,
+            authorBio: payload.authorBio || null,
             relatedBookId: payload.relatedBookId || null,
             totalReadTime: readTime,
-            isPublished: (_c = payload.isPublished) !== null && _c !== void 0 ? _c : false,
+            isPublished: (_a = payload.isPublished) !== null && _a !== void 0 ? _a : false,
         },
         include: {
-            authorUser: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    avatarUrl: true,
-                },
-            },
+            author: true,
             relatedBook: {
                 select: {
                     id: true,
                     title: true,
-                    author: true,
                     coverImage: true,
                     isbn: true,
                 },
             },
         },
     });
+    return (0, exports.formatArticleResponse)(article);
 });
 const submitArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, void 0, void 0, function* () {
     const baseSlug = createSlug(payload.title);
@@ -111,7 +126,7 @@ const submitArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, voi
     }
     const authorName = payload.authorName || (authorUser === null || authorUser === void 0 ? void 0 : authorUser.name) || 'Guest Contributor';
     const designation = payload.authorDesignation || (payload.authorEmail ? `Email: ${payload.authorEmail}` : null);
-    return yield db_1.default.article.create({
+    const article = yield db_1.default.article.create({
         data: {
             org: payload.org || client_1.Organization.RUIL,
             title: payload.title,
@@ -119,83 +134,40 @@ const submitArticleIntoDB = (payload, requestingUserId) => __awaiter(void 0, voi
             content: payload.content,
             coverImage: payload.coverImage || null,
             category: payload.category || 'General',
-            authorUserId: requestingUserId || null,
             authorName,
             authorDesignation: designation,
+            authorBio: payload.authorBio || null,
             totalReadTime: readTime,
             isPublished: false, // Must be reviewed and approved by admin / super admin
         },
         include: {
-            authorUser: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    avatarUrl: true,
-                },
-            },
+            author: true,
         },
     });
+    return (0, exports.formatArticleResponse)(article);
 });
 const getAllArticlesFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
-    const { category, isPublished, org, sortBy, sortOrder = 'desc' } = query, queryParams = __rest(query, ["category", "isPublished", "org", "sortBy", "sortOrder"]);
+    const { category, isPublished, org, authorId, sortBy, sortOrder = 'desc' } = query, queryParams = __rest(query, ["category", "isPublished", "org", "authorId", "sortBy", "sortOrder"]);
     const articleQuery = new queryBuilder_1.default(db_1.default.article, queryParams, {
         searchableFields: ['title', 'content', 'authorName', 'category', 'slug'],
-        filterableFields: ['category', 'isPublished', 'authorUserId'],
+        filterableFields: ['category', 'isPublished', 'authorId'],
     })
         .search()
         .filter()
         .paginate()
         .fields();
-    if (category &&
-        typeof category === 'string' &&
-        category !== 'ALL' &&
-        category !== 'all' &&
-        category !== '') {
-        articleQuery.where({
-            category: { equals: category.trim(), mode: 'insensitive' },
-        });
+    if (category && category !== 'ALL') {
+        articleQuery.where({ category: String(category) });
     }
-    if (isPublished !== undefined &&
-        isPublished !== 'ALL' &&
-        isPublished !== 'all' &&
-        isPublished !== '') {
-        const publishedBool = isPublished === 'true' || isPublished === true;
-        articleQuery.where({
-            isPublished: publishedBool,
-        });
+    if (isPublished !== undefined) {
+        articleQuery.where({ isPublished: isPublished === 'true' || isPublished === true });
     }
     if (org && org !== 'ALL') {
-        if (org === 'RUDC') {
-            articleQuery.where({ org: { in: ['RUDC', 'BOTH'] } });
-        }
-        else if (org === 'RUIL') {
-            articleQuery.where({ org: { in: ['RUIL', 'BOTH'] } });
-        }
-        else {
-            articleQuery.where({ org });
-        }
+        articleQuery.where({ org: org });
     }
-    // Include relations
-    articleQuery.include({
-        authorUser: {
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                avatarUrl: true,
-            },
-        },
-        relatedBook: {
-            select: {
-                id: true,
-                title: true,
-                author: true,
-                coverImage: true,
-                isbn: true,
-            },
-        },
-    });
+    if (authorId) {
+        articleQuery.where({ authorId: Number(authorId) });
+    }
     if (sortBy) {
         articleQuery.orderBy({
             [sortBy]: sortOrder === 'asc' ? 'asc' : 'desc',
@@ -206,33 +178,35 @@ const getAllArticlesFromDB = (query) => __awaiter(void 0, void 0, void 0, functi
             createdAt: 'desc',
         });
     }
-    return yield articleQuery.execute();
+    articleQuery.include({
+        author: true,
+        relatedBook: {
+            select: {
+                id: true,
+                title: true,
+                coverImage: true,
+                isbn: true,
+            },
+        },
+    });
+    const result = yield articleQuery.execute();
+    return {
+        meta: result.meta,
+        data: result.data.map(exports.formatArticleResponse),
+    };
 });
-const getArticleByIdOrSlugFromDB = (idOrSlug_1, ...args_1) => __awaiter(void 0, [idOrSlug_1, ...args_1], void 0, function* (idOrSlug, incrementView = true) {
-    const isNumeric = typeof idOrSlug === 'number' || (!isNaN(Number(idOrSlug)) && !isNaN(parseFloat(String(idOrSlug))));
+const getArticleByIdOrSlugFromDB = (idOrSlug_1, ...args_1) => __awaiter(void 0, [idOrSlug_1, ...args_1], void 0, function* (idOrSlug, incrementView = false) {
+    const isNumeric = !isNaN(Number(idOrSlug));
     let article;
     if (isNumeric) {
-        article = yield db_1.default.article.findFirst({
-            where: {
-                OR: [
-                    { id: Number(idOrSlug) },
-                    { slug: String(idOrSlug) },
-                ],
-            },
+        article = yield db_1.default.article.findUnique({
+            where: { id: Number(idOrSlug) },
             include: {
-                authorUser: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        avatarUrl: true,
-                    },
-                },
+                author: true,
                 relatedBook: {
                     select: {
                         id: true,
                         title: true,
-                        author: true,
                         coverImage: true,
                         isbn: true,
                     },
@@ -244,19 +218,11 @@ const getArticleByIdOrSlugFromDB = (idOrSlug_1, ...args_1) => __awaiter(void 0, 
         article = yield db_1.default.article.findUnique({
             where: { slug: String(idOrSlug) },
             include: {
-                authorUser: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        avatarUrl: true,
-                    },
-                },
+                author: true,
                 relatedBook: {
                     select: {
                         id: true,
                         title: true,
-                        author: true,
                         coverImage: true,
                         isbn: true,
                     },
@@ -268,15 +234,15 @@ const getArticleByIdOrSlugFromDB = (idOrSlug_1, ...args_1) => __awaiter(void 0, 
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Article not found!');
     }
     if (incrementView) {
-        // Increment view count asynchronously in background
         db_1.default.article.update({
             where: { id: article.id },
             data: { totalViews: { increment: 1 } },
         }).catch(() => { });
     }
-    return article;
+    return (0, exports.formatArticleResponse)(article);
 });
 const updateArticleInDB = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const existingArticle = yield db_1.default.article.findUnique({
         where: { id },
     });
@@ -298,12 +264,36 @@ const updateArticleInDB = (id, payload) => __awaiter(void 0, void 0, void 0, fun
         updateData.authorName = payload.authorName;
     if (payload.authorDesignation !== undefined)
         updateData.authorDesignation = payload.authorDesignation;
-    if (payload.authorUserId !== undefined)
-        updateData.authorUserId = payload.authorUserId;
+    if (payload.authorBio !== undefined)
+        updateData.authorBio = payload.authorBio;
     if (payload.relatedBookId !== undefined)
         updateData.relatedBookId = payload.relatedBookId;
-    if (payload.isPublished !== undefined)
+    if (payload.authorId !== undefined)
+        updateData.authorId = payload.authorId;
+    // When approving or publishing an article:
+    // If the article does not yet have an authorId, create or find the Author in the Author table!
+    if (payload.isPublished !== undefined) {
         updateData.isPublished = payload.isPublished;
+        if (payload.isPublished === true) {
+            const targetAuthorId = (_a = payload.authorId) !== null && _a !== void 0 ? _a : existingArticle.authorId;
+            if (!targetAuthorId) {
+                const name = (payload.authorName || existingArticle.authorName || '').trim();
+                if (name) {
+                    let author = yield db_1.default.author.findFirst({ where: { name } });
+                    if (!author) {
+                        author = yield db_1.default.author.create({
+                            data: {
+                                name,
+                                authorDesignation: payload.authorDesignation || existingArticle.authorDesignation || null,
+                                bio: payload.authorBio || existingArticle.authorBio || null,
+                            },
+                        });
+                    }
+                    updateData.authorId = author.id;
+                }
+            }
+        }
+    }
     if (payload.slug && payload.slug !== existingArticle.slug) {
         const slugBase = createSlug(payload.slug);
         updateData.slug = yield ensureUniqueSlug(slugBase, id);
@@ -317,29 +307,22 @@ const updateArticleInDB = (id, payload) => __awaiter(void 0, void 0, void 0, fun
     else if (payload.content) {
         updateData.totalReadTime = calculateReadTime(payload.content);
     }
-    return yield db_1.default.article.update({
+    const updated = yield db_1.default.article.update({
         where: { id },
         data: updateData,
         include: {
-            authorUser: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    avatarUrl: true,
-                },
-            },
+            author: true,
             relatedBook: {
                 select: {
                     id: true,
                     title: true,
-                    author: true,
                     coverImage: true,
                     isbn: true,
                 },
             },
         },
     });
+    return (0, exports.formatArticleResponse)(updated);
 });
 const deleteArticleFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const existingArticle = yield db_1.default.article.findUnique({
@@ -365,10 +348,8 @@ const getArticleCategoriesFromDB = () => __awaiter(void 0, void 0, void 0, funct
             },
         },
     });
-    return categories
-        .filter((c) => Boolean(c.category && c.category.trim().length > 0))
-        .map((c) => ({
-        category: c.category.trim(),
+    return categories.map((c) => ({
+        category: c.category,
         count: c._count.id,
     }));
 });
