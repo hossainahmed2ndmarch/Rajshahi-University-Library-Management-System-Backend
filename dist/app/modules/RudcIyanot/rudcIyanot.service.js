@@ -53,7 +53,11 @@ const getRudcIyanotRecords = (query, user) => __awaiter(void 0, void 0, void 0, 
                         email: true,
                         phone: true,
                         avatarUrl: true,
-                        rudcMemberType: true,
+                        rudcProfile: {
+                            select: {
+                                rudcMemberType: true,
+                            },
+                        },
                         department: true,
                     },
                 },
@@ -151,7 +155,11 @@ const recordIyanotPayment = (payload, actingUser) => __awaiter(void 0, void 0, v
                     name: true,
                     email: true,
                     phone: true,
-                    rudcMemberType: true,
+                    rudcProfile: {
+                        select: {
+                            rudcMemberType: true,
+                        },
+                    },
                 },
             },
             collectedBy: {
@@ -188,7 +196,11 @@ const updateIyanotStatus = (id, payload, actingUser) => __awaiter(void 0, void 0
                     name: true,
                     email: true,
                     phone: true,
-                    rudcMemberType: true,
+                    rudcProfile: {
+                        select: {
+                            rudcMemberType: true,
+                        },
+                    },
                 },
             },
             collectedBy: {

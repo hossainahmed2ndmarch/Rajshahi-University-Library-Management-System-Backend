@@ -129,8 +129,21 @@ const validatePaymentAndComplete = (payload) => __awaiter(void 0, void 0, void 0
     }
     const receiptNo = `RCP-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
     const now = new Date();
-    // Atomically update donation and increment event raisedAmount if eventId present
+    // Atomically update donation and increment event raisedAmount if eventId present.
+    // Serializable isolation ensures concurrent IPN + success-redirect calls can't
+    // both pass the PAID check and double-increment the event's raisedAmount.
     const result = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Re-check inside TX — the definitive idempotency gate for concurrent webhooks
+        const freshDonation = yield tx.fundDonation.findUnique({
+            where: { id: existingDonation.id },
+        });
+        if (freshDonation && freshDonation.paymentStatus === client_1.PaymentStatus.PAID) {
+            // Already completed by a concurrent request — return without double-writing
+            return tx.fundDonation.findUnique({
+                where: { id: existingDonation.id },
+                include: { event: true },
+            });
+        }
         const updated = yield tx.fundDonation.update({
             where: { id: existingDonation.id },
             data: {
@@ -147,13 +160,13 @@ const validatePaymentAndComplete = (payload) => __awaiter(void 0, void 0, void 0
                 where: { id: existingDonation.eventId },
                 data: {
                     raisedAmount: {
-                        increment: existingDonation.amount,
+                        increment: Number(existingDonation.amount),
                     },
                 },
             });
         }
         return updated;
-    }));
+    }), { isolationLevel: 'Serializable' });
     return result;
 });
 const handleFailedPayment = (payload_1, ...args_1) => __awaiter(void 0, [payload_1, ...args_1], void 0, function* (payload, status = client_1.PaymentStatus.FAILED) {
@@ -348,7 +361,7 @@ const updateDonation = (id, payload) => __awaiter(void 0, void 0, void 0, functi
             if (targetEventId) {
                 yield tx.event.update({
                     where: { id: targetEventId },
-                    data: { raisedAmount: { increment: donationAmount } },
+                    data: { raisedAmount: { increment: Number(donationAmount) } },
                 });
             }
         }
@@ -357,7 +370,7 @@ const updateDonation = (id, payload) => __awaiter(void 0, void 0, void 0, functi
             if (existing.eventId) {
                 yield tx.event.update({
                     where: { id: existing.eventId },
-                    data: { raisedAmount: { decrement: existing.amount } },
+                    data: { raisedAmount: { decrement: Number(existing.amount) } },
                 });
             }
         }
@@ -411,7 +424,7 @@ const deleteDonation = (id) => __awaiter(void 0, void 0, void 0, function* () {
         if (existing.paymentStatus === client_1.PaymentStatus.PAID && existing.eventId) {
             yield tx.event.update({
                 where: { id: existing.eventId },
-                data: { raisedAmount: { decrement: existing.amount } },
+                data: { raisedAmount: { decrement: Number(existing.amount) } },
             });
         }
         return yield tx.fundDonation.delete({ where: { id } });

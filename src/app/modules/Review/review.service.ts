@@ -120,6 +120,10 @@ const createBookReviewInDB = async (
       throw new AppError(httpStatus.NOT_FOUND, 'User account not found!');
     }
 
+    if (user.status !== UserStatus.ACTIVE) {
+      throw new AppError(httpStatus.FORBIDDEN, 'Forbidden! Only active members can submit reviews.');
+    }
+
     const existingReview = await prisma.bookReview.findFirst({
       where: { userId, bookId: payload.bookId },
     });
@@ -257,8 +261,12 @@ const getServiceReviewsFromDB = async (org?: string) => {
           email: true,
           avatarUrl: true,
           role: true,
-          isRudcMember: true,
-          rudcMemberType: true,
+          rudcProfile: {
+            select: {
+              isRudcMember: true,
+              rudcMemberType: true,
+            },
+          },
         },
       },
     },

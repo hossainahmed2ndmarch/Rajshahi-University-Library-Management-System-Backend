@@ -6,12 +6,16 @@ import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import { comparePassword, hashPassword } from '../../utils/passwordHelpers';
 import { createToken, verifyToken } from '../../utils/jwtHelpers';
+import { formatUserWithRudcProfile } from '../RudcMember/rudcMember.service';
 import { TChangePassword, TLoginUser } from './auth.interface';
 
 const loginUser = async (payload: TLoginUser) => {
   const user = await prisma.user.findUnique({
     where: {
       email: payload.email,
+    },
+    include: {
+      rudcProfile: true,
     },
   });
 
@@ -74,7 +78,7 @@ const loginUser = async (payload: TLoginUser) => {
   return {
     accessToken,
     refreshToken,
-    user: userData,
+    user: formatUserWithRudcProfile(userData),
   };
 };
 

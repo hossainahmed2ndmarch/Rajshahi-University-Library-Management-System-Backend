@@ -54,9 +54,10 @@ const createBorrowInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, 
     // Check membership expiry for MEMBER role (ADMIN, SUPER_ADMIN, SHIFTER bypass renewal fees)
     const now = new Date();
     if (user.role === client_1.UserRole.MEMBER) {
-        if (user.status === client_1.UserStatus.PENDING_PAYMENT ||
+        if (user.status === client_1.UserStatus.PENDING_APPROVAL ||
+            user.status === client_1.UserStatus.PENDING_PAYMENT ||
             (user.membershipExpiresAt && user.membershipExpiresAt <= now)) {
-            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your membership has expired or is pending payment. Please renew your membership to request book borrows.');
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your membership has expired, is pending approval, or is pending payment. Please renew your membership to request book borrows.');
         }
     }
     // Check active borrow count limit (max 5 books in PENDING, APPROVED, or OVERDUE status)
@@ -84,43 +85,54 @@ const createBorrowInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, 
     if (book.borrowStock <= 0) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Book is currently out of stock for borrowing!');
     }
-    // Check if user already has an active request or borrow for THIS EXACT book
-    const existingActiveBorrowForBook = yield db_1.default.borrow.findFirst({
-        where: {
-            userId,
-            bookId: payload.bookId,
-            status: {
-                in: [client_1.BorrowStatus.PENDING, client_1.BorrowStatus.APPROVED, client_1.BorrowStatus.OVERDUE],
-            },
-        },
-    });
-    if (existingActiveBorrowForBook) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `You already have an active or pending borrow request for this book ("${book.title}").`);
-    }
-    // Create Borrow record in PENDING status
-    // Note: Due date will be finalized and stock decremented upon Shifter/Admin approval
-    const tentativeDueDate = (0, calculateDueDate_1.default)(book.pages, now);
-    const borrowRecord = yield db_1.default.borrow.create({
-        data: {
-            userId,
-            bookId: payload.bookId,
-            status: client_1.BorrowStatus.PENDING,
-            requestedAt: now,
-            dueDate: tentativeDueDate,
-        },
-        include: {
-            book: true,
-            user: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    role: true,
+    // Atomically check for duplicate active borrow and create the record.
+    // Serializable isolation prevents two concurrent requests from both passing
+    // the "no active borrow / stock available" check simultaneously.
+    const borrowRecord = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Re-check book stock inside transaction to prevent stock race condition
+        const freshBook = yield tx.book.findUnique({
+            where: { id: payload.bookId },
+        });
+        if (!freshBook || freshBook.borrowStock <= 0) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Book is currently out of stock for borrowing!');
+        }
+        // Re-check duplicate borrow inside same transaction
+        const existingActive = yield tx.borrow.findFirst({
+            where: {
+                userId,
+                bookId: payload.bookId,
+                status: {
+                    in: [client_1.BorrowStatus.PENDING, client_1.BorrowStatus.APPROVED, client_1.BorrowStatus.OVERDUE],
                 },
             },
-        },
-    });
+        });
+        if (existingActive) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `You already have an active or pending borrow request for this book ("${freshBook.title}").`);
+        }
+        const tentativeDueDate = (0, calculateDueDate_1.default)(freshBook.pages, now);
+        return tx.borrow.create({
+            data: {
+                userId,
+                bookId: payload.bookId,
+                status: client_1.BorrowStatus.PENDING,
+                requestedAt: now,
+                dueDate: tentativeDueDate,
+                fineAmount: 0,
+            },
+            include: {
+                book: true,
+                user: {
+                    select: {
+                        id: true,
+                        name: true,
+                        email: true,
+                        phone: true,
+                        role: true,
+                    },
+                },
+            },
+        });
+    }), { isolationLevel: 'Serializable' });
     return borrowRecord;
 });
 /**
@@ -157,10 +169,30 @@ const approveBorrowInDB = (borrowId, approvedById) => __awaiter(void 0, void 0, 
     }
     // Calculate automatic due date: 15 pages per day
     const calculatedDueDate = (0, calculateDueDate_1.default)(borrow.book.pages, now);
-    // Execute in transaction: decrement stock and update status
+    // Execute in transaction: re-verify stock and status atomically, then decrement + approve.
+    // Serializable isolation prevents two concurrent approvals from both seeing stock > 0
+    // when only one copy remains.
     const updatedBorrow = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Re-fetch borrow inside TX to guard against concurrent status changes
+        const freshBorrow = yield tx.borrow.findUnique({
+            where: { id: borrowId },
+            include: { book: true },
+        });
+        if (!freshBorrow) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Borrow request not found!');
+        }
+        if (freshBorrow.status === client_1.BorrowStatus.APPROVED) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This borrow request is already approved!');
+        }
+        if (freshBorrow.status === client_1.BorrowStatus.RETURNED) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Cannot approve a record that is already returned!');
+        }
+        // Re-check live stock inside transaction (critical: prevents overselling the last copy)
+        if (freshBorrow.book.borrowStock <= 0) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Cannot approve request. "${freshBorrow.book.title}" is out of stock!`);
+        }
         yield tx.book.update({
-            where: { id: borrow.bookId },
+            where: { id: freshBorrow.bookId },
             data: {
                 borrowStock: {
                     decrement: 1,
@@ -195,7 +227,7 @@ const approveBorrowInDB = (borrowId, approvedById) => __awaiter(void 0, void 0, 
             },
         });
         return approved;
-    }));
+    }), { isolationLevel: 'Serializable' });
     return updatedBorrow;
 });
 /**
@@ -378,23 +410,36 @@ const issueBookDirectlyInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
     if (book.borrowStock <= 0) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `"${book.title}" is currently out of stock for borrowing!`);
     }
-    // Check if member already has this exact book borrowed
-    const existingActiveBorrowForBook = yield db_1.default.borrow.findFirst({
-        where: {
-            userId: user.id,
-            bookId: payload.bookId,
-            status: {
-                in: [client_1.BorrowStatus.PENDING, client_1.BorrowStatus.APPROVED, client_1.BorrowStatus.OVERDUE],
-            },
-        },
-    });
-    if (existingActiveBorrowForBook) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Member "${user.name}" already has an active borrow for "${book.title}".`);
-    }
-    const calculatedDueDate = payload.dueDate
-        ? new Date(payload.dueDate)
-        : (0, calculateDueDate_1.default)(book.pages, now);
+    // Atomically verify stock, duplicate borrow, then decrement + create the APPROVED borrow.
+    // Serializable isolation prevents two simultaneous counter-desk issuances from both
+    // consuming the last copy of a book.
     const result = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        // Re-fetch book inside TX for live stock (avoids TOCTOU between outer check and TX)
+        const freshBook = yield tx.book.findUnique({
+            where: { id: payload.bookId },
+        });
+        if (!freshBook) {
+            throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Book not found in library catalog!');
+        }
+        if (freshBook.borrowStock <= 0) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `"${freshBook.title}" is currently out of stock for borrowing!`);
+        }
+        // Re-check duplicate active borrow inside TX
+        const existingActiveBorrow = yield tx.borrow.findFirst({
+            where: {
+                userId: user.id,
+                bookId: payload.bookId,
+                status: {
+                    in: [client_1.BorrowStatus.PENDING, client_1.BorrowStatus.APPROVED, client_1.BorrowStatus.OVERDUE],
+                },
+            },
+        });
+        if (existingActiveBorrow) {
+            throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Member "${user.name}" already has an active borrow for "${freshBook.title}".`);
+        }
+        const calculatedDueDate = payload.dueDate
+            ? new Date(payload.dueDate)
+            : (0, calculateDueDate_1.default)(freshBook.pages, now);
         yield tx.book.update({
             where: { id: payload.bookId },
             data: {
@@ -411,6 +456,7 @@ const issueBookDirectlyInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                 approvedAt: now,
                 dueDate: calculatedDueDate,
                 status: client_1.BorrowStatus.APPROVED,
+                fineAmount: 0,
             },
             include: {
                 book: true,
@@ -434,7 +480,7 @@ const issueBookDirectlyInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
             },
         });
         return borrow;
-    }));
+    }), { isolationLevel: 'Serializable' });
     return result;
 });
 /**

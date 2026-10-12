@@ -136,33 +136,51 @@ const validatePaymentAndComplete = async (payload: Record<string, any>) => {
   const receiptNo = `RCP-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
   const now = new Date();
 
-  // Atomically update donation and increment event raisedAmount if eventId present
-  const result = await prisma.$transaction(async (tx) => {
-    const updated = await tx.fundDonation.update({
-      where: { id: existingDonation.id },
-      data: {
-        paymentStatus: PaymentStatus.PAID,
-        receiptNo,
-        paidAt: now,
-      },
-      include: {
-        event: true,
-      },
-    });
+  // Atomically update donation and increment event raisedAmount if eventId present.
+  // Serializable isolation ensures concurrent IPN + success-redirect calls can't
+  // both pass the PAID check and double-increment the event's raisedAmount.
+  const result = await prisma.$transaction(
+    async (tx) => {
+      // Re-check inside TX — the definitive idempotency gate for concurrent webhooks
+      const freshDonation = await tx.fundDonation.findUnique({
+        where: { id: existingDonation.id },
+      });
 
-    if (existingDonation.eventId) {
-      await tx.event.update({
-        where: { id: existingDonation.eventId },
+      if (freshDonation && freshDonation.paymentStatus === PaymentStatus.PAID) {
+        // Already completed by a concurrent request — return without double-writing
+        return tx.fundDonation.findUnique({
+          where: { id: existingDonation.id },
+          include: { event: true },
+        });
+      }
+
+      const updated = await tx.fundDonation.update({
+        where: { id: existingDonation.id },
         data: {
-          raisedAmount: {
-            increment: existingDonation.amount,
-          },
+          paymentStatus: PaymentStatus.PAID,
+          receiptNo,
+          paidAt: now,
+        },
+        include: {
+          event: true,
         },
       });
-    }
 
-    return updated;
-  });
+      if (existingDonation.eventId) {
+        await tx.event.update({
+          where: { id: existingDonation.eventId },
+          data: {
+            raisedAmount: {
+              increment: Number(existingDonation.amount),
+            },
+          },
+        });
+      }
+
+      return updated;
+    },
+    { isolationLevel: 'Serializable' }
+  );
 
   return result;
 };
@@ -399,7 +417,7 @@ const updateDonation = async (id: number, payload: TUpdateDonationPayload) => {
       if (targetEventId) {
         await tx.event.update({
           where: { id: targetEventId },
-          data: { raisedAmount: { increment: donationAmount } },
+          data: { raisedAmount: { increment: Number(donationAmount) } },
         });
       }
     }
@@ -408,7 +426,7 @@ const updateDonation = async (id: number, payload: TUpdateDonationPayload) => {
       if (existing.eventId) {
         await tx.event.update({
           where: { id: existing.eventId },
-          data: { raisedAmount: { decrement: existing.amount } },
+          data: { raisedAmount: { decrement: Number(existing.amount) } },
         });
       }
     }
@@ -459,7 +477,7 @@ const deleteDonation = async (id: number) => {
     if (existing.paymentStatus === PaymentStatus.PAID && existing.eventId) {
       await tx.event.update({
         where: { id: existing.eventId },
-        data: { raisedAmount: { decrement: existing.amount } },
+        data: { raisedAmount: { decrement: Number(existing.amount) } },
       });
     }
     return await tx.fundDonation.delete({ where: { id } });

@@ -111,6 +111,9 @@ const createBookReviewInDB = (payload, userId, userRole) => __awaiter(void 0, vo
         if (!user) {
             throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User account not found!');
         }
+        if (user.status !== client_1.UserStatus.ACTIVE) {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Forbidden! Only active members can submit reviews.');
+        }
         const existingReview = yield db_1.default.bookReview.findFirst({
             where: { userId, bookId: payload.bookId },
         });
@@ -246,8 +249,12 @@ const getServiceReviewsFromDB = (org) => __awaiter(void 0, void 0, void 0, funct
                     email: true,
                     avatarUrl: true,
                     role: true,
-                    isRudcMember: true,
-                    rudcMemberType: true,
+                    rudcProfile: {
+                        select: {
+                            isRudcMember: true,
+                            rudcMemberType: true,
+                        },
+                    },
                 },
             },
         },

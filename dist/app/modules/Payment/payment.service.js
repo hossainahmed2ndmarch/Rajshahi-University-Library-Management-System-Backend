@@ -56,6 +56,24 @@ const initiateMembershipPayment = (userId, amount) => __awaiter(void 0, void 0, 
 const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const val_id = payload.val_id;
     const tran_id = payload.tran_id;
+    // ─── Idempotency guard ────────────────────────────────────────────────────
+    // SSLCommerz can fire both the success redirect AND the IPN webhook for the
+    // same transaction. If we've already recorded a COMPLETED payment for this
+    // tran_id, return the existing record immediately to avoid duplicate
+    // membership activations or purchase status flips.
+    if (tran_id) {
+        const existingPayment = yield db_1.default.payment.findUnique({
+            where: { transactionId: tran_id },
+        });
+        if (existingPayment && existingPayment.status === client_1.PaymentStatus.COMPLETED) {
+            return {
+                type: 'ALREADY_PROCESSED',
+                message: 'Payment was already processed successfully.',
+                payment: existingPayment,
+            };
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────────
     if (val_id) {
         const validation = yield sslcommerz_1.default.validate(val_id);
         if (validation.status !== 'VALID' && validation.status !== 'VALIDATED') {
@@ -77,7 +95,16 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
         const expiresAt = new Date(now);
         expiresAt.setFullYear(expiresAt.getFullYear() + 1);
         const paidAmount = payload.amount ? Number(payload.amount) : 500;
+        // Wrap in a serializable transaction so that concurrent webhook deliveries
+        // cannot both execute the user-update + payment-create pair.
         const result = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+            // Re-check idempotency inside the transaction (handles concurrent webhooks)
+            const existingInTx = tran_id
+                ? yield tx.payment.findUnique({ where: { transactionId: tran_id } })
+                : null;
+            if (existingInTx && existingInTx.status === client_1.PaymentStatus.COMPLETED) {
+                return { alreadyProcessed: true, payment: existingInTx };
+            }
             const updatedUser = yield tx.user.update({
                 where: { id: userId },
                 data: {
@@ -108,8 +135,15 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
                     paidAt: now,
                 },
             });
-            return { user: updatedUser, payment: paymentRecord };
-        }));
+            return { alreadyProcessed: false, user: updatedUser, payment: paymentRecord };
+        }), { isolationLevel: 'Serializable' });
+        if (result.alreadyProcessed) {
+            return {
+                type: 'ALREADY_PROCESSED',
+                message: 'Payment was already processed successfully.',
+                payment: result.payment,
+            };
+        }
         return {
             type: 'MEMBERSHIP',
             user: result.user,
@@ -119,6 +153,21 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
     }
     // Handle purchase order transaction
     if (tran_id && tran_id.startsWith('TXN-')) {
+        // Idempotency: if already PAID, skip re-processing
+        const existingPurchase = yield db_1.default.purchase.findUnique({
+            where: { transactionId: tran_id },
+            include: { book: true },
+        });
+        if (!existingPurchase) {
+            return { message: 'Purchase order not found for this transaction.', tran_id };
+        }
+        if (existingPurchase.paymentStatus === client_1.PaymentStatus.PAID) {
+            return {
+                type: 'ALREADY_PROCESSED',
+                purchase: existingPurchase,
+                message: 'Purchase payment was already marked as paid.',
+            };
+        }
         const updatedPurchase = yield db_1.default.purchase.update({
             where: { transactionId: tran_id },
             data: {

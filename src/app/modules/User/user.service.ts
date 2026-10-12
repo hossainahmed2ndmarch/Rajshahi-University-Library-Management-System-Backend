@@ -13,6 +13,7 @@ import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
 import { hashPassword } from '../../utils/passwordHelpers';
+import { formatUserWithRudcProfile } from '../RudcMember/rudcMember.service';
 import {
   TRegisterMember,
   TUpdateUser,
@@ -102,18 +103,35 @@ const registerMember = async (payload: TRegisterMember) => {
       institution: payload.institution || null,
       department: payload.department || null,
       session: payload.session || null,
-      faculty: payload.faculty || null,
-      whatsappNumber: payload.whatsappNumber || null,
-      bloodGroup: payload.bloodGroup || null,
-      skills: payload.skills || [],
-      accommodationType: payload.accommodationType || null,
-      accommodationName: payload.accommodationName || null,
-      permanentAddress: payload.permanentAddress || null,
+      ...(payload.faculty ||
+      payload.whatsappNumber ||
+      payload.bloodGroup ||
+      (payload.skills && payload.skills.length > 0) ||
+      payload.accommodationType ||
+      payload.accommodationName ||
+      payload.permanentAddress
+        ? {
+            rudcProfile: {
+              create: {
+                faculty: payload.faculty || null,
+                whatsappNumber: payload.whatsappNumber || null,
+                bloodGroup: payload.bloodGroup || null,
+                skills: payload.skills || [],
+                accommodationType: payload.accommodationType || null,
+                accommodationName: payload.accommodationName || null,
+                permanentAddress: payload.permanentAddress || null,
+              },
+            },
+          }
+        : {}),
+    },
+    include: {
+      rudcProfile: true,
     },
   });
 
   const { password: _, ...userData } = newUser;
-  return userData;
+  return formatUserWithRudcProfile(userData);
 };
 
 const getAllUsersFromDB = async (query: Record<string, unknown>) => {
@@ -148,7 +166,7 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
       userQuery.where({
         OR: [
           { org: { in: ['RUDC', 'BOTH'] } },
-          { isRudcMember: true },
+          { rudcProfile: { isRudcMember: true } },
         ],
       });
     } else if (org === 'RUIL') {
@@ -159,14 +177,22 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
   }
 
   if (isRudcMember !== undefined && isRudcMember !== 'ALL') {
-    userQuery.where({ isRudcMember: isRudcMember === 'true' || isRudcMember === true });
+    userQuery.where({
+      rudcProfile: {
+        isRudcMember: isRudcMember === 'true' || isRudcMember === true,
+      },
+    });
   }
+
+  userQuery.include({
+    rudcProfile: true,
+  });
 
   const result = await userQuery.execute();
 
   const sanitizedData = result.data.map((user: any) => {
     const { password, ...rest } = user;
-    return rest;
+    return formatUserWithRudcProfile(rest);
   });
 
   return {
@@ -178,6 +204,21 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
 const getUserByIdFromDB = async (id: number) => {
   const user = await prisma.user.findUnique({
     where: { id },
+    include: {
+      rudcProfile: {
+        include: {
+          supervisor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   if (!user) {
@@ -196,13 +237,28 @@ const getUserByIdFromDB = async (id: number) => {
         status: UserStatus.INACTIVE,
         isPaid: false,
       },
+      include: {
+        rudcProfile: {
+          include: {
+            supervisor: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
     });
     const { password: _, ...userData } = updatedUser;
-    return userData;
+    return formatUserWithRudcProfile(userData);
   }
 
   const { password, ...userData } = user;
-  return userData;
+  return formatUserWithRudcProfile(userData);
 };
 
 const updateUserInDB = async (
@@ -256,7 +312,45 @@ const updateUserInDB = async (
     }
   }
 
+  const rudcFields: Record<string, any> = {};
+  if (payload.faculty !== undefined) rudcFields.faculty = payload.faculty;
+  if (payload.whatsappNumber !== undefined) rudcFields.whatsappNumber = payload.whatsappNumber;
+  if (payload.bloodGroup !== undefined) rudcFields.bloodGroup = payload.bloodGroup;
+  if (payload.skills !== undefined) rudcFields.skills = payload.skills;
+  if (payload.accommodationType !== undefined) rudcFields.accommodationType = payload.accommodationType;
+  if (payload.accommodationName !== undefined) rudcFields.accommodationName = payload.accommodationName;
+  if (payload.permanentAddress !== undefined) rudcFields.permanentAddress = payload.permanentAddress;
+  if (payload.isRudcMember !== undefined) rudcFields.isRudcMember = payload.isRudcMember;
+  if (payload.rudcMemberType !== undefined) rudcFields.rudcMemberType = payload.rudcMemberType;
+  if (payload.rudcStatus !== undefined) rudcFields.rudcStatus = payload.rudcStatus;
+  if (payload.supervisorId !== undefined) rudcFields.supervisorId = payload.supervisorId;
+
   const updateData: Record<string, any> = { ...payload };
+
+  // Strip normalized rudc profile fields from top-level user data
+  delete updateData.faculty;
+  delete updateData.whatsappNumber;
+  delete updateData.bloodGroup;
+  delete updateData.skills;
+  delete updateData.accommodationType;
+  delete updateData.accommodationName;
+  delete updateData.permanentAddress;
+  delete updateData.isRudcMember;
+  delete updateData.rudcMemberType;
+  delete updateData.rudcStatus;
+  delete updateData.supervisorId;
+
+  if (Object.keys(rudcFields).length > 0) {
+    updateData.rudcProfile = {
+      upsert: {
+        create: {
+          isRudcMember: rudcFields.isRudcMember ?? true,
+          ...rudcFields,
+        },
+        update: rudcFields,
+      },
+    };
+  }
 
   if (payload.membershipStartedAt !== undefined) {
     updateData.membershipStartedAt = payload.membershipStartedAt
@@ -308,6 +402,21 @@ const updateUserInDB = async (
   const updatedUser = await prisma.user.update({
     where: { id },
     data: updateData,
+    include: {
+      rudcProfile: {
+        include: {
+          supervisor: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      },
+    },
   });
 
   // If user role was changed or demoted to MEMBER, deactivate their active duty schedules
@@ -319,7 +428,7 @@ const updateUserInDB = async (
   }
 
   const { password, ...userData } = updatedUser;
-  return userData;
+  return formatUserWithRudcProfile(userData);
 };
 
 const approveCashPaymentInDB = async (userId: number, amount?: number) => {
@@ -354,6 +463,9 @@ const approveCashPaymentInDB = async (userId: number, amount?: number) => {
         membershipStartedAt: user.membershipStartedAt || now,
         membershipExpiresAt: expireDate,
       },
+      include: {
+        rudcProfile: true,
+      },
     });
 
     const paymentRecord = await tx.payment.create({
@@ -368,7 +480,7 @@ const approveCashPaymentInDB = async (userId: number, amount?: number) => {
     });
 
     const { password: _, ...userData } = updatedUser;
-    return { user: userData, payment: paymentRecord };
+    return { user: formatUserWithRudcProfile(userData), payment: paymentRecord };
   });
 
   return result;
@@ -377,26 +489,29 @@ const approveCashPaymentInDB = async (userId: number, amount?: number) => {
 const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
+    include: { rudcProfile: true },
   });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  const safeData: Partial<TUpdateMyProfile> = {};
-  if (payload.name !== undefined) safeData.name = payload.name;
-  if (payload.avatarUrl !== undefined) safeData.avatarUrl = payload.avatarUrl;
-  if (payload.department !== undefined) safeData.department = payload.department;
-  if (payload.session !== undefined) safeData.session = payload.session;
-  if (payload.institution !== undefined) safeData.institution = payload.institution;
-  if (payload.phone !== undefined) safeData.phone = payload.phone;
-  if (payload.faculty !== undefined) safeData.faculty = payload.faculty;
-  if (payload.whatsappNumber !== undefined) safeData.whatsappNumber = payload.whatsappNumber;
-  if (payload.bloodGroup !== undefined) safeData.bloodGroup = payload.bloodGroup;
-  if (payload.skills !== undefined) safeData.skills = payload.skills;
-  if (payload.accommodationType !== undefined) safeData.accommodationType = payload.accommodationType;
-  if (payload.accommodationName !== undefined) safeData.accommodationName = payload.accommodationName;
-  if (payload.permanentAddress !== undefined) safeData.permanentAddress = payload.permanentAddress;
+  const safeUserData: Record<string, any> = {};
+  if (payload.name !== undefined) safeUserData.name = payload.name;
+  if (payload.avatarUrl !== undefined) safeUserData.avatarUrl = payload.avatarUrl;
+  if (payload.department !== undefined) safeUserData.department = payload.department;
+  if (payload.session !== undefined) safeUserData.session = payload.session;
+  if (payload.institution !== undefined) safeUserData.institution = payload.institution;
+  if (payload.phone !== undefined) safeUserData.phone = payload.phone;
+
+  const rudcData: Record<string, any> = {};
+  if (payload.faculty !== undefined) rudcData.faculty = payload.faculty;
+  if (payload.whatsappNumber !== undefined) rudcData.whatsappNumber = payload.whatsappNumber;
+  if (payload.bloodGroup !== undefined) rudcData.bloodGroup = payload.bloodGroup;
+  if (payload.skills !== undefined) rudcData.skills = payload.skills;
+  if (payload.accommodationType !== undefined) rudcData.accommodationType = payload.accommodationType;
+  if (payload.accommodationName !== undefined) rudcData.accommodationName = payload.accommodationName;
+  if (payload.permanentAddress !== undefined) rudcData.permanentAddress = payload.permanentAddress;
 
   // A member can also update their Registered Email and Student / National Voter ID
   if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
@@ -406,7 +521,7 @@ const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) =>
     if (emailExists) {
       throw new AppError(httpStatus.BAD_REQUEST, 'This email address is already in use by another member!');
     }
-    safeData.email = payload.email.trim();
+    safeUserData.email = payload.email.trim();
   }
 
   if (
@@ -423,16 +538,30 @@ const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) =>
         'This Student or Voter ID is already registered to another member!'
       );
     }
-    safeData.studentOrVoterId = payload.studentOrVoterId.trim();
+    safeUserData.studentOrVoterId = payload.studentOrVoterId.trim();
+  }
+
+  if (Object.keys(rudcData).length > 0) {
+    safeUserData.rudcProfile = {
+      upsert: {
+        create: {
+          ...rudcData,
+        },
+        update: rudcData,
+      },
+    };
   }
 
   const updatedUser = await prisma.user.update({
     where: { id: userId },
-    data: safeData,
+    data: safeUserData,
+    include: {
+      rudcProfile: true,
+    },
   });
 
   const { password: _, ...userData } = updatedUser;
-  return userData;
+  return formatUserWithRudcProfile(userData);
 };
 
 const renewMembershipInDB = async (userId: number, payload: TRenewMembership) => {
@@ -478,6 +607,9 @@ const renewMembershipInDB = async (userId: number, payload: TRenewMembership) =>
         membershipStartedAt: user.membershipStartedAt || now,
         membershipExpiresAt: expireDate,
       },
+      include: {
+        rudcProfile: true,
+      },
     });
 
     const paymentRecord = await tx.payment.create({
@@ -492,7 +624,7 @@ const renewMembershipInDB = async (userId: number, payload: TRenewMembership) =>
     });
 
     const { password: _, ...userData } = updatedUser;
-    return { user: userData, payment: paymentRecord };
+    return { user: formatUserWithRudcProfile(userData), payment: paymentRecord };
   });
 
   return result;
@@ -577,10 +709,14 @@ const getUserOptionsFromDB = async () => {
       department: true,
       session: true,
       institution: true,
-      faculty: true,
-      accommodationName: true,
-      skills: true,
-      permanentAddress: true,
+      rudcProfile: {
+        select: {
+          faculty: true,
+          accommodationName: true,
+          skills: true,
+          permanentAddress: true,
+        },
+      },
     },
   });
 
@@ -596,16 +732,16 @@ const getUserOptionsFromDB = async () => {
     if (u.department?.trim()) departmentsSet.add(u.department.trim());
     if (u.session?.trim()) sessionsSet.add(u.session.trim());
     if (u.institution?.trim()) institutionsSet.add(u.institution.trim());
-    if (u.faculty?.trim()) facultiesSet.add(u.faculty.trim());
-    if (u.accommodationName?.trim()) accommodationNamesSet.add(u.accommodationName.trim());
-    if (Array.isArray(u.skills)) {
-      u.skills.forEach((s) => {
+    if (u.rudcProfile?.faculty?.trim()) facultiesSet.add(u.rudcProfile.faculty.trim());
+    if (u.rudcProfile?.accommodationName?.trim()) accommodationNamesSet.add(u.rudcProfile.accommodationName.trim());
+    if (Array.isArray(u.rudcProfile?.skills)) {
+      u.rudcProfile.skills.forEach((s) => {
         if (s?.trim()) skillsSet.add(s.trim());
       });
     }
-    if (u.permanentAddress?.trim()) {
+    if (u.rudcProfile?.permanentAddress?.trim()) {
       try {
-        const parsed = JSON.parse(u.permanentAddress);
+        const parsed = JSON.parse(u.rudcProfile.permanentAddress);
         if (parsed?.village?.trim()) villagesSet.add(parsed.village.trim());
       } catch {
         // Plain text address or non-JSON
@@ -688,6 +824,7 @@ const convertMembershipInDB = async (payload: TConvertMembership) => {
 
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
+    include: { rudcProfile: true },
   });
 
   if (users.length === 0) {
@@ -701,18 +838,42 @@ const convertMembershipInDB = async (payload: TConvertMembership) => {
     let paymentRecord: any = null;
 
     if (targetRoleOrOrg === 'MAKE_RUDC_MEMBER') {
-      updateData.isRudcMember = true;
-      updateData.rudcMemberType = RudcMemberType.MEMBER;
-      updateData.rudcStatus = RudcApplicationStatus.APPROVED;
-      if (!user.rudcJoinedAt) updateData.rudcJoinedAt = new Date();
+      updateData.rudcProfile = {
+        upsert: {
+          create: {
+            isRudcMember: true,
+            rudcMemberType: RudcMemberType.MEMBER,
+            rudcStatus: RudcApplicationStatus.APPROVED,
+            rudcJoinedAt: new Date(),
+          },
+          update: {
+            isRudcMember: true,
+            rudcMemberType: RudcMemberType.MEMBER,
+            rudcStatus: RudcApplicationStatus.APPROVED,
+            rudcJoinedAt: user.rudcProfile?.rudcJoinedAt || new Date(),
+          },
+        },
+      };
       if (user.org === Organization.RUIL) {
         updateData.org = Organization.BOTH;
       }
     } else if (targetRoleOrOrg === 'MAKE_RUDC_VOLUNTEER') {
-      updateData.isRudcMember = true;
-      updateData.rudcMemberType = RudcMemberType.VOLUNTEER;
-      updateData.rudcStatus = RudcApplicationStatus.APPROVED;
-      if (!user.rudcJoinedAt) updateData.rudcJoinedAt = new Date();
+      updateData.rudcProfile = {
+        upsert: {
+          create: {
+            isRudcMember: true,
+            rudcMemberType: RudcMemberType.VOLUNTEER,
+            rudcStatus: RudcApplicationStatus.APPROVED,
+            rudcJoinedAt: new Date(),
+          },
+          update: {
+            isRudcMember: true,
+            rudcMemberType: RudcMemberType.VOLUNTEER,
+            rudcStatus: RudcApplicationStatus.APPROVED,
+            rudcJoinedAt: user.rudcProfile?.rudcJoinedAt || new Date(),
+          },
+        },
+      };
       if (user.org === Organization.RUIL) {
         updateData.org = Organization.BOTH;
       }
@@ -765,6 +926,9 @@ const convertMembershipInDB = async (payload: TConvertMembership) => {
       const u = await tx.user.update({
         where: { id: user.id },
         data: updateData,
+        include: {
+          rudcProfile: true,
+        },
       });
 
       if (paymentRecord) {
@@ -777,7 +941,7 @@ const convertMembershipInDB = async (payload: TConvertMembership) => {
     });
 
     const { password: _, ...userData } = updatedUser;
-    results.push(userData);
+    results.push(formatUserWithRudcProfile(userData));
   }
 
   return results;

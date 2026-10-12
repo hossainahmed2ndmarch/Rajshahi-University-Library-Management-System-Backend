@@ -18,11 +18,11 @@ model Book {
   type       BookType // BORROW_ONLY | SELL_ONLY | HYBRID
 
   // Inventory & Pricing
-  buyPrice    Float? // Admin purchase/cost price — used for profit calculation
-  sellPrice   Float? // Customer-facing sell price (before discount)
-  discount    Float  @default(0) // Discount percentage (0–100)
-  borrowStock Int    @default(0)
-  sellStock   Int    @default(0)
+  buyPrice    Decimal? @db.Decimal(12, 2) // Admin purchase/cost price — used for profit calculation
+  sellPrice   Decimal? @db.Decimal(12, 2) // Customer-facing sell price (before discount)
+  discount    Float    @default(0) // Discount percentage (0–100)
+  borrowStock Int      @default(0)
+  sellStock   Int      @default(0)
 
   coverImage  String?
   images      String[] @default([])

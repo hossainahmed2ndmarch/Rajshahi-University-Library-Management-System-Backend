@@ -46,7 +46,11 @@ const getRudcIyanotRecords = async (query: Record<string, unknown>, user: { id: 
             email: true,
             phone: true,
             avatarUrl: true,
-            rudcMemberType: true,
+            rudcProfile: {
+              select: {
+                rudcMemberType: true,
+              },
+            },
             department: true,
           },
         },
@@ -154,7 +158,11 @@ const recordIyanotPayment = async (
           name: true,
           email: true,
           phone: true,
-          rudcMemberType: true,
+          rudcProfile: {
+            select: {
+              rudcMemberType: true,
+            },
+          },
         },
       },
       collectedBy: {
@@ -200,7 +208,11 @@ const updateIyanotStatus = async (
           name: true,
           email: true,
           phone: true,
-          rudcMemberType: true,
+          rudcProfile: {
+            select: {
+              rudcMemberType: true,
+            },
+          },
         },
       },
       collectedBy: {

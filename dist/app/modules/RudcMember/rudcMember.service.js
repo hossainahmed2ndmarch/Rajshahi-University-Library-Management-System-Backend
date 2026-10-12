@@ -23,7 +23,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.RudcMemberService = void 0;
+exports.RudcMemberService = exports.formatUserWithRudcProfile = void 0;
 const http_status_1 = __importDefault(require("http-status"));
 const client_1 = require("@prisma/client");
 const db_1 = __importDefault(require("../../../lib/db"));
@@ -31,8 +31,24 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const config_1 = __importDefault(require("../../config"));
 const passwordHelpers_1 = require("../../utils/passwordHelpers");
 const emailSender_1 = __importDefault(require("../../utils/emailSender"));
+/**
+ * Normalization helper: formats a User record with their 1:1 RudcMemberProfile
+ * so both nested (user.rudcProfile) and flat properties (user.whatsappNumber, user.rudcStatus)
+ * remain 100% backward compatible for all existing API clients.
+ */
+const formatUserWithRudcProfile = (user) => {
+    var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0, _1, _2, _3, _4, _5, _6, _7, _8, _9, _10, _11, _12;
+    if (!user)
+        return user;
+    const rudc = user.rudcProfile;
+    return Object.assign(Object.assign({}, user), { rudcProfile: rudc || null, 
+        // Flattened aliases for backward compatibility with frontend
+        faculty: (_b = (_a = rudc === null || rudc === void 0 ? void 0 : rudc.faculty) !== null && _a !== void 0 ? _a : user.faculty) !== null && _b !== void 0 ? _b : null, whatsappNumber: (_d = (_c = rudc === null || rudc === void 0 ? void 0 : rudc.whatsappNumber) !== null && _c !== void 0 ? _c : user.whatsappNumber) !== null && _d !== void 0 ? _d : null, bloodGroup: (_f = (_e = rudc === null || rudc === void 0 ? void 0 : rudc.bloodGroup) !== null && _e !== void 0 ? _e : user.bloodGroup) !== null && _f !== void 0 ? _f : null, skills: (_g = rudc === null || rudc === void 0 ? void 0 : rudc.skills) !== null && _g !== void 0 ? _g : (Array.isArray(user.skills) ? user.skills : []), accommodationType: (_j = (_h = rudc === null || rudc === void 0 ? void 0 : rudc.accommodationType) !== null && _h !== void 0 ? _h : user.accommodationType) !== null && _j !== void 0 ? _j : null, accommodationName: (_l = (_k = rudc === null || rudc === void 0 ? void 0 : rudc.accommodationName) !== null && _k !== void 0 ? _k : user.accommodationName) !== null && _l !== void 0 ? _l : null, permanentAddress: (_o = (_m = rudc === null || rudc === void 0 ? void 0 : rudc.permanentAddress) !== null && _m !== void 0 ? _m : user.permanentAddress) !== null && _o !== void 0 ? _o : null, isAffiliatedWithOther: (_q = (_p = rudc === null || rudc === void 0 ? void 0 : rudc.isAffiliatedWithOther) !== null && _p !== void 0 ? _p : user.isAffiliatedWithOther) !== null && _q !== void 0 ? _q : false, otherOrgName: (_s = (_r = rudc === null || rudc === void 0 ? void 0 : rudc.otherOrgName) !== null && _r !== void 0 ? _r : user.otherOrgName) !== null && _s !== void 0 ? _s : null, rudcTermsAccepted: (_u = (_t = rudc === null || rudc === void 0 ? void 0 : rudc.rudcTermsAccepted) !== null && _t !== void 0 ? _t : user.rudcTermsAccepted) !== null && _u !== void 0 ? _u : false, isRudcMember: (_w = (_v = rudc === null || rudc === void 0 ? void 0 : rudc.isRudcMember) !== null && _v !== void 0 ? _v : user.isRudcMember) !== null && _w !== void 0 ? _w : false, rudcMemberType: (_y = (_x = rudc === null || rudc === void 0 ? void 0 : rudc.rudcMemberType) !== null && _x !== void 0 ? _x : user.rudcMemberType) !== null && _y !== void 0 ? _y : null, rudcStatus: (_0 = (_z = rudc === null || rudc === void 0 ? void 0 : rudc.rudcStatus) !== null && _z !== void 0 ? _z : user.rudcStatus) !== null && _0 !== void 0 ? _0 : null, rudcJoinedAt: (_2 = (_1 = rudc === null || rudc === void 0 ? void 0 : rudc.rudcJoinedAt) !== null && _1 !== void 0 ? _1 : user.rudcJoinedAt) !== null && _2 !== void 0 ? _2 : null, supervisorId: (_4 = (_3 = rudc === null || rudc === void 0 ? void 0 : rudc.supervisorId) !== null && _3 !== void 0 ? _3 : user.supervisorId) !== null && _4 !== void 0 ? _4 : null, supervisor: (_6 = (_5 = rudc === null || rudc === void 0 ? void 0 : rudc.supervisor) !== null && _5 !== void 0 ? _5 : user.supervisor) !== null && _6 !== void 0 ? _6 : null, interviewDate: (_8 = (_7 = rudc === null || rudc === void 0 ? void 0 : rudc.interviewDate) !== null && _7 !== void 0 ? _7 : user.interviewDate) !== null && _8 !== void 0 ? _8 : null, interviewNotes: (_10 = (_9 = rudc === null || rudc === void 0 ? void 0 : rudc.interviewNotes) !== null && _9 !== void 0 ? _9 : user.interviewNotes) !== null && _10 !== void 0 ? _10 : null, interviewEmailSentAt: (_12 = (_11 = rudc === null || rudc === void 0 ? void 0 : rudc.interviewEmailSentAt) !== null && _11 !== void 0 ? _11 : user.interviewEmailSentAt) !== null && _12 !== void 0 ? _12 : null });
+};
+exports.formatUserWithRudcProfile = formatUserWithRudcProfile;
 // 1. Volunteer Application
 const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     if (!payload.rudcTermsAccepted) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'You must accept all 10 RUDC terms and conditions to submit an application.');
     }
@@ -40,6 +56,7 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
     if (authenticatedUserId) {
         const existing = yield db_1.default.user.findUnique({
             where: { id: authenticatedUserId },
+            include: { rudcProfile: true },
         });
         if (!existing) {
             throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
@@ -48,34 +65,49 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
             where: { id: authenticatedUserId },
             data: {
                 department: payload.department,
-                faculty: payload.faculty,
-                whatsappNumber: payload.whatsappNumber,
-                bloodGroup: payload.bloodGroup,
-                skills: payload.skills,
-                accommodationType: payload.accommodationType,
-                accommodationName: payload.accommodationName,
-                permanentAddress: payload.permanentAddress,
-                isAffiliatedWithOther: payload.isAffiliatedWithOther,
-                otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-                rudcTermsAccepted: true,
-                isRudcMember: true,
                 org: existing.org === client_1.Organization.RUIL ? client_1.Organization.BOTH : client_1.Organization.RUDC,
-                rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
-                rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
-                rudcJoinedAt: new Date(),
+                rudcProfile: {
+                    upsert: {
+                        create: {
+                            faculty: payload.faculty,
+                            whatsappNumber: payload.whatsappNumber,
+                            bloodGroup: payload.bloodGroup,
+                            skills: payload.skills,
+                            accommodationType: payload.accommodationType,
+                            accommodationName: payload.accommodationName,
+                            permanentAddress: payload.permanentAddress,
+                            isAffiliatedWithOther: payload.isAffiliatedWithOther,
+                            otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
+                            rudcTermsAccepted: true,
+                            isRudcMember: true,
+                            rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                            rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
+                            rudcJoinedAt: new Date(),
+                        },
+                        update: {
+                            faculty: payload.faculty,
+                            whatsappNumber: payload.whatsappNumber,
+                            bloodGroup: payload.bloodGroup,
+                            skills: payload.skills,
+                            accommodationType: payload.accommodationType,
+                            accommodationName: payload.accommodationName,
+                            permanentAddress: payload.permanentAddress,
+                            isAffiliatedWithOther: payload.isAffiliatedWithOther,
+                            otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
+                            rudcTermsAccepted: true,
+                            isRudcMember: true,
+                            rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                            rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
+                            rudcJoinedAt: ((_a = existing.rudcProfile) === null || _a === void 0 ? void 0 : _a.rudcJoinedAt) || new Date(),
+                        },
+                    },
+                },
             },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                org: true,
-                rudcStatus: true,
-                rudcMemberType: true,
-                isRudcMember: true,
+            include: {
+                rudcProfile: true,
             },
         });
-        return updated;
+        return (0, exports.formatUserWithRudcProfile)(updated);
     }
     // If not authenticated, check if user exists by email, phone, or studentOrVoterId
     const existingUser = yield db_1.default.user.findFirst({
@@ -86,6 +118,7 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
                 { studentOrVoterId: payload.studentOrVoterId },
             ],
         },
+        include: { rudcProfile: true },
     });
     if (existingUser) {
         const updated = yield db_1.default.user.update({
@@ -93,34 +126,49 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
             data: {
                 name: payload.name || existingUser.name,
                 department: payload.department,
-                faculty: payload.faculty,
-                whatsappNumber: payload.whatsappNumber,
-                bloodGroup: payload.bloodGroup,
-                skills: payload.skills,
-                accommodationType: payload.accommodationType,
-                accommodationName: payload.accommodationName,
-                permanentAddress: payload.permanentAddress,
-                isAffiliatedWithOther: payload.isAffiliatedWithOther,
-                otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-                rudcTermsAccepted: true,
-                isRudcMember: true,
                 org: existingUser.org === client_1.Organization.RUIL ? client_1.Organization.BOTH : client_1.Organization.RUDC,
-                rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
-                rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
-                rudcJoinedAt: existingUser.rudcJoinedAt || new Date(),
+                rudcProfile: {
+                    upsert: {
+                        create: {
+                            faculty: payload.faculty,
+                            whatsappNumber: payload.whatsappNumber,
+                            bloodGroup: payload.bloodGroup,
+                            skills: payload.skills,
+                            accommodationType: payload.accommodationType,
+                            accommodationName: payload.accommodationName,
+                            permanentAddress: payload.permanentAddress,
+                            isAffiliatedWithOther: payload.isAffiliatedWithOther,
+                            otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
+                            rudcTermsAccepted: true,
+                            isRudcMember: true,
+                            rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                            rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
+                            rudcJoinedAt: new Date(),
+                        },
+                        update: {
+                            faculty: payload.faculty,
+                            whatsappNumber: payload.whatsappNumber,
+                            bloodGroup: payload.bloodGroup,
+                            skills: payload.skills,
+                            accommodationType: payload.accommodationType,
+                            accommodationName: payload.accommodationName,
+                            permanentAddress: payload.permanentAddress,
+                            isAffiliatedWithOther: payload.isAffiliatedWithOther,
+                            otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
+                            rudcTermsAccepted: true,
+                            isRudcMember: true,
+                            rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                            rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
+                            rudcJoinedAt: ((_b = existingUser.rudcProfile) === null || _b === void 0 ? void 0 : _b.rudcJoinedAt) || new Date(),
+                        },
+                    },
+                },
             },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                org: true,
-                rudcStatus: true,
-                rudcMemberType: true,
-                isRudcMember: true,
+            include: {
+                rudcProfile: true,
             },
         });
-        return updated;
+        return (0, exports.formatUserWithRudcProfile)(updated);
     }
     // Create new applicant user account
     const rawPass = payload.password || payload.phone;
@@ -133,70 +181,82 @@ const applyForRudc = (payload, authenticatedUserId) => __awaiter(void 0, void 0,
             password: hashedPassword,
             studentOrVoterId: payload.studentOrVoterId,
             department: payload.department,
-            faculty: payload.faculty,
-            whatsappNumber: payload.whatsappNumber,
-            bloodGroup: payload.bloodGroup,
-            skills: payload.skills,
-            accommodationType: payload.accommodationType,
-            accommodationName: payload.accommodationName,
-            permanentAddress: payload.permanentAddress,
-            isAffiliatedWithOther: payload.isAffiliatedWithOther,
-            otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-            rudcTermsAccepted: true,
-            isRudcMember: true,
             org: client_1.Organization.RUDC,
-            rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
-            rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
-            rudcJoinedAt: new Date(),
             role: client_1.UserRole.MEMBER,
             status: client_1.UserStatus.PENDING_APPROVAL,
             isPaid: false,
             membershipStartedAt: null,
             membershipExpiresAt: null,
             paymentMethod: null,
+            rudcProfile: {
+                create: {
+                    faculty: payload.faculty,
+                    whatsappNumber: payload.whatsappNumber,
+                    bloodGroup: payload.bloodGroup,
+                    skills: payload.skills,
+                    accommodationType: payload.accommodationType,
+                    accommodationName: payload.accommodationName,
+                    permanentAddress: payload.permanentAddress,
+                    isAffiliatedWithOther: payload.isAffiliatedWithOther,
+                    otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
+                    rudcTermsAccepted: true,
+                    isRudcMember: true,
+                    rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                    rudcStatus: client_1.RudcApplicationStatus.PENDING_REVIEW,
+                    rudcJoinedAt: new Date(),
+                },
+            },
         },
-        select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            org: true,
-            status: true,
-            rudcStatus: true,
-            rudcMemberType: true,
-            isRudcMember: true,
+        include: {
+            rudcProfile: true,
         },
     });
-    return createdUser;
+    return (0, exports.formatUserWithRudcProfile)(createdUser);
 });
 // 2. Fetch logged-in user's RUDC profile
 const getMyRudcProfile = (userId) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
         where: { id: userId },
         include: {
-            supervisor: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    whatsappNumber: true,
-                    avatarUrl: true,
-                    rudcMemberType: true,
+            rudcProfile: {
+                include: {
+                    supervisor: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                            avatarUrl: true,
+                            rudcProfile: {
+                                select: {
+                                    whatsappNumber: true,
+                                    rudcMemberType: true,
+                                },
+                            },
+                        },
+                    },
                 },
             },
-            supervisedVolunteers: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    whatsappNumber: true,
-                    avatarUrl: true,
-                    department: true,
-                    rudcMemberType: true,
-                    rudcStatus: true,
-                    rudcJoinedAt: true,
+            supervisedMembers: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                            avatarUrl: true,
+                            department: true,
+                            rudcProfile: {
+                                select: {
+                                    whatsappNumber: true,
+                                    rudcMemberType: true,
+                                    rudcStatus: true,
+                                    rudcJoinedAt: true,
+                                },
+                            },
+                        },
+                    },
                 },
             },
             rudcTeams: {
@@ -211,13 +271,17 @@ const getMyRudcProfile = (userId) => __awaiter(void 0, void 0, void 0, function*
                                             name: true,
                                             email: true,
                                             phone: true,
-                                            whatsappNumber: true,
                                             department: true,
-                                            faculty: true,
                                             session: true,
-                                            skills: true,
-                                            rudcMemberType: true,
                                             avatarUrl: true,
+                                            rudcProfile: {
+                                                select: {
+                                                    whatsappNumber: true,
+                                                    faculty: true,
+                                                    skills: true,
+                                                    rudcMemberType: true,
+                                                },
+                                            },
                                         },
                                     },
                                 },
@@ -246,7 +310,7 @@ const getMyRudcProfile = (userId) => __awaiter(void 0, void 0, void 0, function*
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
     const { password: _ } = user, userData = __rest(user, ["password"]);
-    return userData;
+    return (0, exports.formatUserWithRudcProfile)(userData);
 });
 // 3. Send Interview Notification Email
 const sendInterviewEmail = (payload) => __awaiter(void 0, void 0, void 0, function* () {
@@ -306,9 +370,16 @@ const sendInterviewEmail = (payload) => __awaiter(void 0, void 0, void 0, functi
                 subject: emailSubject,
                 html: htmlBody,
             });
-            yield db_1.default.user.update({
-                where: { id: u.id },
-                data: {
+            yield db_1.default.rudcMemberProfile.upsert({
+                where: { userId: u.id },
+                create: {
+                    userId: u.id,
+                    rudcStatus: client_1.RudcApplicationStatus.INTERVIEW_CALLED,
+                    interviewDate: new Date(interviewDate),
+                    interviewEmailSentAt: new Date(),
+                    interviewNotes: instructions || `Interview scheduled on ${formattedDate}`,
+                },
+                update: {
                     rudcStatus: client_1.RudcApplicationStatus.INTERVIEW_CALLED,
                     interviewDate: new Date(interviewDate),
                     interviewEmailSentAt: new Date(),
@@ -336,7 +407,7 @@ const getAllRudcMembers = (query) => __awaiter(void 0, void 0, void 0, function*
     const skip = (Number(page) - 1) * take;
     const whereConditions = {
         OR: [
-            { isRudcMember: true },
+            { rudcProfile: { isRudcMember: true } },
             { org: { in: [client_1.Organization.RUDC, client_1.Organization.BOTH] } },
         ],
     };
@@ -352,13 +423,13 @@ const getAllRudcMembers = (query) => __awaiter(void 0, void 0, void 0, function*
         }
     }
     if (rudcMemberType && rudcMemberType !== 'ALL') {
-        whereConditions.rudcMemberType = rudcMemberType;
+        whereConditions.rudcProfile = Object.assign(Object.assign({}, (whereConditions.rudcProfile || {})), { rudcMemberType: rudcMemberType });
     }
     if (rudcStatus && rudcStatus !== 'ALL') {
-        whereConditions.rudcStatus = rudcStatus;
+        whereConditions.rudcProfile = Object.assign(Object.assign({}, (whereConditions.rudcProfile || {})), { rudcStatus: rudcStatus });
     }
     if (supervisorId) {
-        whereConditions.supervisorId = Number(supervisorId);
+        whereConditions.rudcProfile = Object.assign(Object.assign({}, (whereConditions.rudcProfile || {})), { supervisorId: Number(supervisorId) });
     }
     if (teamId) {
         whereConditions.rudcTeams = {
@@ -375,7 +446,7 @@ const getAllRudcMembers = (query) => __awaiter(void 0, void 0, void 0, function*
                     { phone: { contains: s, mode: 'insensitive' } },
                     { studentOrVoterId: { contains: s, mode: 'insensitive' } },
                     { department: { contains: s, mode: 'insensitive' } },
-                    { faculty: { contains: s, mode: 'insensitive' } },
+                    { rudcProfile: { faculty: { contains: s, mode: 'insensitive' } } },
                 ],
             },
         ];
@@ -387,39 +458,18 @@ const getAllRudcMembers = (query) => __awaiter(void 0, void 0, void 0, function*
             skip,
             take,
             orderBy: { createdAt: 'desc' },
-            select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                avatarUrl: true,
-                studentOrVoterId: true,
-                department: true,
-                faculty: true,
-                session: true,
-                institution: true,
-                whatsappNumber: true,
-                bloodGroup: true,
-                skills: true,
-                accommodationType: true,
-                accommodationName: true,
-                permanentAddress: true,
-                isAffiliatedWithOther: true,
-                otherOrgName: true,
-                org: true,
-                isRudcMember: true,
-                rudcMemberType: true,
-                rudcStatus: true,
-                rudcJoinedAt: true,
-                supervisorId: true,
-                supervisor: {
-                    select: {
-                        id: true,
-                        name: true,
-                        email: true,
-                        phone: true,
-                        avatarUrl: true,
-                        rudcMemberType: true,
+            include: {
+                rudcProfile: {
+                    include: {
+                        supervisor: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                phone: true,
+                                avatarUrl: true,
+                            },
+                        },
                     },
                 },
                 rudcTeams: {
@@ -427,10 +477,6 @@ const getAllRudcMembers = (query) => __awaiter(void 0, void 0, void 0, function*
                         team: true,
                     },
                 },
-                interviewDate: true,
-                interviewNotes: true,
-                interviewEmailSentAt: true,
-                createdAt: true,
             },
         }),
     ]);
@@ -441,7 +487,7 @@ const getAllRudcMembers = (query) => __awaiter(void 0, void 0, void 0, function*
             total,
             totalPage: Math.ceil(total / take),
         },
-        data: members,
+        data: members.map(exports.formatUserWithRudcProfile),
     };
 });
 // 5. Get Single RUDC Member By ID
@@ -449,27 +495,31 @@ const getRudcMemberById = (id) => __awaiter(void 0, void 0, void 0, function* ()
     const member = yield db_1.default.user.findUnique({
         where: { id },
         include: {
-            supervisor: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    avatarUrl: true,
-                    rudcMemberType: true,
+            rudcProfile: {
+                include: {
+                    supervisor: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                            avatarUrl: true,
+                        },
+                    },
                 },
             },
-            supervisedVolunteers: {
-                select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                    phone: true,
-                    avatarUrl: true,
-                    department: true,
-                    rudcMemberType: true,
-                    rudcStatus: true,
-                    rudcJoinedAt: true,
+            supervisedMembers: {
+                include: {
+                    user: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                            avatarUrl: true,
+                            department: true,
+                        },
+                    },
                 },
             },
             rudcTeams: {
@@ -487,12 +537,13 @@ const getRudcMemberById = (id) => __awaiter(void 0, void 0, void 0, function* ()
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'RUDC Member not found!');
     }
     const { password: _ } = member, sanitized = __rest(member, ["password"]);
-    return sanitized;
+    return (0, exports.formatUserWithRudcProfile)(sanitized);
 });
 // 6. Update Member Profile / Role / Supervisor
 const updateRudcMember = (id, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const existing = yield db_1.default.user.findUnique({
         where: { id },
+        include: { rudcProfile: true },
     });
     if (!existing) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member not found!');
@@ -500,7 +551,7 @@ const updateRudcMember = (id, payload) => __awaiter(void 0, void 0, void 0, func
     // If status is REJECTED, delete pure RUDC applicant from database or un-affiliate BOTH user
     if (payload.rudcStatus === client_1.RudcApplicationStatus.REJECTED) {
         if (existing.org === client_1.Organization.RUDC) {
-            yield db_1.default.user.updateMany({
+            yield db_1.default.rudcMemberProfile.updateMany({
                 where: { supervisorId: id },
                 data: { supervisorId: null },
             });
@@ -519,53 +570,72 @@ const updateRudcMember = (id, payload) => __awaiter(void 0, void 0, void 0, func
             yield db_1.default.userRudcTeam.deleteMany({
                 where: { userId: id },
             });
+            yield db_1.default.rudcMemberProfile.deleteMany({
+                where: { userId: id },
+            });
             const updated = yield db_1.default.user.update({
                 where: { id },
                 data: {
-                    isRudcMember: false,
-                    rudcMemberType: null,
-                    rudcStatus: client_1.RudcApplicationStatus.REJECTED,
-                    supervisorId: null,
                     org: client_1.Organization.RUIL,
                 },
+                include: { rudcProfile: true },
             });
-            return updated;
+            return (0, exports.formatUserWithRudcProfile)(updated);
         }
     }
     if (payload.supervisorId && payload.supervisorId === id) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'A member cannot be their own supervisor!');
     }
-    const updated = yield db_1.default.user.update({
+    const rudcUpdateData = {};
+    if (payload.rudcMemberType !== undefined)
+        rudcUpdateData.rudcMemberType = payload.rudcMemberType;
+    if (payload.rudcStatus !== undefined)
+        rudcUpdateData.rudcStatus = payload.rudcStatus;
+    if (payload.supervisorId !== undefined)
+        rudcUpdateData.supervisorId = payload.supervisorId;
+    if (payload.faculty !== undefined)
+        rudcUpdateData.faculty = payload.faculty;
+    if (payload.whatsappNumber !== undefined)
+        rudcUpdateData.whatsappNumber = payload.whatsappNumber;
+    if (payload.bloodGroup !== undefined)
+        rudcUpdateData.bloodGroup = payload.bloodGroup;
+    if (payload.skills !== undefined)
+        rudcUpdateData.skills = payload.skills;
+    if (payload.accommodationType !== undefined)
+        rudcUpdateData.accommodationType = payload.accommodationType;
+    if (payload.accommodationName !== undefined)
+        rudcUpdateData.accommodationName = payload.accommodationName;
+    if (payload.permanentAddress !== undefined)
+        rudcUpdateData.permanentAddress = payload.permanentAddress;
+    if (payload.isAffiliatedWithOther !== undefined)
+        rudcUpdateData.isAffiliatedWithOther = payload.isAffiliatedWithOther;
+    if (payload.otherOrgName !== undefined)
+        rudcUpdateData.otherOrgName = payload.isAffiliatedWithOther ? payload.otherOrgName : null;
+    if (payload.interviewDate !== undefined)
+        rudcUpdateData.interviewDate = payload.interviewDate ? new Date(payload.interviewDate) : null;
+    if (payload.interviewNotes !== undefined)
+        rudcUpdateData.interviewNotes = payload.interviewNotes;
+    yield db_1.default.user.update({
         where: { id },
-        data: {
-            rudcMemberType: payload.rudcMemberType,
-            rudcStatus: payload.rudcStatus,
-            supervisorId: payload.supervisorId !== undefined ? payload.supervisorId : undefined,
-            department: payload.department,
-            faculty: payload.faculty,
-            whatsappNumber: payload.whatsappNumber,
-            bloodGroup: payload.bloodGroup,
-            skills: payload.skills,
-            accommodationType: payload.accommodationType,
-            accommodationName: payload.accommodationName,
-            permanentAddress: payload.permanentAddress,
-            isAffiliatedWithOther: payload.isAffiliatedWithOther,
-            otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-            interviewDate: payload.interviewDate ? new Date(payload.interviewDate) : undefined,
-            interviewNotes: payload.interviewNotes !== undefined ? payload.interviewNotes : undefined,
-        },
+        data: Object.assign(Object.assign({}, (payload.department ? { department: payload.department } : {})), { rudcProfile: {
+                upsert: {
+                    create: Object.assign({ isRudcMember: true, rudcMemberType: payload.rudcMemberType || client_1.RudcMemberType.VOLUNTEER, rudcStatus: payload.rudcStatus || client_1.RudcApplicationStatus.PENDING_REVIEW, rudcJoinedAt: new Date() }, rudcUpdateData),
+                    update: rudcUpdateData,
+                },
+            } }),
     });
-    return getRudcMemberById(updated.id);
+    return getRudcMemberById(id);
 });
 // Dedicated delete / reject applicant endpoint
 const deleteRudcMember = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const existing = yield db_1.default.user.findUnique({
         where: { id },
+        include: { rudcProfile: true },
     });
     if (!existing) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member not found!');
     }
-    yield db_1.default.user.updateMany({
+    yield db_1.default.rudcMemberProfile.updateMany({
         where: { supervisorId: id },
         data: { supervisorId: null },
     });
@@ -582,17 +652,17 @@ const deleteRudcMember = (id) => __awaiter(void 0, void 0, void 0, function* () 
         return { id, isDeleted: true, message: 'Applicant/Member deleted completely from database.' };
     }
     else {
-        yield db_1.default.user.update({
+        yield db_1.default.rudcMemberProfile.deleteMany({
+            where: { userId: id },
+        });
+        const updated = yield db_1.default.user.update({
             where: { id },
             data: {
-                isRudcMember: false,
-                rudcMemberType: null,
-                rudcStatus: null,
-                supervisorId: null,
                 org: client_1.Organization.RUIL,
             },
+            include: { rudcProfile: true },
         });
-        return { id, isDeleted: false, message: 'RUDC association removed; library user preserved.' };
+        return { id, isDeleted: false, message: 'RUDC association removed; library user preserved.', data: (0, exports.formatUserWithRudcProfile)(updated) };
     }
 });
 // 7. Pre-existed RUDC Member Entry with ALL Recruitment Fields
@@ -605,9 +675,27 @@ const createPreExistedRudcMember = (payload) => __awaiter(void 0, void 0, void 0
                 { studentOrVoterId: payload.studentOrVoterId },
             ],
         },
+        include: { rudcProfile: true },
     });
     let userId;
     const targetOrg = payload.org || client_1.Organization.RUDC;
+    const rudcProfileData = {
+        faculty: payload.faculty,
+        whatsappNumber: payload.whatsappNumber,
+        bloodGroup: payload.bloodGroup,
+        skills: payload.skills || [],
+        accommodationType: payload.accommodationType,
+        accommodationName: payload.accommodationName,
+        permanentAddress: payload.permanentAddress,
+        isAffiliatedWithOther: payload.isAffiliatedWithOther || false,
+        otherOrgName: payload.otherOrgName || null,
+        isRudcMember: true,
+        rudcMemberType: payload.rudcMemberType || client_1.RudcMemberType.MEMBER,
+        rudcStatus: payload.rudcStatus || client_1.RudcApplicationStatus.APPROVED,
+        supervisorId: payload.supervisorId || null,
+        rudcJoinedAt: payload.rudcJoinedAt ? new Date(payload.rudcJoinedAt) : new Date(),
+        rudcTermsAccepted: true,
+    };
     if (existingUser) {
         userId = existingUser.id;
         const combinedOrg = existingUser.org === client_1.Organization.RUIL && targetOrg === client_1.Organization.RUDC
@@ -618,26 +706,15 @@ const createPreExistedRudcMember = (payload) => __awaiter(void 0, void 0, void 0
             data: {
                 name: payload.name || existingUser.name,
                 department: payload.department || existingUser.department,
-                faculty: payload.faculty || existingUser.faculty,
                 session: payload.session || existingUser.session,
                 institution: payload.institution || existingUser.institution,
-                whatsappNumber: payload.whatsappNumber || existingUser.whatsappNumber,
-                bloodGroup: payload.bloodGroup || existingUser.bloodGroup,
-                skills: payload.skills && payload.skills.length > 0 ? payload.skills : existingUser.skills,
-                accommodationType: payload.accommodationType || existingUser.accommodationType,
-                accommodationName: payload.accommodationName || existingUser.accommodationName,
-                permanentAddress: payload.permanentAddress || existingUser.permanentAddress,
-                isAffiliatedWithOther: payload.isAffiliatedWithOther !== undefined
-                    ? payload.isAffiliatedWithOther
-                    : existingUser.isAffiliatedWithOther,
-                otherOrgName: payload.otherOrgName !== undefined ? payload.otherOrgName : existingUser.otherOrgName,
-                isRudcMember: true,
                 org: combinedOrg,
-                rudcMemberType: payload.rudcMemberType || client_1.RudcMemberType.MEMBER,
-                rudcStatus: payload.rudcStatus || client_1.RudcApplicationStatus.APPROVED,
-                supervisorId: payload.supervisorId !== undefined ? payload.supervisorId : existingUser.supervisorId,
-                rudcJoinedAt: payload.rudcJoinedAt ? new Date(payload.rudcJoinedAt) : existingUser.rudcJoinedAt || new Date(),
-                rudcTermsAccepted: true,
+                rudcProfile: {
+                    upsert: {
+                        create: rudcProfileData,
+                        update: rudcProfileData,
+                    },
+                },
             },
         });
     }
@@ -652,26 +729,14 @@ const createPreExistedRudcMember = (payload) => __awaiter(void 0, void 0, void 0
                 password: hashedPassword,
                 studentOrVoterId: payload.studentOrVoterId,
                 department: payload.department,
-                faculty: payload.faculty,
                 session: payload.session,
                 institution: payload.institution,
-                whatsappNumber: payload.whatsappNumber,
-                bloodGroup: payload.bloodGroup,
-                skills: payload.skills || [],
-                accommodationType: payload.accommodationType,
-                accommodationName: payload.accommodationName,
-                permanentAddress: payload.permanentAddress,
-                isAffiliatedWithOther: payload.isAffiliatedWithOther || false,
-                otherOrgName: payload.otherOrgName || null,
-                isRudcMember: true,
                 org: targetOrg,
-                rudcMemberType: payload.rudcMemberType || client_1.RudcMemberType.MEMBER,
-                rudcStatus: payload.rudcStatus || client_1.RudcApplicationStatus.APPROVED,
-                supervisorId: payload.supervisorId,
-                rudcJoinedAt: payload.rudcJoinedAt ? new Date(payload.rudcJoinedAt) : new Date(),
-                rudcTermsAccepted: true,
                 role: client_1.UserRole.MEMBER,
                 status: client_1.UserStatus.ACTIVE,
+                rudcProfile: {
+                    create: rudcProfileData,
+                },
             },
         });
         userId = created.id;
@@ -700,14 +765,14 @@ const createPreExistedRudcMember = (payload) => __awaiter(void 0, void 0, void 0
 // 8. Public Stats for RUDC Landing Page
 const getPublicRudcStats = () => __awaiter(void 0, void 0, void 0, function* () {
     const [volunteersCount, permanentMembersCount, totalMembers, teamsCount, iyanotAgg] = yield Promise.all([
-        db_1.default.user.count({
+        db_1.default.rudcMemberProfile.count({
             where: {
                 isRudcMember: true,
                 rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
                 rudcStatus: client_1.RudcApplicationStatus.APPROVED,
             },
         }),
-        db_1.default.user.count({
+        db_1.default.rudcMemberProfile.count({
             where: {
                 isRudcMember: true,
                 rudcMemberType: {
@@ -719,7 +784,7 @@ const getPublicRudcStats = () => __awaiter(void 0, void 0, void 0, function* () 
                 },
             },
         }),
-        db_1.default.user.count({
+        db_1.default.rudcMemberProfile.count({
             where: {
                 isRudcMember: true,
             },

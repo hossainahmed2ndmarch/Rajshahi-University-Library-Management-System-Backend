@@ -64,10 +64,14 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const passwordHelpers_1 = require("../../utils/passwordHelpers");
 const jwtHelpers_1 = require("../../utils/jwtHelpers");
+const rudcMember_service_1 = require("../RudcMember/rudcMember.service");
 const loginUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
         where: {
             email: payload.email,
+        },
+        include: {
+            rudcProfile: true,
         },
     });
     if (!user) {
@@ -107,7 +111,7 @@ const loginUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     return {
         accessToken,
         refreshToken,
-        user: userData,
+        user: (0, rudcMember_service_1.formatUserWithRudcProfile)(userData),
     };
 });
 const refreshToken = (token) => __awaiter(void 0, void 0, void 0, function* () {

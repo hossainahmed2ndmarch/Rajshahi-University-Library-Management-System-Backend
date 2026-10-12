@@ -31,6 +31,7 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const queryBuilder_1 = __importDefault(require("../../builder/queryBuilder"));
 const passwordHelpers_1 = require("../../utils/passwordHelpers");
+const rudcMember_service_1 = require("../RudcMember/rudcMember.service");
 const registerMember = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
     if (!payload.email || !payload.phone || !payload.studentOrVoterId) {
@@ -86,32 +87,36 @@ const registerMember = (payload) => __awaiter(void 0, void 0, void 0, function* 
         isPaid = false;
     }
     const newUser = yield db_1.default.user.create({
-        data: {
-            name: payload.name,
-            email: payload.email,
-            phone: payload.phone,
-            password: hashedPassword,
-            role: client_1.UserRole.MEMBER,
-            status: initialStatus,
-            paymentMethod,
+        data: Object.assign({ name: payload.name, email: payload.email, phone: payload.phone, password: hashedPassword, role: client_1.UserRole.MEMBER, status: initialStatus, paymentMethod,
             isPaid,
             membershipStartedAt,
-            membershipExpiresAt,
-            studentOrVoterId: payload.studentOrVoterId,
-            institution: payload.institution || null,
-            department: payload.department || null,
-            session: payload.session || null,
-            faculty: payload.faculty || null,
-            whatsappNumber: payload.whatsappNumber || null,
-            bloodGroup: payload.bloodGroup || null,
-            skills: payload.skills || [],
-            accommodationType: payload.accommodationType || null,
-            accommodationName: payload.accommodationName || null,
-            permanentAddress: payload.permanentAddress || null,
+            membershipExpiresAt, studentOrVoterId: payload.studentOrVoterId, institution: payload.institution || null, department: payload.department || null, session: payload.session || null }, (payload.faculty ||
+            payload.whatsappNumber ||
+            payload.bloodGroup ||
+            (payload.skills && payload.skills.length > 0) ||
+            payload.accommodationType ||
+            payload.accommodationName ||
+            payload.permanentAddress
+            ? {
+                rudcProfile: {
+                    create: {
+                        faculty: payload.faculty || null,
+                        whatsappNumber: payload.whatsappNumber || null,
+                        bloodGroup: payload.bloodGroup || null,
+                        skills: payload.skills || [],
+                        accommodationType: payload.accommodationType || null,
+                        accommodationName: payload.accommodationName || null,
+                        permanentAddress: payload.permanentAddress || null,
+                    },
+                },
+            }
+            : {})),
+        include: {
+            rudcProfile: true,
         },
     });
     const { password: _ } = newUser, userData = __rest(newUser, ["password"]);
-    return userData;
+    return (0, rudcMember_service_1.formatUserWithRudcProfile)(userData);
 });
 const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
     // Automatically sync expired memberships to INACTIVE status (unless blocked)
@@ -142,7 +147,7 @@ const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
             userQuery.where({
                 OR: [
                     { org: { in: ['RUDC', 'BOTH'] } },
-                    { isRudcMember: true },
+                    { rudcProfile: { isRudcMember: true } },
                 ],
             });
         }
@@ -154,12 +159,19 @@ const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
         }
     }
     if (isRudcMember !== undefined && isRudcMember !== 'ALL') {
-        userQuery.where({ isRudcMember: isRudcMember === 'true' || isRudcMember === true });
+        userQuery.where({
+            rudcProfile: {
+                isRudcMember: isRudcMember === 'true' || isRudcMember === true,
+            },
+        });
     }
+    userQuery.include({
+        rudcProfile: true,
+    });
     const result = yield userQuery.execute();
     const sanitizedData = result.data.map((user) => {
         const { password } = user, rest = __rest(user, ["password"]);
-        return rest;
+        return (0, rudcMember_service_1.formatUserWithRudcProfile)(rest);
     });
     return {
         meta: result.meta,
@@ -169,6 +181,21 @@ const getAllUsersFromDB = (query) => __awaiter(void 0, void 0, void 0, function*
 const getUserByIdFromDB = (id) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
         where: { id },
+        include: {
+            rudcProfile: {
+                include: {
+                    supervisor: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                            avatarUrl: true,
+                        },
+                    },
+                },
+            },
+        },
     });
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
@@ -183,14 +210,30 @@ const getUserByIdFromDB = (id) => __awaiter(void 0, void 0, void 0, function* ()
                 status: client_1.UserStatus.INACTIVE,
                 isPaid: false,
             },
+            include: {
+                rudcProfile: {
+                    include: {
+                        supervisor: {
+                            select: {
+                                id: true,
+                                name: true,
+                                email: true,
+                                phone: true,
+                                avatarUrl: true,
+                            },
+                        },
+                    },
+                },
+            },
         });
         const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
-        return userData;
+        return (0, rudcMember_service_1.formatUserWithRudcProfile)(userData);
     }
     const { password } = user, userData = __rest(user, ["password"]);
-    return userData;
+    return (0, rudcMember_service_1.formatUserWithRudcProfile)(userData);
 });
 const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const user = yield db_1.default.user.findUnique({
         where: { id },
     });
@@ -228,7 +271,50 @@ const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Student or Voter ID is already registered to another user!');
         }
     }
+    const rudcFields = {};
+    if (payload.faculty !== undefined)
+        rudcFields.faculty = payload.faculty;
+    if (payload.whatsappNumber !== undefined)
+        rudcFields.whatsappNumber = payload.whatsappNumber;
+    if (payload.bloodGroup !== undefined)
+        rudcFields.bloodGroup = payload.bloodGroup;
+    if (payload.skills !== undefined)
+        rudcFields.skills = payload.skills;
+    if (payload.accommodationType !== undefined)
+        rudcFields.accommodationType = payload.accommodationType;
+    if (payload.accommodationName !== undefined)
+        rudcFields.accommodationName = payload.accommodationName;
+    if (payload.permanentAddress !== undefined)
+        rudcFields.permanentAddress = payload.permanentAddress;
+    if (payload.isRudcMember !== undefined)
+        rudcFields.isRudcMember = payload.isRudcMember;
+    if (payload.rudcMemberType !== undefined)
+        rudcFields.rudcMemberType = payload.rudcMemberType;
+    if (payload.rudcStatus !== undefined)
+        rudcFields.rudcStatus = payload.rudcStatus;
+    if (payload.supervisorId !== undefined)
+        rudcFields.supervisorId = payload.supervisorId;
     const updateData = Object.assign({}, payload);
+    // Strip normalized rudc profile fields from top-level user data
+    delete updateData.faculty;
+    delete updateData.whatsappNumber;
+    delete updateData.bloodGroup;
+    delete updateData.skills;
+    delete updateData.accommodationType;
+    delete updateData.accommodationName;
+    delete updateData.permanentAddress;
+    delete updateData.isRudcMember;
+    delete updateData.rudcMemberType;
+    delete updateData.rudcStatus;
+    delete updateData.supervisorId;
+    if (Object.keys(rudcFields).length > 0) {
+        updateData.rudcProfile = {
+            upsert: {
+                create: Object.assign({ isRudcMember: (_a = rudcFields.isRudcMember) !== null && _a !== void 0 ? _a : true }, rudcFields),
+                update: rudcFields,
+            },
+        };
+    }
     if (payload.membershipStartedAt !== undefined) {
         updateData.membershipStartedAt = payload.membershipStartedAt
             ? new Date(payload.membershipStartedAt)
@@ -273,6 +359,21 @@ const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void
     const updatedUser = yield db_1.default.user.update({
         where: { id },
         data: updateData,
+        include: {
+            rudcProfile: {
+                include: {
+                    supervisor: {
+                        select: {
+                            id: true,
+                            name: true,
+                            email: true,
+                            phone: true,
+                            avatarUrl: true,
+                        },
+                    },
+                },
+            },
+        },
     });
     // If user role was changed or demoted to MEMBER, deactivate their active duty schedules
     if (updateData.role === client_1.UserRole.MEMBER) {
@@ -282,7 +383,7 @@ const updateUserInDB = (id, payload, authUser) => __awaiter(void 0, void 0, void
         });
     }
     const { password } = updatedUser, userData = __rest(updatedUser, ["password"]);
-    return userData;
+    return (0, rudcMember_service_1.formatUserWithRudcProfile)(userData);
 });
 const approveCashPaymentInDB = (userId, amount) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
@@ -312,6 +413,9 @@ const approveCashPaymentInDB = (userId, amount) => __awaiter(void 0, void 0, voi
                 membershipStartedAt: user.membershipStartedAt || now,
                 membershipExpiresAt: expireDate,
             },
+            include: {
+                rudcProfile: true,
+            },
         });
         const paymentRecord = yield tx.payment.create({
             data: {
@@ -324,44 +428,46 @@ const approveCashPaymentInDB = (userId, amount) => __awaiter(void 0, void 0, voi
             },
         });
         const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
-        return { user: userData, payment: paymentRecord };
+        return { user: (0, rudcMember_service_1.formatUserWithRudcProfile)(userData), payment: paymentRecord };
     }));
     return result;
 });
 const updateMyProfileInDB = (userId, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
         where: { id: userId },
+        include: { rudcProfile: true },
     });
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
-    const safeData = {};
+    const safeUserData = {};
     if (payload.name !== undefined)
-        safeData.name = payload.name;
+        safeUserData.name = payload.name;
     if (payload.avatarUrl !== undefined)
-        safeData.avatarUrl = payload.avatarUrl;
+        safeUserData.avatarUrl = payload.avatarUrl;
     if (payload.department !== undefined)
-        safeData.department = payload.department;
+        safeUserData.department = payload.department;
     if (payload.session !== undefined)
-        safeData.session = payload.session;
+        safeUserData.session = payload.session;
     if (payload.institution !== undefined)
-        safeData.institution = payload.institution;
+        safeUserData.institution = payload.institution;
     if (payload.phone !== undefined)
-        safeData.phone = payload.phone;
+        safeUserData.phone = payload.phone;
+    const rudcData = {};
     if (payload.faculty !== undefined)
-        safeData.faculty = payload.faculty;
+        rudcData.faculty = payload.faculty;
     if (payload.whatsappNumber !== undefined)
-        safeData.whatsappNumber = payload.whatsappNumber;
+        rudcData.whatsappNumber = payload.whatsappNumber;
     if (payload.bloodGroup !== undefined)
-        safeData.bloodGroup = payload.bloodGroup;
+        rudcData.bloodGroup = payload.bloodGroup;
     if (payload.skills !== undefined)
-        safeData.skills = payload.skills;
+        rudcData.skills = payload.skills;
     if (payload.accommodationType !== undefined)
-        safeData.accommodationType = payload.accommodationType;
+        rudcData.accommodationType = payload.accommodationType;
     if (payload.accommodationName !== undefined)
-        safeData.accommodationName = payload.accommodationName;
+        rudcData.accommodationName = payload.accommodationName;
     if (payload.permanentAddress !== undefined)
-        safeData.permanentAddress = payload.permanentAddress;
+        rudcData.permanentAddress = payload.permanentAddress;
     // A member can also update their Registered Email and Student / National Voter ID
     if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
         const emailExists = yield db_1.default.user.findFirst({
@@ -370,7 +476,7 @@ const updateMyProfileInDB = (userId, payload) => __awaiter(void 0, void 0, void 
         if (emailExists) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This email address is already in use by another member!');
         }
-        safeData.email = payload.email.trim();
+        safeUserData.email = payload.email.trim();
     }
     if (payload.studentOrVoterId !== undefined &&
         payload.studentOrVoterId.trim() &&
@@ -381,14 +487,25 @@ const updateMyProfileInDB = (userId, payload) => __awaiter(void 0, void 0, void 
         if (idExists) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This Student or Voter ID is already registered to another member!');
         }
-        safeData.studentOrVoterId = payload.studentOrVoterId.trim();
+        safeUserData.studentOrVoterId = payload.studentOrVoterId.trim();
+    }
+    if (Object.keys(rudcData).length > 0) {
+        safeUserData.rudcProfile = {
+            upsert: {
+                create: Object.assign({}, rudcData),
+                update: rudcData,
+            },
+        };
     }
     const updatedUser = yield db_1.default.user.update({
         where: { id: userId },
-        data: safeData,
+        data: safeUserData,
+        include: {
+            rudcProfile: true,
+        },
     });
     const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
-    return userData;
+    return (0, rudcMember_service_1.formatUserWithRudcProfile)(userData);
 });
 const renewMembershipInDB = (userId, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
@@ -429,6 +546,9 @@ const renewMembershipInDB = (userId, payload) => __awaiter(void 0, void 0, void 
                 membershipStartedAt: user.membershipStartedAt || now,
                 membershipExpiresAt: expireDate,
             },
+            include: {
+                rudcProfile: true,
+            },
         });
         const paymentRecord = yield tx.payment.create({
             data: {
@@ -441,7 +561,7 @@ const renewMembershipInDB = (userId, payload) => __awaiter(void 0, void 0, void 
             },
         });
         const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
-        return { user: userData, payment: paymentRecord };
+        return { user: (0, rudcMember_service_1.formatUserWithRudcProfile)(userData), payment: paymentRecord };
     }));
     return result;
 });
@@ -506,10 +626,14 @@ const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
             department: true,
             session: true,
             institution: true,
-            faculty: true,
-            accommodationName: true,
-            skills: true,
-            permanentAddress: true,
+            rudcProfile: {
+                select: {
+                    faculty: true,
+                    accommodationName: true,
+                    skills: true,
+                    permanentAddress: true,
+                },
+            },
         },
     });
     const departmentsSet = new Set();
@@ -520,30 +644,30 @@ const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
     const skillsSet = new Set();
     const villagesSet = new Set();
     users.forEach((u) => {
-        var _a, _b, _c, _d, _e, _f, _g;
+        var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l;
         if ((_a = u.department) === null || _a === void 0 ? void 0 : _a.trim())
             departmentsSet.add(u.department.trim());
         if ((_b = u.session) === null || _b === void 0 ? void 0 : _b.trim())
             sessionsSet.add(u.session.trim());
         if ((_c = u.institution) === null || _c === void 0 ? void 0 : _c.trim())
             institutionsSet.add(u.institution.trim());
-        if ((_d = u.faculty) === null || _d === void 0 ? void 0 : _d.trim())
-            facultiesSet.add(u.faculty.trim());
-        if ((_e = u.accommodationName) === null || _e === void 0 ? void 0 : _e.trim())
-            accommodationNamesSet.add(u.accommodationName.trim());
-        if (Array.isArray(u.skills)) {
-            u.skills.forEach((s) => {
+        if ((_e = (_d = u.rudcProfile) === null || _d === void 0 ? void 0 : _d.faculty) === null || _e === void 0 ? void 0 : _e.trim())
+            facultiesSet.add(u.rudcProfile.faculty.trim());
+        if ((_g = (_f = u.rudcProfile) === null || _f === void 0 ? void 0 : _f.accommodationName) === null || _g === void 0 ? void 0 : _g.trim())
+            accommodationNamesSet.add(u.rudcProfile.accommodationName.trim());
+        if (Array.isArray((_h = u.rudcProfile) === null || _h === void 0 ? void 0 : _h.skills)) {
+            u.rudcProfile.skills.forEach((s) => {
                 if (s === null || s === void 0 ? void 0 : s.trim())
                     skillsSet.add(s.trim());
             });
         }
-        if ((_f = u.permanentAddress) === null || _f === void 0 ? void 0 : _f.trim()) {
+        if ((_k = (_j = u.rudcProfile) === null || _j === void 0 ? void 0 : _j.permanentAddress) === null || _k === void 0 ? void 0 : _k.trim()) {
             try {
-                const parsed = JSON.parse(u.permanentAddress);
-                if ((_g = parsed === null || parsed === void 0 ? void 0 : parsed.village) === null || _g === void 0 ? void 0 : _g.trim())
+                const parsed = JSON.parse(u.rudcProfile.permanentAddress);
+                if ((_l = parsed === null || parsed === void 0 ? void 0 : parsed.village) === null || _l === void 0 ? void 0 : _l.trim())
                     villagesSet.add(parsed.village.trim());
             }
-            catch (_h) {
+            catch (_m) {
                 // Plain text address or non-JSON
             }
         }
@@ -607,9 +731,11 @@ const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
     };
 });
 const convertMembershipInDB = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
     const { userIds, targetRoleOrOrg, confirmPayment = false, paymentMethod = client_1.PaymentMethod.CASH, months = 12, } = payload;
     const users = yield db_1.default.user.findMany({
         where: { id: { in: userIds } },
+        include: { rudcProfile: true },
     });
     if (users.length === 0) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No users found for the provided IDs!');
@@ -619,21 +745,43 @@ const convertMembershipInDB = (payload) => __awaiter(void 0, void 0, void 0, fun
         const updateData = {};
         let paymentRecord = null;
         if (targetRoleOrOrg === 'MAKE_RUDC_MEMBER') {
-            updateData.isRudcMember = true;
-            updateData.rudcMemberType = client_1.RudcMemberType.MEMBER;
-            updateData.rudcStatus = client_1.RudcApplicationStatus.APPROVED;
-            if (!user.rudcJoinedAt)
-                updateData.rudcJoinedAt = new Date();
+            updateData.rudcProfile = {
+                upsert: {
+                    create: {
+                        isRudcMember: true,
+                        rudcMemberType: client_1.RudcMemberType.MEMBER,
+                        rudcStatus: client_1.RudcApplicationStatus.APPROVED,
+                        rudcJoinedAt: new Date(),
+                    },
+                    update: {
+                        isRudcMember: true,
+                        rudcMemberType: client_1.RudcMemberType.MEMBER,
+                        rudcStatus: client_1.RudcApplicationStatus.APPROVED,
+                        rudcJoinedAt: ((_a = user.rudcProfile) === null || _a === void 0 ? void 0 : _a.rudcJoinedAt) || new Date(),
+                    },
+                },
+            };
             if (user.org === client_1.Organization.RUIL) {
                 updateData.org = client_1.Organization.BOTH;
             }
         }
         else if (targetRoleOrOrg === 'MAKE_RUDC_VOLUNTEER') {
-            updateData.isRudcMember = true;
-            updateData.rudcMemberType = client_1.RudcMemberType.VOLUNTEER;
-            updateData.rudcStatus = client_1.RudcApplicationStatus.APPROVED;
-            if (!user.rudcJoinedAt)
-                updateData.rudcJoinedAt = new Date();
+            updateData.rudcProfile = {
+                upsert: {
+                    create: {
+                        isRudcMember: true,
+                        rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                        rudcStatus: client_1.RudcApplicationStatus.APPROVED,
+                        rudcJoinedAt: new Date(),
+                    },
+                    update: {
+                        isRudcMember: true,
+                        rudcMemberType: client_1.RudcMemberType.VOLUNTEER,
+                        rudcStatus: client_1.RudcApplicationStatus.APPROVED,
+                        rudcJoinedAt: ((_b = user.rudcProfile) === null || _b === void 0 ? void 0 : _b.rudcJoinedAt) || new Date(),
+                    },
+                },
+            };
             if (user.org === client_1.Organization.RUIL) {
                 updateData.org = client_1.Organization.BOTH;
             }
@@ -677,6 +825,9 @@ const convertMembershipInDB = (payload) => __awaiter(void 0, void 0, void 0, fun
             const u = yield tx.user.update({
                 where: { id: user.id },
                 data: updateData,
+                include: {
+                    rudcProfile: true,
+                },
             });
             if (paymentRecord) {
                 yield tx.payment.create({
@@ -686,7 +837,7 @@ const convertMembershipInDB = (payload) => __awaiter(void 0, void 0, void 0, fun
             return u;
         }));
         const { password: _ } = updatedUser, userData = __rest(updatedUser, ["password"]);
-        results.push(userData);
+        results.push((0, rudcMember_service_1.formatUserWithRudcProfile)(userData));
     }
     return results;
 });

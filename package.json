@@ -17,7 +17,7 @@
     "pull": "prisma db pull",
     "seed": "tsx src/app/utils/seed.ts",
     "stripe:webhook": "stripe listen --forward-to localhost:5000/webhook",
-    "test": "jest --detectOpenHandles"
+    "test": "jest --detectOpenHandles --runInBand"
   },
   "keywords": [],
   "author": "Next Level Web Development",

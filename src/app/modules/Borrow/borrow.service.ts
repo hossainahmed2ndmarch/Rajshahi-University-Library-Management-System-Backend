@@ -38,12 +38,13 @@ const createBorrowInDB = async (payload: TBorrowBook, userId: number) => {
   const now = new Date();
   if (user.role === UserRole.MEMBER) {
     if (
+      user.status === UserStatus.PENDING_APPROVAL ||
       user.status === UserStatus.PENDING_PAYMENT ||
       (user.membershipExpiresAt && user.membershipExpiresAt <= now)
     ) {
       throw new AppError(
         httpStatus.FORBIDDEN,
-        'Your membership has expired or is pending payment. Please renew your membership to request book borrows.'
+        'Your membership has expired, is pending approval, or is pending payment. Please renew your membership to request book borrows.'
       );
     }
   }
@@ -82,49 +83,65 @@ const createBorrowInDB = async (payload: TBorrowBook, userId: number) => {
     throw new AppError(httpStatus.BAD_REQUEST, 'Book is currently out of stock for borrowing!');
   }
 
-  // Check if user already has an active request or borrow for THIS EXACT book
-  const existingActiveBorrowForBook = await prisma.borrow.findFirst({
-    where: {
-      userId,
-      bookId: payload.bookId,
-      status: {
-        in: [BorrowStatus.PENDING, BorrowStatus.APPROVED, BorrowStatus.OVERDUE],
-      },
-    },
-  });
+  // Atomically check for duplicate active borrow and create the record.
+  // Serializable isolation prevents two concurrent requests from both passing
+  // the "no active borrow / stock available" check simultaneously.
+  const borrowRecord = await prisma.$transaction(
+    async (tx) => {
+      // Re-check book stock inside transaction to prevent stock race condition
+      const freshBook = await tx.book.findUnique({
+        where: { id: payload.bookId },
+      });
 
-  if (existingActiveBorrowForBook) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `You already have an active or pending borrow request for this book ("${book.title}").`
-    );
-  }
+      if (!freshBook || freshBook.borrowStock <= 0) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Book is currently out of stock for borrowing!');
+      }
 
-  // Create Borrow record in PENDING status
-  // Note: Due date will be finalized and stock decremented upon Shifter/Admin approval
-  const tentativeDueDate = calculateDueDate(book.pages, now);
-
-  const borrowRecord = await prisma.borrow.create({
-    data: {
-      userId,
-      bookId: payload.bookId,
-      status: BorrowStatus.PENDING,
-      requestedAt: now,
-      dueDate: tentativeDueDate,
-    },
-    include: {
-      book: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          phone: true,
-          role: true,
+      // Re-check duplicate borrow inside same transaction
+      const existingActive = await tx.borrow.findFirst({
+        where: {
+          userId,
+          bookId: payload.bookId,
+          status: {
+            in: [BorrowStatus.PENDING, BorrowStatus.APPROVED, BorrowStatus.OVERDUE],
+          },
         },
-      },
+      });
+
+      if (existingActive) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `You already have an active or pending borrow request for this book ("${freshBook.title}").`
+        );
+      }
+
+      const tentativeDueDate = calculateDueDate(freshBook.pages, now);
+
+      return tx.borrow.create({
+        data: {
+          userId,
+          bookId: payload.bookId,
+          status: BorrowStatus.PENDING,
+          requestedAt: now,
+          dueDate: tentativeDueDate,
+          fineAmount: 0,
+        },
+        include: {
+          book: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              role: true,
+            },
+          },
+        },
+      });
     },
-  });
+    { isolationLevel: 'Serializable' }
+  );
 
   return borrowRecord;
 };
@@ -176,47 +193,78 @@ const approveBorrowInDB = async (borrowId: number, approvedById?: number) => {
   // Calculate automatic due date: 15 pages per day
   const calculatedDueDate = calculateDueDate(borrow.book.pages, now);
 
-  // Execute in transaction: decrement stock and update status
-  const updatedBorrow = await prisma.$transaction(async (tx) => {
-    await tx.book.update({
-      where: { id: borrow.bookId },
-      data: {
-        borrowStock: {
-          decrement: 1,
-        },
-      },
-    });
+  // Execute in transaction: re-verify stock and status atomically, then decrement + approve.
+  // Serializable isolation prevents two concurrent approvals from both seeing stock > 0
+  // when only one copy remains.
+  const updatedBorrow = await prisma.$transaction(
+    async (tx) => {
+      // Re-fetch borrow inside TX to guard against concurrent status changes
+      const freshBorrow = await tx.borrow.findUnique({
+        where: { id: borrowId },
+        include: { book: true },
+      });
 
-    const approved = await tx.borrow.update({
-      where: { id: borrowId },
-      data: {
-        status: BorrowStatus.APPROVED,
-        approvedAt: now,
-        approvedById: approvedById || null,
-        dueDate: calculatedDueDate,
-      },
-      include: {
-        book: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
+      if (!freshBorrow) {
+        throw new AppError(httpStatus.NOT_FOUND, 'Borrow request not found!');
+      }
+
+      if (freshBorrow.status === BorrowStatus.APPROVED) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'This borrow request is already approved!');
+      }
+
+      if (freshBorrow.status === BorrowStatus.RETURNED) {
+        throw new AppError(httpStatus.BAD_REQUEST, 'Cannot approve a record that is already returned!');
+      }
+
+      // Re-check live stock inside transaction (critical: prevents overselling the last copy)
+      if (freshBorrow.book.borrowStock <= 0) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Cannot approve request. "${freshBorrow.book.title}" is out of stock!`
+        );
+      }
+
+      await tx.book.update({
+        where: { id: freshBorrow.bookId },
+        data: {
+          borrowStock: {
+            decrement: 1,
           },
         },
-        approvedBy: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
+      });
+
+      const approved = await tx.borrow.update({
+        where: { id: borrowId },
+        data: {
+          status: BorrowStatus.APPROVED,
+          approvedAt: now,
+          approvedById: approvedById || null,
+          dueDate: calculatedDueDate,
+        },
+        include: {
+          book: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
+          },
+          approvedBy: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return approved;
-  });
+      return approved;
+    },
+    { isolationLevel: 'Serializable' }
+  );
 
   return updatedBorrow;
 };
@@ -448,71 +496,91 @@ const issueBookDirectlyInDB = async (
     throw new AppError(httpStatus.BAD_REQUEST, `"${book.title}" is currently out of stock for borrowing!`);
   }
 
-  // Check if member already has this exact book borrowed
-  const existingActiveBorrowForBook = await prisma.borrow.findFirst({
-    where: {
-      userId: user.id,
-      bookId: payload.bookId,
-      status: {
-        in: [BorrowStatus.PENDING, BorrowStatus.APPROVED, BorrowStatus.OVERDUE],
-      },
+  // Atomically verify stock, duplicate borrow, then decrement + create the APPROVED borrow.
+  // Serializable isolation prevents two simultaneous counter-desk issuances from both
+  // consuming the last copy of a book.
+  const result = await prisma.$transaction(
+    async (tx) => {
+      // Re-fetch book inside TX for live stock (avoids TOCTOU between outer check and TX)
+      const freshBook = await tx.book.findUnique({
+        where: { id: payload.bookId },
+      });
+
+      if (!freshBook) {
+        throw new AppError(httpStatus.NOT_FOUND, 'Book not found in library catalog!');
+      }
+
+      if (freshBook.borrowStock <= 0) {
+        throw new AppError(httpStatus.BAD_REQUEST, `"${freshBook.title}" is currently out of stock for borrowing!`);
+      }
+
+      // Re-check duplicate active borrow inside TX
+      const existingActiveBorrow = await tx.borrow.findFirst({
+        where: {
+          userId: user.id,
+          bookId: payload.bookId,
+          status: {
+            in: [BorrowStatus.PENDING, BorrowStatus.APPROVED, BorrowStatus.OVERDUE],
+          },
+        },
+      });
+
+      if (existingActiveBorrow) {
+        throw new AppError(
+          httpStatus.BAD_REQUEST,
+          `Member "${user.name}" already has an active borrow for "${freshBook.title}".`
+        );
+      }
+
+      const calculatedDueDate = payload.dueDate
+        ? new Date(payload.dueDate)
+        : calculateDueDate(freshBook.pages, now);
+
+      await tx.book.update({
+        where: { id: payload.bookId },
+        data: {
+          borrowStock: {
+            decrement: 1,
+          },
+        },
+      });
+
+      const borrow = await tx.borrow.create({
+        data: {
+          userId: user.id,
+          bookId: payload.bookId,
+          approvedById: shifterId,
+          approvedAt: now,
+          dueDate: calculatedDueDate,
+          status: BorrowStatus.APPROVED,
+          fineAmount: 0,
+        },
+        include: {
+          book: true,
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+              studentOrVoterId: true,
+              department: true,
+            },
+          },
+          approvedBy: {
+            select: {
+              id: true,
+              name: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      return borrow;
     },
-  });
-
-  if (existingActiveBorrowForBook) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Member "${user.name}" already has an active borrow for "${book.title}".`
-    );
-  }
-
-  const calculatedDueDate = payload.dueDate
-    ? new Date(payload.dueDate)
-    : calculateDueDate(book.pages, now);
-
-  const result = await prisma.$transaction(async (tx) => {
-    await tx.book.update({
-      where: { id: payload.bookId },
-      data: {
-        borrowStock: {
-          decrement: 1,
-        },
-      },
-    });
-
-    const borrow = await tx.borrow.create({
-      data: {
-        userId: user.id,
-        bookId: payload.bookId,
-        approvedById: shifterId,
-        approvedAt: now,
-        dueDate: calculatedDueDate,
-        status: BorrowStatus.APPROVED,
-      },
-      include: {
-        book: true,
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
-            studentOrVoterId: true,
-            department: true,
-          },
-        },
-        approvedBy: {
-          select: {
-            id: true,
-            name: true,
-            role: true,
-          },
-        },
-      },
-    });
-
-    return borrow;
-  });
+    { isolationLevel: 'Serializable' }
+  );
 
   return result;
 };

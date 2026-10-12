@@ -1,12 +1,12 @@
 // Model User 
 
 model User {
-  id       Int        @id @default(autoincrement())
-  email    String     @unique
-  phone    String     @unique
+  id       Int          @id @default(autoincrement())
+  email    String       @unique
+  phone    String       @unique
   password String
-  role     UserRole   @default(MEMBER)
-  status   UserStatus @default(PENDING_APPROVAL)
+  role     UserRole     @default(MEMBER)
+  status   UserStatus   @default(PENDING_APPROVAL)
   org      Organization @default(RUIL)
 
   // Profile Details
@@ -17,37 +17,15 @@ model User {
   department       String?
   session          String?
 
-  // RUDC Specific Details
-  faculty               String?
-  whatsappNumber        String?
-  bloodGroup            BloodGroup?
-  skills                String[]               @default([])
-  accommodationType     AccommodationType?
-  accommodationName     String?
-  permanentAddress      String?
-  isAffiliatedWithOther Boolean                @default(false)
-  otherOrgName          String?
-  rudcTermsAccepted     Boolean                @default(false)
-  isRudcMember          Boolean                @default(false)
-  rudcMemberType        RudcMemberType?
-  rudcStatus            RudcApplicationStatus?
-  rudcJoinedAt          DateTime?
-
-  // Supervisor Hierarchy (Self-relation)
-  supervisorId         Int?
-  supervisor           User?  @relation("UserSupervisor", fields: [supervisorId], references: [id])
-  supervisedVolunteers User[] @relation("UserSupervisor")
-
-  // Interview Info
-  interviewDate        DateTime?
-  interviewNotes       String?
-  interviewEmailSentAt DateTime?
-
   // Membership Payment & Window
   paymentMethod       PaymentMethod?
   isPaid              Boolean        @default(false)
   membershipStartedAt DateTime?
   membershipExpiresAt DateTime?
+
+  // 1:1 RUDC Profile Extension
+  rudcProfile         RudcMemberProfile?
+  supervisedMembers   RudcMemberProfile[] @relation("SupervisorVolunteers")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -56,7 +34,7 @@ model User {
   // Relation Arrays (1:N)
   booksAdded          Book[]              @relation("BooksAdded")
   booksDonated        Book[]              @relation("BooksDonated")
-  fundDonations FundDonation[] @relation("UserFundDonations")
+  fundDonations       FundDonation[]      @relation("UserFundDonations")
   borrows             Borrow[]            @relation("UserBorrows")
   approvedBorrows     Borrow[]            @relation("ApprovedBorrows")
   returnedBorrows     Borrow[]            @relation("ReturnedBorrows")
@@ -80,9 +58,5 @@ model User {
   @@index([status])
   @@index([org])
   @@index([membershipExpiresAt])
-  @@index([isRudcMember])
-  @@index([rudcMemberType])
-  @@index([rudcStatus])
-  @@index([supervisorId])
   @@map("users")
 }

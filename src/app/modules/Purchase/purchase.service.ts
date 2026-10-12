@@ -42,7 +42,10 @@ const createGuestPurchaseInDB = async (payload: TGuestPurchase) => {
         throw new AppError(httpStatus.BAD_REQUEST, `Book "${book.title}" is borrow-only and cannot be purchased!`);
       }
 
-      if (book.sellPrice == null || book.sellPrice <= 0) {
+      // Convert Decimal to number for comparison and arithmetic
+      const sellPrice = book.sellPrice != null ? book.sellPrice.toNumber() : 0;
+
+      if (sellPrice <= 0) {
         throw new AppError(httpStatus.BAD_REQUEST, `Book "${book.title}" does not have a valid sale price!`);
       }
 
@@ -56,56 +59,69 @@ const createGuestPurchaseInDB = async (payload: TGuestPurchase) => {
       return {
         book,
         quantity: item.quantity,
-        unitPrice: book.sellPrice,
-        totalAmount: book.sellPrice * item.quantity,
+        unitPrice: sellPrice,
+        totalAmount: sellPrice * item.quantity,
       };
     })
   );
 
   const baseTxnId = `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const createdPurchases = await prisma.$transaction(async (tx) => {
-    const results = [];
+  // Serializable transaction prevents concurrent purchases from both consuming the last copy
+  const createdPurchases = await prisma.$transaction(
+    async (tx) => {
+      const results = [];
 
-    for (let i = 0; i < validatedItems.length; i++) {
-      const item = validatedItems[i];
-      const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
+      for (let i = 0; i < validatedItems.length; i++) {
+        const item = validatedItems[i];
+        const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
 
-      await tx.book.update({
-        where: { id: item.book.id },
-        data: {
-          sellStock: {
-            decrement: item.quantity,
+        // Re-check live stock inside TX to prevent TOCTOU race condition
+        const freshBook = await tx.book.findUnique({ where: { id: item.book.id } });
+        if (!freshBook || freshBook.sellStock < item.quantity) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Insufficient stock for "${item.book.title}". Available: ${freshBook?.sellStock ?? 0}, requested: ${item.quantity}.`
+          );
+        }
+
+        await tx.book.update({
+          where: { id: item.book.id },
+          data: {
+            sellStock: {
+              decrement: item.quantity,
+            },
           },
-        },
-      });
+        });
 
-      const purchase = await tx.purchase.create({
-        data: {
-          transactionId: txnId,
-          userId: null,
-          customerName,
-          customerEmail,
-          customerPhone,
-          shippingAddress,
-          bookId: item.book.id,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalAmount: item.totalAmount,
-          paymentMethod,
-          orderStatus: OrderStatus.PENDING,
-          paymentStatus: PaymentStatus.PENDING,
-        },
-        include: {
-          book: true,
-        },
-      });
+        const purchase = await tx.purchase.create({
+          data: {
+            transactionId: txnId,
+            userId: null,
+            customerName,
+            customerEmail,
+            customerPhone,
+            shippingAddress,
+            bookId: item.book.id,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalAmount: item.totalAmount,
+            paymentMethod,
+            orderStatus: OrderStatus.PENDING,
+            paymentStatus: PaymentStatus.PENDING,
+          },
+          include: {
+            book: true,
+          },
+        });
 
-      results.push(purchase);
-    }
+        results.push(purchase);
+      }
 
-    return results;
-  });
+      return results;
+    },
+    { isolationLevel: 'Serializable' }
+  );
 
   return createdPurchases.length === 1 ? createdPurchases[0] : createdPurchases;
 };
@@ -145,7 +161,10 @@ const createMemberPurchaseInDB = async (payload: TMemberPurchase, userId: number
         throw new AppError(httpStatus.BAD_REQUEST, `Book "${book.title}" is borrow-only and cannot be purchased!`);
       }
 
-      if (book.sellPrice == null || book.sellPrice <= 0) {
+      // Convert Decimal to number for comparison and arithmetic
+      const sellPrice = book.sellPrice != null ? book.sellPrice.toNumber() : 0;
+
+      if (sellPrice <= 0) {
         throw new AppError(httpStatus.BAD_REQUEST, `Book "${book.title}" does not have a valid sale price!`);
       }
 
@@ -159,73 +178,86 @@ const createMemberPurchaseInDB = async (payload: TMemberPurchase, userId: number
       return {
         book,
         quantity: item.quantity,
-        unitPrice: book.sellPrice,
-        totalAmount: book.sellPrice * item.quantity,
+        unitPrice: sellPrice,
+        totalAmount: sellPrice * item.quantity,
       };
     })
   );
 
   const baseTxnId = `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const createdPurchases = await prisma.$transaction(async (tx) => {
-    const results = [];
+  // Serializable transaction prevents concurrent purchases from both consuming the last copy
+  const createdPurchases = await prisma.$transaction(
+    async (tx) => {
+      const results = [];
 
-    for (let i = 0; i < validatedItems.length; i++) {
-      const item = validatedItems[i];
-      const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
+      for (let i = 0; i < validatedItems.length; i++) {
+        const item = validatedItems[i];
+        const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
 
-      await tx.book.update({
-        where: { id: item.book.id },
-        data: {
-          sellStock: {
-            decrement: item.quantity,
-          },
-        },
-      });
+        // Re-check live stock inside TX to prevent TOCTOU race condition
+        const freshBook = await tx.book.findUnique({ where: { id: item.book.id } });
+        if (!freshBook || freshBook.sellStock < item.quantity) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Insufficient stock for "${item.book.title}". Available: ${freshBook?.sellStock ?? 0}, requested: ${item.quantity}.`
+          );
+        }
 
-      const purchase = await tx.purchase.create({
-        data: {
-          transactionId: txnId,
-          userId,
-          customerName,
-          customerEmail,
-          customerPhone,
-          shippingAddress,
-          bookId: item.book.id,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalAmount: item.totalAmount,
-          paymentMethod,
-          orderStatus: OrderStatus.PENDING,
-          paymentStatus: PaymentStatus.PENDING,
-        },
-        include: {
-          book: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
+        await tx.book.update({
+          where: { id: item.book.id },
+          data: {
+            sellStock: {
+              decrement: item.quantity,
             },
           },
-        },
-      });
+        });
 
-      await tx.payment.create({
-        data: {
-          transactionId: txnId,
-          userId,
-          amount: item.totalAmount,
-          paymentMethod,
-          status: PaymentStatus.PENDING,
-        },
-      });
+        const purchase = await tx.purchase.create({
+          data: {
+            transactionId: txnId,
+            userId,
+            customerName,
+            customerEmail,
+            customerPhone,
+            shippingAddress,
+            bookId: item.book.id,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalAmount: item.totalAmount,
+            paymentMethod,
+            orderStatus: OrderStatus.PENDING,
+            paymentStatus: PaymentStatus.PENDING,
+          },
+          include: {
+            book: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        });
 
-      results.push(purchase);
-    }
+        await tx.payment.create({
+          data: {
+            transactionId: txnId,
+            userId,
+            amount: item.totalAmount,
+            paymentMethod,
+            status: PaymentStatus.PENDING,
+          },
+        });
 
-    return results;
-  });
+        results.push(purchase);
+      }
+
+      return results;
+    },
+    { isolationLevel: 'Serializable' }
+  );
 
   return createdPurchases.length === 1 ? createdPurchases[0] : createdPurchases;
 };
@@ -577,7 +609,10 @@ const createPOSSaleInDB = async (
         throw new AppError(httpStatus.BAD_REQUEST, `Book "${book.title}" is borrow-only and cannot be sold!`);
       }
 
-      if (book.sellPrice == null || book.sellPrice <= 0) {
+      // Convert Decimal to number for comparison and arithmetic
+      const sellPrice = book.sellPrice != null ? book.sellPrice.toNumber() : 0;
+
+      if (sellPrice <= 0) {
         throw new AppError(httpStatus.BAD_REQUEST, `Book "${book.title}" does not have a valid sale price!`);
       }
 
@@ -591,79 +626,92 @@ const createPOSSaleInDB = async (
       return {
         book,
         quantity: item.quantity,
-        unitPrice: book.sellPrice,
-        totalAmount: book.sellPrice * item.quantity,
+        unitPrice: sellPrice,
+        totalAmount: sellPrice * item.quantity,
       };
     })
   );
 
   const baseTxnId = `POS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const createdPurchases = await prisma.$transaction(async (tx) => {
-    const results = [];
+  // Serializable transaction prevents two concurrent POS sales from consuming the last copy
+  const createdPurchases = await prisma.$transaction(
+    async (tx) => {
+      const results = [];
 
-    for (let i = 0; i < validatedItems.length; i++) {
-      const item = validatedItems[i];
-      const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
+      for (let i = 0; i < validatedItems.length; i++) {
+        const item = validatedItems[i];
+        const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
 
-      await tx.book.update({
-        where: { id: item.book.id },
-        data: {
-          sellStock: {
-            decrement: item.quantity,
-          },
-        },
-      });
+        // Re-check live stock inside TX to prevent TOCTOU race condition
+        const freshBook = await tx.book.findUnique({ where: { id: item.book.id } });
+        if (!freshBook || freshBook.sellStock < item.quantity) {
+          throw new AppError(
+            httpStatus.BAD_REQUEST,
+            `Insufficient stock for "${item.book.title}". Available: ${freshBook?.sellStock ?? 0}, requested: ${item.quantity}.`
+          );
+        }
 
-      const purchase = await tx.purchase.create({
-        data: {
-          transactionId: txnId,
-          userId,
-          customerName,
-          customerEmail,
-          customerPhone,
-          shippingAddress,
-          bookId: item.book.id,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalAmount: item.totalAmount,
-          paymentMethod,
-          orderStatus: OrderStatus.DELIVERED,
-          paymentStatus: PaymentStatus.PAID,
-          approvedById: shifterId,
-        },
-        include: {
-          book: true,
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              studentOrVoterId: true,
+        await tx.book.update({
+          where: { id: item.book.id },
+          data: {
+            sellStock: {
+              decrement: item.quantity,
             },
           },
-        },
-      });
+        });
 
-      if (userId) {
-        await tx.payment.create({
+        const purchase = await tx.purchase.create({
           data: {
             transactionId: txnId,
             userId,
-            amount: item.totalAmount,
+            customerName,
+            customerEmail,
+            customerPhone,
+            shippingAddress,
+            bookId: item.book.id,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            totalAmount: item.totalAmount,
             paymentMethod,
-            status: PaymentStatus.COMPLETED,
-            paidAt: new Date(),
+            orderStatus: OrderStatus.DELIVERED,
+            paymentStatus: PaymentStatus.PAID,
+            approvedById: shifterId,
+          },
+          include: {
+            book: true,
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                phone: true,
+                studentOrVoterId: true,
+              },
+            },
           },
         });
+
+        if (userId) {
+          await tx.payment.create({
+            data: {
+              transactionId: txnId,
+              userId,
+              amount: item.totalAmount,
+              paymentMethod,
+              status: PaymentStatus.COMPLETED,
+              paidAt: new Date(),
+            },
+          });
+        }
+
+        results.push(purchase);
       }
 
-      results.push(purchase);
-    }
-
-    return results;
-  });
+      return results;
+    },
+    { isolationLevel: 'Serializable' }
+  );
 
   return createdPurchases.length === 1 ? createdPurchases[0] : createdPurchases;
 };

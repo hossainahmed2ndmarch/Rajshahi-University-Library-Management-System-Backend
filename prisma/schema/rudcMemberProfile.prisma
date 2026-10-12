@@ -1,0 +1,37 @@
+model RudcMemberProfile {
+  id                    Int                    @id @default(autoincrement())
+  userId                Int                    @unique
+  user                  User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  faculty               String?
+  whatsappNumber        String?
+  bloodGroup            BloodGroup?
+  skills                String[]               @default([])
+  accommodationType     AccommodationType?
+  accommodationName     String?
+  permanentAddress      String?                @db.Text
+  isAffiliatedWithOther Boolean                @default(false)
+  otherOrgName          String?
+  rudcTermsAccepted     Boolean                @default(false)
+  isRudcMember          Boolean                @default(false)
+  rudcMemberType        RudcMemberType?
+  rudcStatus            RudcApplicationStatus?
+  rudcJoinedAt          DateTime?
+
+  // Supervisor Hierarchy (RUDC Specific)
+  supervisorId          Int?
+  supervisor            User?                  @relation("SupervisorVolunteers", fields: [supervisorId], references: [id], onDelete: SetNull)
+
+  // Interview & Recruitment Pipeline (RUDC Specific)
+  interviewDate         DateTime?
+  interviewNotes        String?                @db.Text
+  interviewEmailSentAt  DateTime?
+
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([isRudcMember, rudcMemberType])
+  @@index([rudcStatus])
+  @@index([supervisorId])
+  @@map("rudc_member_profiles")
+}

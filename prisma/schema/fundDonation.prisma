@@ -1,31 +1,31 @@
 model FundDonation {
-  id            Int           @id @default(autoincrement())
-  transactionId String        @unique // Payment Gateway Transaction ID
+  id            Int    @id @default(autoincrement())
+  transactionId String @unique // Payment Gateway Transaction ID
 
   // Event Relation (NULL thakle General Library / Org Donation)
-  eventId       Int?
-  event         Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  eventId Int?
+  event   Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
   // Registered User Relation (Guest donator hole NULL)
-  userId        Int?
-  user          User?         @relation("UserFundDonations", fields: [userId], references: [id], onDelete: SetNull)
+  userId Int?
+  user   User? @relation("UserFundDonations", fields: [userId], references: [id], onDelete: SetNull)
 
   // Guest Donor Details (userId NULL hole egulo fillup hobe)
-  donorName     String?
-  donorEmail    String?
-  donorPhone    String?
-  isAnonymous   Boolean       @default(false)
-  donorNote     String?       @db.Text
+  donorName   String?
+  donorEmail  String?
+  donorPhone  String?
+  isAnonymous Boolean @default(false)
+  donorNote   String? @db.Text
 
   // Financial Attributes
-  amount        Float
+  amount        Decimal       @db.Decimal(12, 2)
   paymentMethod PaymentMethod @default(ONLINE)
   paymentStatus PaymentStatus @default(PENDING)
   receiptNo     String?       @unique
   paidAt        DateTime?
 
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([eventId])
   @@index([userId])

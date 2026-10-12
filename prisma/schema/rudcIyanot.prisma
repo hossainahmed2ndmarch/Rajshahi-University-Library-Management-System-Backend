@@ -5,7 +5,7 @@ model RudcIyanot {
 
   month         Int // 1 - 12
   year          Int // e.g. 2026
-  amount        Float               @default(50.00) // 50 BDT
+  amount        Decimal            @default(50.00) @db.Decimal(12, 2) // 50 BDT
   status        IyanotStatus        @default(PENDING)
   paymentMethod IyanotPaymentMethod @default(ONLINE)
 

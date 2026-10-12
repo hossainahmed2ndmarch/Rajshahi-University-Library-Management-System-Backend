@@ -26,7 +26,7 @@ model Borrow {
   returnedAt  DateTime?
 
   status     BorrowStatus @default(PENDING)
-  fineAmount Float        @default(0.0)
+  fineAmount Decimal      @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

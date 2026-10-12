@@ -47,7 +47,9 @@ const createGuestPurchaseInDB = (payload) => __awaiter(void 0, void 0, void 0, f
         if (book.type === client_1.BookType.BORROW_ONLY) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Book "${book.title}" is borrow-only and cannot be purchased!`);
         }
-        if (book.sellPrice == null || book.sellPrice <= 0) {
+        // Convert Decimal to number for comparison and arithmetic
+        const sellPrice = book.sellPrice != null ? book.sellPrice.toNumber() : 0;
+        if (sellPrice <= 0) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Book "${book.title}" does not have a valid sale price!`);
         }
         if (book.sellStock < item.quantity) {
@@ -56,16 +58,23 @@ const createGuestPurchaseInDB = (payload) => __awaiter(void 0, void 0, void 0, f
         return {
             book,
             quantity: item.quantity,
-            unitPrice: book.sellPrice,
-            totalAmount: book.sellPrice * item.quantity,
+            unitPrice: sellPrice,
+            totalAmount: sellPrice * item.quantity,
         };
     })));
     const baseTxnId = `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    // Serializable transaction prevents concurrent purchases from both consuming the last copy
     const createdPurchases = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
         const results = [];
         for (let i = 0; i < validatedItems.length; i++) {
             const item = validatedItems[i];
             const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
+            // Re-check live stock inside TX to prevent TOCTOU race condition
+            const freshBook = yield tx.book.findUnique({ where: { id: item.book.id } });
+            if (!freshBook || freshBook.sellStock < item.quantity) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Insufficient stock for "${item.book.title}". Available: ${(_a = freshBook === null || freshBook === void 0 ? void 0 : freshBook.sellStock) !== null && _a !== void 0 ? _a : 0}, requested: ${item.quantity}.`);
+            }
             yield tx.book.update({
                 where: { id: item.book.id },
                 data: {
@@ -97,7 +106,7 @@ const createGuestPurchaseInDB = (payload) => __awaiter(void 0, void 0, void 0, f
             results.push(purchase);
         }
         return results;
-    }));
+    }), { isolationLevel: 'Serializable' });
     return createdPurchases.length === 1 ? createdPurchases[0] : createdPurchases;
 });
 const createMemberPurchaseInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, function* () {
@@ -126,7 +135,9 @@ const createMemberPurchaseInDB = (payload, userId) => __awaiter(void 0, void 0, 
         if (book.type === client_1.BookType.BORROW_ONLY) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Book "${book.title}" is borrow-only and cannot be purchased!`);
         }
-        if (book.sellPrice == null || book.sellPrice <= 0) {
+        // Convert Decimal to number for comparison and arithmetic
+        const sellPrice = book.sellPrice != null ? book.sellPrice.toNumber() : 0;
+        if (sellPrice <= 0) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Book "${book.title}" does not have a valid sale price!`);
         }
         if (book.sellStock < item.quantity) {
@@ -135,16 +146,23 @@ const createMemberPurchaseInDB = (payload, userId) => __awaiter(void 0, void 0, 
         return {
             book,
             quantity: item.quantity,
-            unitPrice: book.sellPrice,
-            totalAmount: book.sellPrice * item.quantity,
+            unitPrice: sellPrice,
+            totalAmount: sellPrice * item.quantity,
         };
     })));
     const baseTxnId = `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    // Serializable transaction prevents concurrent purchases from both consuming the last copy
     const createdPurchases = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
         const results = [];
         for (let i = 0; i < validatedItems.length; i++) {
             const item = validatedItems[i];
             const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
+            // Re-check live stock inside TX to prevent TOCTOU race condition
+            const freshBook = yield tx.book.findUnique({ where: { id: item.book.id } });
+            if (!freshBook || freshBook.sellStock < item.quantity) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Insufficient stock for "${item.book.title}". Available: ${(_a = freshBook === null || freshBook === void 0 ? void 0 : freshBook.sellStock) !== null && _a !== void 0 ? _a : 0}, requested: ${item.quantity}.`);
+            }
             yield tx.book.update({
                 where: { id: item.book.id },
                 data: {
@@ -192,7 +210,7 @@ const createMemberPurchaseInDB = (payload, userId) => __awaiter(void 0, void 0, 
             results.push(purchase);
         }
         return results;
-    }));
+    }), { isolationLevel: 'Serializable' });
     return createdPurchases.length === 1 ? createdPurchases[0] : createdPurchases;
 });
 const getAllPurchasesFromDB = (query, user) => __awaiter(void 0, void 0, void 0, function* () {
@@ -453,7 +471,9 @@ const createPOSSaleInDB = (payload, shifterId) => __awaiter(void 0, void 0, void
         if (book.type === client_1.BookType.BORROW_ONLY) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Book "${book.title}" is borrow-only and cannot be sold!`);
         }
-        if (book.sellPrice == null || book.sellPrice <= 0) {
+        // Convert Decimal to number for comparison and arithmetic
+        const sellPrice = book.sellPrice != null ? book.sellPrice.toNumber() : 0;
+        if (sellPrice <= 0) {
             throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Book "${book.title}" does not have a valid sale price!`);
         }
         if (book.sellStock < item.quantity) {
@@ -462,16 +482,23 @@ const createPOSSaleInDB = (payload, shifterId) => __awaiter(void 0, void 0, void
         return {
             book,
             quantity: item.quantity,
-            unitPrice: book.sellPrice,
-            totalAmount: book.sellPrice * item.quantity,
+            unitPrice: sellPrice,
+            totalAmount: sellPrice * item.quantity,
         };
     })));
     const baseTxnId = `POS-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    // Serializable transaction prevents two concurrent POS sales from consuming the last copy
     const createdPurchases = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
+        var _a;
         const results = [];
         for (let i = 0; i < validatedItems.length; i++) {
             const item = validatedItems[i];
             const txnId = validatedItems.length === 1 ? baseTxnId : `${baseTxnId}-${i + 1}`;
+            // Re-check live stock inside TX to prevent TOCTOU race condition
+            const freshBook = yield tx.book.findUnique({ where: { id: item.book.id } });
+            if (!freshBook || freshBook.sellStock < item.quantity) {
+                throw new AppError_1.default(http_status_1.default.BAD_REQUEST, `Insufficient stock for "${item.book.title}". Available: ${(_a = freshBook === null || freshBook === void 0 ? void 0 : freshBook.sellStock) !== null && _a !== void 0 ? _a : 0}, requested: ${item.quantity}.`);
+            }
             yield tx.book.update({
                 where: { id: item.book.id },
                 data: {
@@ -525,7 +552,7 @@ const createPOSSaleInDB = (payload, shifterId) => __awaiter(void 0, void 0, void
             results.push(purchase);
         }
         return results;
-    }));
+    }), { isolationLevel: 'Serializable' });
     return createdPurchases.length === 1 ? createdPurchases[0] : createdPurchases;
 });
 const deletePurchaseInDB = (purchaseId) => __awaiter(void 0, void 0, void 0, function* () {

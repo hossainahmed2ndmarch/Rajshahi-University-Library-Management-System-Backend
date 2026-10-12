@@ -54,6 +54,25 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
   const val_id = payload.val_id;
   const tran_id = payload.tran_id;
 
+  // ─── Idempotency guard ────────────────────────────────────────────────────
+  // SSLCommerz can fire both the success redirect AND the IPN webhook for the
+  // same transaction. If we've already recorded a COMPLETED payment for this
+  // tran_id, return the existing record immediately to avoid duplicate
+  // membership activations or purchase status flips.
+  if (tran_id) {
+    const existingPayment = await prisma.payment.findUnique({
+      where: { transactionId: tran_id },
+    });
+    if (existingPayment && existingPayment.status === PaymentStatus.COMPLETED) {
+      return {
+        type: 'ALREADY_PROCESSED',
+        message: 'Payment was already processed successfully.',
+        payment: existingPayment,
+      };
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   if (val_id) {
     const validation = await sslcommerz.validate(val_id);
     if (validation.status !== 'VALID' && validation.status !== 'VALIDATED') {
@@ -77,41 +96,63 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
     expiresAt.setFullYear(expiresAt.getFullYear() + 1);
     const paidAmount = payload.amount ? Number(payload.amount) : 500;
 
-    const result = await prisma.$transaction(async (tx) => {
-      const updatedUser = await tx.user.update({
-        where: { id: userId },
-        data: {
-          status: UserStatus.ACTIVE,
-          isPaid: true,
-          paymentMethod: PaymentMethod.ONLINE,
-          membershipStartedAt: now,
-          membershipExpiresAt: expiresAt,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          status: true,
-          isPaid: true,
-          paymentMethod: true,
-          membershipStartedAt: true,
-          membershipExpiresAt: true,
-        },
-      });
+    // Wrap in a serializable transaction so that concurrent webhook deliveries
+    // cannot both execute the user-update + payment-create pair.
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Re-check idempotency inside the transaction (handles concurrent webhooks)
+        const existingInTx = tran_id
+          ? await tx.payment.findUnique({ where: { transactionId: tran_id } })
+          : null;
 
-      const paymentRecord = await tx.payment.create({
-        data: {
-          transactionId: tran_id || `ONLINE-MEM-${userId}-${now.getTime()}`,
-          userId,
-          amount: paidAmount,
-          paymentMethod: PaymentMethod.ONLINE,
-          status: PaymentStatus.COMPLETED,
-          paidAt: now,
-        },
-      });
+        if (existingInTx && existingInTx.status === PaymentStatus.COMPLETED) {
+          return { alreadyProcessed: true, payment: existingInTx };
+        }
 
-      return { user: updatedUser, payment: paymentRecord };
-    });
+        const updatedUser = await tx.user.update({
+          where: { id: userId },
+          data: {
+            status: UserStatus.ACTIVE,
+            isPaid: true,
+            paymentMethod: PaymentMethod.ONLINE,
+            membershipStartedAt: now,
+            membershipExpiresAt: expiresAt,
+          },
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            status: true,
+            isPaid: true,
+            paymentMethod: true,
+            membershipStartedAt: true,
+            membershipExpiresAt: true,
+          },
+        });
+
+        const paymentRecord = await tx.payment.create({
+          data: {
+            transactionId: tran_id || `ONLINE-MEM-${userId}-${now.getTime()}`,
+            userId,
+            amount: paidAmount,
+            paymentMethod: PaymentMethod.ONLINE,
+            status: PaymentStatus.COMPLETED,
+            paidAt: now,
+          },
+        });
+
+        return { alreadyProcessed: false, user: updatedUser, payment: paymentRecord };
+      },
+      { isolationLevel: 'Serializable' }
+    );
+
+    if (result.alreadyProcessed) {
+      return {
+        type: 'ALREADY_PROCESSED',
+        message: 'Payment was already processed successfully.',
+        payment: result.payment,
+      };
+    }
 
     return {
       type: 'MEMBERSHIP',
@@ -123,6 +164,24 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
 
   // Handle purchase order transaction
   if (tran_id && tran_id.startsWith('TXN-')) {
+    // Idempotency: if already PAID, skip re-processing
+    const existingPurchase = await prisma.purchase.findUnique({
+      where: { transactionId: tran_id },
+      include: { book: true },
+    });
+
+    if (!existingPurchase) {
+      return { message: 'Purchase order not found for this transaction.', tran_id };
+    }
+
+    if (existingPurchase.paymentStatus === PaymentStatus.PAID) {
+      return {
+        type: 'ALREADY_PROCESSED',
+        purchase: existingPurchase,
+        message: 'Purchase payment was already marked as paid.',
+      };
+    }
+
     const updatedPurchase = await prisma.purchase.update({
       where: { transactionId: tran_id },
       data: {
