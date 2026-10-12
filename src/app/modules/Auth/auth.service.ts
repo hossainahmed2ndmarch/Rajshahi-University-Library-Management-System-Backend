@@ -101,7 +101,12 @@ const refreshToken = async (token: string) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
+  if (user.status === 'BLOCKED') {
+    throw new AppError(httpStatus.FORBIDDEN, 'User account has been suspended!');
+  }
+
+  // INACTIVE users with RUDC org can still refresh their tokens to access the dashboard
+  if (user.status === 'INACTIVE' && user.org !== 'RUDC' && user.org !== 'BOTH') {
     throw new AppError(httpStatus.FORBIDDEN, 'User account is not active!');
   }
 

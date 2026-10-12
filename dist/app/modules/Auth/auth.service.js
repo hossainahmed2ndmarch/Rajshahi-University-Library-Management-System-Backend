@@ -130,7 +130,11 @@ const refreshToken = (token) => __awaiter(void 0, void 0, void 0, function* () {
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
     }
-    if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
+    if (user.status === 'BLOCKED') {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'User account has been suspended!');
+    }
+    // INACTIVE users with RUDC org can still refresh their tokens to access the dashboard
+    if (user.status === 'INACTIVE' && user.org !== 'RUDC' && user.org !== 'BOTH') {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'User account is not active!');
     }
     const jwtPayload = {

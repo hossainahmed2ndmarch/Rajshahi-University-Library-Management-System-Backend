@@ -39,13 +39,19 @@ const auth = (...requiredRoles) => {
         // Verify user still exists and is not BLOCKED or INACTIVE
         const user = yield db_1.default.user.findUnique({
             where: { id: Number(verifiedUser.userId) },
-            select: { id: true, email: true, role: true, status: true },
+            select: { id: true, email: true, role: true, status: true, org: true },
         });
         if (!user) {
             throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'User no longer exists!');
         }
-        if (user.status === 'BLOCKED' || user.status === 'INACTIVE') {
-            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account is suspended or inactive!');
+        if (user.status === 'BLOCKED') {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account has been suspended!');
+        }
+        // INACTIVE users who belong to RUDC (org RUDC or BOTH) can still access the
+        // dashboard to view their RUDC application status. Pure RUIL or no-org
+        // INACTIVE accounts remain blocked.
+        if (user.status === 'INACTIVE' && user.org !== 'RUDC' && user.org !== 'BOTH') {
+            throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account is inactive!');
         }
         req.user = verifiedUser;
         if (requiredRoles.length && !requiredRoles.includes(verifiedUser.role)) {

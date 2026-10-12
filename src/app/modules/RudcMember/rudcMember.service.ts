@@ -199,7 +199,11 @@ const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: nu
       department: payload.department,
       org: Organization.RUDC,
       role: UserRole.MEMBER,
-      status: UserStatus.PENDING_APPROVAL,
+      // RUDC-only applicants start as INACTIVE — they are NOT RUIL members.
+      // They can still log in and view their RUDC application status in the
+      // dashboard. Admin approval makes them a RUDC volunteer but does NOT
+      // activate RUIL membership.
+      status: UserStatus.INACTIVE,
       isPaid: false,
       membershipStartedAt: null,
       membershipExpiresAt: null,
