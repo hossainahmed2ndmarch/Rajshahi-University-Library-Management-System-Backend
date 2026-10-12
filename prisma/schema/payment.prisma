@@ -10,6 +10,12 @@ model Payment {
   status        PaymentStatus @default(PENDING)
   paidAt        DateTime?
 
+  // Manual MFS Tracking (bKash / Nagad / Rocket)
+  mfsProvider   MFSProvider?
+  senderPhone   String?
+  customerTrxId String?
+  verifiedAt    DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

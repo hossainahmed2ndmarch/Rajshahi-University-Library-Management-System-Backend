@@ -18,6 +18,9 @@ const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const queryBuilder_1 = __importDefault(require("../../builder/queryBuilder"));
+const steadfast_1 = require("../../../lib/steadfast");
+const sms_1 = require("../../../lib/sms");
+const socket_1 = require("../../../lib/socket");
 const normalizeItems = (payload) => {
     if (payload.items && payload.items.length > 0) {
         return payload.items;
@@ -323,6 +326,12 @@ const cancelGuestPurchaseInDB = (payload) => __awaiter(void 0, void 0, void 0, f
         });
         return cancelled;
     }));
+    if (updatedPurchase.transactionId) {
+        (0, socket_1.emitOrderStatusUpdate)(updatedPurchase.transactionId, {
+            orderStatus: updatedPurchase.orderStatus,
+            paymentStatus: updatedPurchase.paymentStatus,
+        });
+    }
     return updatedPurchase;
 });
 const cancelMemberPurchaseInDB = (purchaseId, userId, userRole, reason) => __awaiter(void 0, void 0, void 0, function* () {
@@ -369,6 +378,12 @@ const cancelMemberPurchaseInDB = (purchaseId, userId, userRole, reason) => __awa
         });
         return cancelled;
     }));
+    if (updatedPurchase.transactionId) {
+        (0, socket_1.emitOrderStatusUpdate)(updatedPurchase.transactionId, {
+            orderStatus: updatedPurchase.orderStatus,
+            paymentStatus: updatedPurchase.paymentStatus,
+        });
+    }
     return updatedPurchase;
 });
 const updatePurchaseStatusInDB = (purchaseId, payload) => __awaiter(void 0, void 0, void 0, function* () {
@@ -405,6 +420,12 @@ const updatePurchaseStatusInDB = (purchaseId, payload) => __awaiter(void 0, void
                     },
                 },
             });
+            if (updated.transactionId) {
+                (0, socket_1.emitOrderStatusUpdate)(updated.transactionId, {
+                    orderStatus: updated.orderStatus,
+                    paymentStatus: updated.paymentStatus,
+                });
+            }
             return updated;
         }));
     }
@@ -422,6 +443,177 @@ const updatePurchaseStatusInDB = (purchaseId, payload) => __awaiter(void 0, void
             },
         },
     });
+    if (updated.transactionId) {
+        (0, socket_1.emitOrderStatusUpdate)(updated.transactionId, {
+            orderStatus: updated.orderStatus,
+            paymentStatus: updated.paymentStatus,
+        });
+    }
+    return updated;
+});
+const verifyPaymentInDB = (purchaseId, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    const purchase = yield db_1.default.purchase.findUnique({
+        where: { id: purchaseId },
+    });
+    if (!purchase) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Purchase record not found!');
+    }
+    if (payload.isApproved) {
+        const updated = yield db_1.default.purchase.update({
+            where: { id: purchaseId },
+            data: {
+                paymentStatus: client_1.PaymentStatus.PAID,
+                paymentVerified: true,
+                verifiedAt: new Date(),
+                orderStatus: client_1.OrderStatus.PROCESSING,
+            },
+            include: { book: true, user: true },
+        });
+        // Also update associated payment record if exists
+        if (purchase.transactionId) {
+            yield db_1.default.payment.updateMany({
+                where: { transactionId: purchase.transactionId },
+                data: {
+                    status: client_1.PaymentStatus.COMPLETED,
+                    paidAt: new Date(),
+                    verifiedAt: new Date(),
+                },
+            });
+        }
+        // Send SMS confirmation for verified payment
+        if (updated.customerPhone) {
+            (0, sms_1.sendSMS)(updated.customerPhone, sms_1.SMSTemplates.paymentApproved(updated.transactionId)).catch((e) => console.error('SMS notification error:', e));
+        }
+        if (updated.transactionId) {
+            (0, socket_1.emitOrderStatusUpdate)(updated.transactionId, {
+                orderStatus: updated.orderStatus,
+                paymentStatus: updated.paymentStatus,
+                paymentVerified: updated.paymentVerified,
+            });
+        }
+        return updated;
+    }
+    else {
+        // Rejected payment
+        const updated = yield db_1.default.purchase.update({
+            where: { id: purchaseId },
+            data: {
+                paymentStatus: client_1.PaymentStatus.FAILED,
+                paymentVerified: false,
+            },
+            include: { book: true, user: true },
+        });
+        if (updated.transactionId) {
+            (0, socket_1.emitOrderStatusUpdate)(updated.transactionId, {
+                orderStatus: updated.orderStatus,
+                paymentStatus: updated.paymentStatus,
+                paymentVerified: updated.paymentVerified,
+            });
+        }
+        return updated;
+    }
+});
+const dispatchCourierInDB = (purchaseId, payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const purchase = yield db_1.default.purchase.findUnique({
+        where: { id: purchaseId },
+        include: { book: true },
+    });
+    if (!purchase) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Purchase record not found!');
+    }
+    // Generate a random 6-digit OTP
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpExpiresAt = new Date();
+    otpExpiresAt.setDate(otpExpiresAt.getDate() + 7); // 7 days validity for parcel delivery
+    const courierName = (payload === null || payload === void 0 ? void 0 : payload.courierName) || 'Steadfast Courier';
+    // Book consignment with Steadfast Courier API
+    const codAmount = purchase.paymentStatus === client_1.PaymentStatus.PAID ? 0 : purchase.totalAmount;
+    const steadfastResult = yield (0, steadfast_1.createSteadfastOrder)({
+        invoice: purchase.transactionId,
+        recipient_name: purchase.customerName,
+        recipient_phone: purchase.customerPhone,
+        recipient_address: purchase.shippingAddress,
+        cod_amount: codAmount,
+        note: (payload === null || payload === void 0 ? void 0 : payload.note) || `Book parcel: ${((_a = purchase.book) === null || _a === void 0 ? void 0 : _a.title) || 'RUIL Books'}`,
+    });
+    const trackingNumber = ((_b = steadfastResult.consignment) === null || _b === void 0 ? void 0 : _b.tracking_code) ||
+        `TRK-${Date.now().toString().slice(-6)}`;
+    const updated = yield db_1.default.purchase.update({
+        where: { id: purchaseId },
+        data: {
+            courierName,
+            trackingNumber,
+            orderStatus: client_1.OrderStatus.SHIPPED,
+            shippedAt: new Date(),
+            deliveryOtpHash: rawOtp,
+            otpExpiresAt,
+            otpVerified: false,
+        },
+        include: { book: true, user: true },
+    });
+    // Send SMS to customer with tracking number and Delivery OTP
+    if (updated.customerPhone) {
+        (0, sms_1.sendSMS)(updated.customerPhone, sms_1.SMSTemplates.courierShippedWithOTP(updated.transactionId, courierName, trackingNumber, rawOtp)).catch((e) => console.error('SMS notification error:', e));
+    }
+    if (updated.transactionId) {
+        (0, socket_1.emitOrderStatusUpdate)(updated.transactionId, {
+            orderStatus: updated.orderStatus,
+            courierName: updated.courierName,
+            trackingNumber: updated.trackingNumber,
+            shippedAt: updated.shippedAt,
+        });
+    }
+    return {
+        purchase: updated,
+        rawOtp,
+        trackingNumber,
+        courierName,
+    };
+});
+const verifyDeliveryOtpInDB = (purchaseId, otp) => __awaiter(void 0, void 0, void 0, function* () {
+    const purchase = yield db_1.default.purchase.findUnique({
+        where: { id: purchaseId },
+    });
+    if (!purchase) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Purchase record not found!');
+    }
+    if (!purchase.deliveryOtpHash) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'No delivery OTP was issued for this order!');
+    }
+    if (purchase.otpVerified) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Delivery OTP has already been verified for this order!');
+    }
+    if (purchase.otpExpiresAt && new Date() > new Date(purchase.otpExpiresAt)) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Delivery OTP has expired!');
+    }
+    // Plain comparison or sha256
+    const cleanInputOtp = otp.trim();
+    if (purchase.deliveryOtpHash !== cleanInputOtp) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Invalid delivery OTP code!');
+    }
+    const updated = yield db_1.default.purchase.update({
+        where: { id: purchaseId },
+        data: {
+            otpVerified: true,
+            orderStatus: client_1.OrderStatus.DELIVERED,
+            paymentStatus: client_1.PaymentStatus.PAID,
+            deliveredAt: new Date(),
+        },
+        include: { book: true, user: true },
+    });
+    // Send SMS confirmation of successful delivery
+    if (updated.customerPhone) {
+        (0, sms_1.sendSMS)(updated.customerPhone, sms_1.SMSTemplates.orderDelivered(updated.transactionId)).catch((e) => console.error('SMS notification error:', e));
+    }
+    if (updated.transactionId) {
+        (0, socket_1.emitOrderStatusUpdate)(updated.transactionId, {
+            orderStatus: updated.orderStatus,
+            paymentStatus: updated.paymentStatus,
+            deliveredAt: updated.deliveredAt,
+            otpVerified: true,
+        });
+    }
     return updated;
 });
 const createPOSSaleInDB = (payload, shifterId) => __awaiter(void 0, void 0, void 0, function* () {
@@ -592,5 +784,8 @@ exports.PurchaseService = {
     cancelGuestPurchaseInDB,
     cancelMemberPurchaseInDB,
     updatePurchaseStatusInDB,
+    verifyPaymentInDB,
+    dispatchCourierInDB,
+    verifyDeliveryOtpInDB,
     deletePurchaseInDB,
 };

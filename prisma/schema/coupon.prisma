@@ -1,0 +1,26 @@
+// Coupon Model for E-Commerce Discounts
+
+model Coupon {
+  id              Int                @id @default(autoincrement())
+  code            String             @unique
+  description     String?
+  discountType    CouponDiscountType @default(PERCENTAGE)
+  discountValue   Float
+  minOrderAmount  Float?
+  maxDiscount     Float?             // Maximum cap for percentage discount (e.g. max ৳200)
+  usageLimit      Int?               // Total usage allowed across all customers
+  usedCount       Int                @default(0)
+  perUserLimit    Int                @default(1)
+  isActive        Boolean            @default(true)
+  expiresAt       DateTime?
+
+  purchases       Purchase[]         @relation("CouponPurchases")
+  orders          Order[]            @relation("CouponOrders")
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([code])
+  @@index([isActive])
+  @@map("coupons")
+}

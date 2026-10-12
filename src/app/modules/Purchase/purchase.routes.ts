@@ -78,6 +78,29 @@ router.patch(
   PurchaseController.updatePurchaseStatus
 );
 
+// Manual MFS Payment Verification (Admin / Shifter)
+router.patch(
+  '/:id/verify-payment',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER),
+  validateRequest(PurchaseValidation.verifyPaymentValidationSchema),
+  PurchaseController.verifyPayment
+);
+
+// Dispatch Parcel to Courier & Generate Delivery OTP (Admin / Shifter)
+router.post(
+  '/:id/dispatch-courier',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER),
+  PurchaseController.dispatchCourier
+);
+
+// Delivery OTP Verification (Courier / Staff Handover)
+router.post(
+  '/:id/verify-otp',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER),
+  validateRequest(PurchaseValidation.verifyDeliveryOtpValidationSchema),
+  PurchaseController.verifyDeliveryOtp
+);
+
 router.delete(
   '/:id',
   auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),

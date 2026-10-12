@@ -41,6 +41,7 @@ enum OrderStatus {
 
 enum PaymentStatus {
   PENDING
+  AWAITING_VERIFICATION
   COMPLETED
   PAID
   FAILED
@@ -51,6 +52,21 @@ enum PaymentStatus {
 enum PaymentMethod {
   CASH
   ONLINE
+  BKASH
+  NAGAD
+  ROCKET
+}
+
+enum MFSProvider {
+  BKASH
+  NAGAD
+  ROCKET
+}
+
+enum DeliveryMethod {
+  COURIER
+  PICKUP
+  POS
 }
 
 // Donation
@@ -161,4 +177,9 @@ enum AuthorRole {
   TRANSLATOR
   EDITOR
   COMPILER
+}
+
+enum CouponDiscountType {
+  PERCENTAGE   // e.g., 10.00% off
+  FIXED_AMOUNT // e.g., ৳100.00 off
 }

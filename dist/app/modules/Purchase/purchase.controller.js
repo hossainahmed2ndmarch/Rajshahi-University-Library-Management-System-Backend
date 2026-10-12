@@ -145,6 +145,39 @@ const deletePurchase = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
         data: result,
     });
 }));
+const verifyPayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const result = yield purchase_service_1.PurchaseService.verifyPaymentInDB(Number(id), req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: req.body.isApproved
+            ? 'Payment verified and marked as PAID successfully!'
+            : 'Payment verification rejected!',
+        data: result,
+    });
+}));
+const verifyDeliveryOtp = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const { otp } = req.body;
+    const result = yield purchase_service_1.PurchaseService.verifyDeliveryOtpInDB(Number(id), otp);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Delivery OTP verified successfully! Order marked as DELIVERED.',
+        data: result,
+    });
+}));
+const dispatchCourier = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { id } = req.params;
+    const result = yield purchase_service_1.PurchaseService.dispatchCourierInDB(Number(id), req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Order dispatched to courier successfully! Delivery OTP sent to customer via SMS.',
+        data: result,
+    });
+}));
 exports.PurchaseController = {
     createGuestPurchase,
     createMemberPurchase,
@@ -156,5 +189,8 @@ exports.PurchaseController = {
     cancelGuestPurchase,
     cancelMemberPurchase,
     updatePurchaseStatus,
+    verifyPayment,
+    dispatchCourier,
+    verifyDeliveryOtp,
     deletePurchase,
 };

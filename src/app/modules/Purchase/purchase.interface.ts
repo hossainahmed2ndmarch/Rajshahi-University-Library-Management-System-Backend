@@ -15,6 +15,11 @@ export type TGuestPurchase = {
   address?: string;
   shippingAddress?: string;
   paymentMethod?: PaymentMethod;
+  deliveryMethod?: 'COURIER' | 'PICKUP' | 'POS';
+  couponCode?: string;
+  mfsProvider?: 'BKASH' | 'NAGAD' | 'ROCKET';
+  senderPhone?: string;
+  customerTrxId?: string;
   items?: TPurchaseItem[];
   bookId?: number;
   quantity?: number;
@@ -27,6 +32,11 @@ export type TMemberPurchase = {
   customerEmail?: string;
   customerPhone?: string;
   paymentMethod?: PaymentMethod;
+  deliveryMethod?: 'COURIER' | 'PICKUP' | 'POS';
+  couponCode?: string;
+  mfsProvider?: 'BKASH' | 'NAGAD' | 'ROCKET';
+  senderPhone?: string;
+  customerTrxId?: string;
   items?: TPurchaseItem[];
   bookId?: number;
   quantity?: number;

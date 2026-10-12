@@ -23,6 +23,7 @@ import { RudcIyanotRoutes } from '../modules/RudcIyanot/rudcIyanot.routes';
 import { FundDonationRoutes } from '../modules/FundDonation/fundDonation.routes';
 import { AuthorRoutes } from '../modules/Author/author.routes';
 import { PublisherRoutes } from '../modules/Publisher/publisher.routes';
+import { CouponRoutes } from '../modules/Coupon/coupon.routes';
 
 const router = Router();
 
@@ -127,6 +128,10 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/publishers',
     route: PublisherRoutes,
+  },
+  {
+    path: '/coupons',
+    route: CouponRoutes,
   },
 ];
 

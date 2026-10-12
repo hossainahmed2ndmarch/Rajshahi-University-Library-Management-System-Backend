@@ -20,29 +20,49 @@ model Purchase {
   bookId Int
   book   Book @relation(fields: [bookId], references: [id])
 
-  // Order Details
-  quantity    Int   @default(1)
-  unitPrice   Float
-  totalAmount Float
+  // Order Pricing Breakdown & Discounts
+  quantity        Int            @default(1)
+  unitPrice       Float
+  discountAmount  Float          @default(0)
+  deliveryCharge  Float          @default(0)
+  totalAmount     Float
+
+  // Coupon Relation
+  couponId        Int?
+  coupon          Coupon?        @relation("CouponPurchases", fields: [couponId], references: [id], onDelete: SetNull)
+  couponCode      String?
+
+  // Delivery & Logistics
+  deliveryMethod  DeliveryMethod @default(COURIER)
 
   // Status & Tracking Pipeline
-  orderStatus   OrderStatus   @default(PENDING)
-  paymentStatus PaymentStatus @default(PENDING)
-  paymentMethod PaymentMethod @default(CASH)
+  orderStatus     OrderStatus    @default(PENDING)
+  paymentStatus   PaymentStatus  @default(PENDING)
+  paymentMethod   PaymentMethod  @default(CASH)
+
+  // Manual MFS Verification (bKash / Nagad / Rocket)
+  mfsProvider     MFSProvider?
+  senderPhone     String?
+  customerTrxId   String?
+  paymentVerified Boolean        @default(false)
+  verifiedAt      DateTime?
 
   // Courier & Tracking Info
-  courierName    String?
-  trackingNumber String?
+  courierName     String?
+  trackingNumber  String?
+  deliveryOtpHash String?        // 6-digit OTP hashed for secure delivery handover
+  otpExpiresAt    DateTime?
+  otpVerified     Boolean        @default(false)
 
   // Operational Stamps
-  shippedAt   DateTime?
-  deliveredAt DateTime?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
 
-  approvedById Int?
-  approvedBy   User? @relation("ApprovedPurchases", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedById    Int?
+  approvedBy      User?          @relation("ApprovedPurchases", fields: [approvedById], references: [id], onDelete: SetNull)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([userId])
   @@index([orderStatus])

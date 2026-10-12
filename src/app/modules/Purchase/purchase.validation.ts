@@ -18,6 +18,11 @@ const guestPurchaseValidationSchema = z.object({
       address: z.string().min(1, 'Address is required').optional(),
       shippingAddress: z.string().min(1, 'Shipping address is required').optional(),
       paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+      deliveryMethod: z.enum(['COURIER', 'PICKUP', 'POS']).optional(),
+      couponCode: z.string().optional(),
+      mfsProvider: z.enum(['BKASH', 'NAGAD', 'ROCKET']).optional(),
+      senderPhone: z.string().optional(),
+      customerTrxId: z.string().optional(),
       items: z.array(purchaseItemSchema).min(1, 'At least one item is required').optional(),
       bookId: z.number().int().positive().optional(),
       quantity: z.number().int().positive().optional(),
@@ -50,7 +55,14 @@ const memberPurchaseValidationSchema = z.object({
       shippingAddress: z.string().min(1, 'Shipping address is required').optional(),
       address: z.string().min(1, 'Address is required').optional(),
       customerPhone: z.string().optional(),
+      customerName: z.string().optional(),
+      customerEmail: z.string().email().optional(),
       paymentMethod: z.nativeEnum(PaymentMethod).optional(),
+      deliveryMethod: z.enum(['COURIER', 'PICKUP', 'POS']).optional(),
+      couponCode: z.string().optional(),
+      mfsProvider: z.enum(['BKASH', 'NAGAD', 'ROCKET']).optional(),
+      senderPhone: z.string().optional(),
+      customerTrxId: z.string().optional(),
       items: z.array(purchaseItemSchema).min(1, 'At least one item is required').optional(),
       bookId: z.number().int().positive().optional(),
       quantity: z.number().int().positive().optional(),
@@ -103,11 +115,26 @@ const posSaleValidationSchema = z.object({
     }),
 });
 
+const verifyPaymentValidationSchema = z.object({
+  body: z.object({
+    isApproved: z.boolean(),
+    notes: z.string().optional(),
+  }),
+});
+
+const verifyDeliveryOtpValidationSchema = z.object({
+  body: z.object({
+    otp: z.string().length(6, 'Delivery OTP must be 6 digits'),
+  }),
+});
+
 export const PurchaseValidation = {
   guestPurchaseValidationSchema,
   memberPurchaseValidationSchema,
   guestOrdersLookupValidationSchema,
   guestCancelOrderValidationSchema,
   posSaleValidationSchema,
+  verifyPaymentValidationSchema,
+  verifyDeliveryOtpValidationSchema,
 };
 

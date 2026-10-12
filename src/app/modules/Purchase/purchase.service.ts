@@ -4,6 +4,9 @@ import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
 import { TGuestPurchase, TMemberPurchase, TPurchaseItem } from './purchase.interface';
+import { createSteadfastOrder } from '../../../lib/steadfast';
+import { sendSMS, SMSTemplates } from '../../../lib/sms';
+import { emitOrderStatusUpdate } from '../../../lib/socket';
 
 const normalizeItems = (payload: { items?: TPurchaseItem[]; bookId?: number; quantity?: number }): TPurchaseItem[] => {
   if (payload.items && payload.items.length > 0) {
@@ -402,6 +405,13 @@ const cancelGuestPurchaseInDB = async (payload: { transactionId: string; email: 
     return cancelled;
   });
 
+  if (updatedPurchase.transactionId) {
+    emitOrderStatusUpdate(updatedPurchase.transactionId, {
+      orderStatus: updatedPurchase.orderStatus,
+      paymentStatus: updatedPurchase.paymentStatus,
+    });
+  }
+
   return updatedPurchase;
 };
 
@@ -461,6 +471,13 @@ const cancelMemberPurchaseInDB = async (purchaseId: number, userId: number, user
     return cancelled;
   });
 
+  if (updatedPurchase.transactionId) {
+    emitOrderStatusUpdate(updatedPurchase.transactionId, {
+      orderStatus: updatedPurchase.orderStatus,
+      paymentStatus: updatedPurchase.paymentStatus,
+    });
+  }
+
   return updatedPurchase;
 };
 
@@ -513,6 +530,13 @@ const updatePurchaseStatusInDB = async (
         },
       });
 
+      if (updated.transactionId) {
+        emitOrderStatusUpdate(updated.transactionId, {
+          orderStatus: updated.orderStatus,
+          paymentStatus: updated.paymentStatus,
+        });
+      }
+
       return updated;
     });
   }
@@ -534,6 +558,224 @@ const updatePurchaseStatusInDB = async (
       },
     },
   });
+
+  if (updated.transactionId) {
+    emitOrderStatusUpdate(updated.transactionId, {
+      orderStatus: updated.orderStatus,
+      paymentStatus: updated.paymentStatus,
+    });
+  }
+
+  return updated;
+};
+
+const verifyPaymentInDB = async (
+  purchaseId: number,
+  payload: { isApproved: boolean; notes?: string }
+) => {
+  const purchase = await prisma.purchase.findUnique({
+    where: { id: purchaseId },
+  });
+
+  if (!purchase) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Purchase record not found!');
+  }
+
+  if (payload.isApproved) {
+    const updated = await prisma.purchase.update({
+      where: { id: purchaseId },
+      data: {
+        paymentStatus: PaymentStatus.PAID,
+        paymentVerified: true,
+        verifiedAt: new Date(),
+        orderStatus: OrderStatus.PROCESSING,
+      },
+      include: { book: true, user: true },
+    });
+
+    // Also update associated payment record if exists
+    if (purchase.transactionId) {
+      await prisma.payment.updateMany({
+        where: { transactionId: purchase.transactionId },
+        data: {
+          status: PaymentStatus.COMPLETED,
+          paidAt: new Date(),
+          verifiedAt: new Date(),
+        },
+      });
+    }
+
+    // Send SMS confirmation for verified payment
+    if (updated.customerPhone) {
+      sendSMS(updated.customerPhone, SMSTemplates.paymentApproved(updated.transactionId)).catch(
+        (e) => console.error('SMS notification error:', e)
+      );
+    }
+
+    if (updated.transactionId) {
+      emitOrderStatusUpdate(updated.transactionId, {
+        orderStatus: updated.orderStatus,
+        paymentStatus: updated.paymentStatus,
+        paymentVerified: updated.paymentVerified,
+      });
+    }
+
+    return updated;
+  } else {
+    // Rejected payment
+    const updated = await prisma.purchase.update({
+      where: { id: purchaseId },
+      data: {
+        paymentStatus: PaymentStatus.FAILED,
+        paymentVerified: false,
+      },
+      include: { book: true, user: true },
+    });
+
+    if (updated.transactionId) {
+      emitOrderStatusUpdate(updated.transactionId, {
+        orderStatus: updated.orderStatus,
+        paymentStatus: updated.paymentStatus,
+        paymentVerified: updated.paymentVerified,
+      });
+    }
+
+    return updated;
+  }
+};
+
+const dispatchCourierInDB = async (
+  purchaseId: number,
+  payload?: { courierName?: string; note?: string }
+) => {
+  const purchase = await prisma.purchase.findUnique({
+    where: { id: purchaseId },
+    include: { book: true },
+  });
+
+  if (!purchase) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Purchase record not found!');
+  }
+
+  // Generate a random 6-digit OTP
+  const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+  const otpExpiresAt = new Date();
+  otpExpiresAt.setDate(otpExpiresAt.getDate() + 7); // 7 days validity for parcel delivery
+
+  const courierName = payload?.courierName || 'Steadfast Courier';
+
+  // Book consignment with Steadfast Courier API
+  const codAmount = purchase.paymentStatus === PaymentStatus.PAID ? 0 : purchase.totalAmount;
+  const steadfastResult = await createSteadfastOrder({
+    invoice: purchase.transactionId,
+    recipient_name: purchase.customerName,
+    recipient_phone: purchase.customerPhone,
+    recipient_address: purchase.shippingAddress,
+    cod_amount: codAmount,
+    note: payload?.note || `Book parcel: ${purchase.book?.title || 'RUIL Books'}`,
+  });
+
+  const trackingNumber =
+    steadfastResult.consignment?.tracking_code ||
+    `TRK-${Date.now().toString().slice(-6)}`;
+
+  const updated = await prisma.purchase.update({
+    where: { id: purchaseId },
+    data: {
+      courierName,
+      trackingNumber,
+      orderStatus: OrderStatus.SHIPPED,
+      shippedAt: new Date(),
+      deliveryOtpHash: rawOtp,
+      otpExpiresAt,
+      otpVerified: false,
+    },
+    include: { book: true, user: true },
+  });
+
+  // Send SMS to customer with tracking number and Delivery OTP
+  if (updated.customerPhone) {
+    sendSMS(
+      updated.customerPhone,
+      SMSTemplates.courierShippedWithOTP(
+        updated.transactionId,
+        courierName,
+        trackingNumber,
+        rawOtp
+      )
+    ).catch((e) => console.error('SMS notification error:', e));
+  }
+
+  if (updated.transactionId) {
+    emitOrderStatusUpdate(updated.transactionId, {
+      orderStatus: updated.orderStatus,
+      courierName: updated.courierName,
+      trackingNumber: updated.trackingNumber,
+      shippedAt: updated.shippedAt,
+    });
+  }
+
+  return {
+    purchase: updated,
+    rawOtp,
+    trackingNumber,
+    courierName,
+  };
+};
+
+const verifyDeliveryOtpInDB = async (purchaseId: number, otp: string) => {
+  const purchase = await prisma.purchase.findUnique({
+    where: { id: purchaseId },
+  });
+
+  if (!purchase) {
+    throw new AppError(httpStatus.NOT_FOUND, 'Purchase record not found!');
+  }
+
+  if (!purchase.deliveryOtpHash) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'No delivery OTP was issued for this order!');
+  }
+
+  if (purchase.otpVerified) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Delivery OTP has already been verified for this order!');
+  }
+
+  if (purchase.otpExpiresAt && new Date() > new Date(purchase.otpExpiresAt)) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Delivery OTP has expired!');
+  }
+
+  // Plain comparison or sha256
+  const cleanInputOtp = otp.trim();
+  if (purchase.deliveryOtpHash !== cleanInputOtp) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Invalid delivery OTP code!');
+  }
+
+  const updated = await prisma.purchase.update({
+    where: { id: purchaseId },
+    data: {
+      otpVerified: true,
+      orderStatus: OrderStatus.DELIVERED,
+      paymentStatus: PaymentStatus.PAID,
+      deliveredAt: new Date(),
+    },
+    include: { book: true, user: true },
+  });
+
+  // Send SMS confirmation of successful delivery
+  if (updated.customerPhone) {
+    sendSMS(updated.customerPhone, SMSTemplates.orderDelivered(updated.transactionId)).catch(
+      (e) => console.error('SMS notification error:', e)
+    );
+  }
+
+  if (updated.transactionId) {
+    emitOrderStatusUpdate(updated.transactionId, {
+      orderStatus: updated.orderStatus,
+      paymentStatus: updated.paymentStatus,
+      deliveredAt: updated.deliveredAt,
+      otpVerified: true,
+    });
+  }
 
   return updated;
 };
@@ -758,6 +1000,9 @@ export const PurchaseService = {
   cancelGuestPurchaseInDB,
   cancelMemberPurchaseInDB,
   updatePurchaseStatusInDB,
+  verifyPaymentInDB,
+  dispatchCourierInDB,
+  verifyDeliveryOtpInDB,
   deletePurchaseInDB,
 };
 

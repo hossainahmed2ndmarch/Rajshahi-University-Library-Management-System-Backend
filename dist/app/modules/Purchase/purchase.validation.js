@@ -19,6 +19,11 @@ const guestPurchaseValidationSchema = zod_1.z.object({
         address: zod_1.z.string().min(1, 'Address is required').optional(),
         shippingAddress: zod_1.z.string().min(1, 'Shipping address is required').optional(),
         paymentMethod: zod_1.z.nativeEnum(client_1.PaymentMethod).optional(),
+        deliveryMethod: zod_1.z.enum(['COURIER', 'PICKUP', 'POS']).optional(),
+        couponCode: zod_1.z.string().optional(),
+        mfsProvider: zod_1.z.enum(['BKASH', 'NAGAD', 'ROCKET']).optional(),
+        senderPhone: zod_1.z.string().optional(),
+        customerTrxId: zod_1.z.string().optional(),
         items: zod_1.z.array(purchaseItemSchema).min(1, 'At least one item is required').optional(),
         bookId: zod_1.z.number().int().positive().optional(),
         quantity: zod_1.z.number().int().positive().optional(),
@@ -50,7 +55,14 @@ const memberPurchaseValidationSchema = zod_1.z.object({
         shippingAddress: zod_1.z.string().min(1, 'Shipping address is required').optional(),
         address: zod_1.z.string().min(1, 'Address is required').optional(),
         customerPhone: zod_1.z.string().optional(),
+        customerName: zod_1.z.string().optional(),
+        customerEmail: zod_1.z.string().email().optional(),
         paymentMethod: zod_1.z.nativeEnum(client_1.PaymentMethod).optional(),
+        deliveryMethod: zod_1.z.enum(['COURIER', 'PICKUP', 'POS']).optional(),
+        couponCode: zod_1.z.string().optional(),
+        mfsProvider: zod_1.z.enum(['BKASH', 'NAGAD', 'ROCKET']).optional(),
+        senderPhone: zod_1.z.string().optional(),
+        customerTrxId: zod_1.z.string().optional(),
         items: zod_1.z.array(purchaseItemSchema).min(1, 'At least one item is required').optional(),
         bookId: zod_1.z.number().int().positive().optional(),
         quantity: zod_1.z.number().int().positive().optional(),
@@ -99,10 +111,23 @@ const posSaleValidationSchema = zod_1.z.object({
         path: ['items'],
     }),
 });
+const verifyPaymentValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        isApproved: zod_1.z.boolean(),
+        notes: zod_1.z.string().optional(),
+    }),
+});
+const verifyDeliveryOtpValidationSchema = zod_1.z.object({
+    body: zod_1.z.object({
+        otp: zod_1.z.string().length(6, 'Delivery OTP must be 6 digits'),
+    }),
+});
 exports.PurchaseValidation = {
     guestPurchaseValidationSchema,
     memberPurchaseValidationSchema,
     guestOrdersLookupValidationSchema,
     guestCancelOrderValidationSchema,
     posSaleValidationSchema,
+    verifyPaymentValidationSchema,
+    verifyDeliveryOtpValidationSchema,
 };

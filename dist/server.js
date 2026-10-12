@@ -18,6 +18,7 @@ const db_1 = __importDefault(require("./lib/db"));
 const node_cron_1 = __importDefault(require("node-cron"));
 const borrow_service_1 = require("./app/modules/Borrow/borrow.service");
 const shiftReminderJob_1 = require("./app/utils/shiftReminderJob");
+const socket_1 = require("./lib/socket");
 let server;
 function main() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -45,6 +46,8 @@ function main() {
                 (0, shiftReminderJob_1.startShiftReminderJob)(baseUrl);
                 console.log('⏰ [Shift Reminder Job] Started successfully.');
             });
+            (0, socket_1.initSocketIO)(server);
+            console.log('⚡ [Socket.IO] Real-time engine initialized.');
         }
         catch (error) {
             console.error('❌ Failed to connect database:', error);

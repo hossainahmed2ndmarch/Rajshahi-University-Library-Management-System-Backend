@@ -34,9 +34,10 @@ model Book {
   donatedBy   User? @relation("BooksDonated", fields: [donatedById], references: [id], onDelete: SetNull)
 
   // Virtual Relations
-  borrows   Borrow[]
-  purchases Purchase[]
-  donations Donation[]   @relation("CatalogedFromDonation")
+  borrows    Borrow[]
+  purchases  Purchase[]
+  orderItems OrderItem[]  @relation("BookOrderItems")
+  donations  Donation[]   @relation("CatalogedFromDonation")
   reviews   BookReview[]
   articles  Article[]
   events    Event[]

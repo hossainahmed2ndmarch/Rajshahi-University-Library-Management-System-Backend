@@ -25,6 +25,7 @@ const rudcIyanot_routes_1 = require("../modules/RudcIyanot/rudcIyanot.routes");
 const fundDonation_routes_1 = require("../modules/FundDonation/fundDonation.routes");
 const author_routes_1 = require("../modules/Author/author.routes");
 const publisher_routes_1 = require("../modules/Publisher/publisher.routes");
+const coupon_routes_1 = require("../modules/Coupon/coupon.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -122,6 +123,10 @@ const moduleRoutes = [
     {
         path: '/publishers',
         route: publisher_routes_1.PublisherRoutes,
+    },
+    {
+        path: '/coupons',
+        route: coupon_routes_1.CouponRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

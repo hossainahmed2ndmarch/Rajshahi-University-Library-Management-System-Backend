@@ -150,6 +150,45 @@ const deletePurchase = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const verifyPayment = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await PurchaseService.verifyPaymentInDB(Number(id), req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: req.body.isApproved
+      ? 'Payment verified and marked as PAID successfully!'
+      : 'Payment verification rejected!',
+    data: result,
+  });
+});
+
+const verifyDeliveryOtp = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { otp } = req.body;
+  const result = await PurchaseService.verifyDeliveryOtpInDB(Number(id), otp);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Delivery OTP verified successfully! Order marked as DELIVERED.',
+    data: result,
+  });
+});
+
+const dispatchCourier = catchAsync(async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = await PurchaseService.dispatchCourierInDB(Number(id), req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Order dispatched to courier successfully! Delivery OTP sent to customer via SMS.',
+    data: result,
+  });
+});
+
 export const PurchaseController = {
   createGuestPurchase,
   createMemberPurchase,
@@ -161,6 +200,9 @@ export const PurchaseController = {
   cancelGuestPurchase,
   cancelMemberPurchase,
   updatePurchaseStatus,
+  verifyPayment,
+  dispatchCourier,
+  verifyDeliveryOtp,
   deletePurchase,
 };
 

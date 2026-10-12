@@ -25,5 +25,11 @@ router.patch('/:id/cancel', (0, auth_1.default)(client_1.UserRole.MEMBER, client
 router.post('/pos', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), (0, validateRequest_1.default)(purchase_validation_1.PurchaseValidation.posSaleValidationSchema), purchase_controller_1.PurchaseController.createPOSSale);
 router.get('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), purchase_controller_1.PurchaseController.getAllPurchases);
 router.patch('/:id/status', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), purchase_controller_1.PurchaseController.updatePurchaseStatus);
+// Manual MFS Payment Verification (Admin / Shifter)
+router.patch('/:id/verify-payment', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), (0, validateRequest_1.default)(purchase_validation_1.PurchaseValidation.verifyPaymentValidationSchema), purchase_controller_1.PurchaseController.verifyPayment);
+// Dispatch Parcel to Courier & Generate Delivery OTP (Admin / Shifter)
+router.post('/:id/dispatch-courier', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), purchase_controller_1.PurchaseController.dispatchCourier);
+// Delivery OTP Verification (Courier / Staff Handover)
+router.post('/:id/verify-otp', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), (0, validateRequest_1.default)(purchase_validation_1.PurchaseValidation.verifyDeliveryOtpValidationSchema), purchase_controller_1.PurchaseController.verifyDeliveryOtp);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), purchase_controller_1.PurchaseController.deletePurchase);
 exports.PurchaseRoutes = router;

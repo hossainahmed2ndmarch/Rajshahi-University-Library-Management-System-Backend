@@ -6,6 +6,7 @@ import prisma from './lib/db';
 import cron from 'node-cron';
 import { BorrowService } from './app/modules/Borrow/borrow.service';
 import { startShiftReminderJob } from './app/utils/shiftReminderJob';
+import { initSocketIO } from './lib/socket';
 
 let server: Server;
 
@@ -35,6 +36,9 @@ async function main() {
       startShiftReminderJob(baseUrl);
       console.log('⏰ [Shift Reminder Job] Started successfully.');
     });
+
+    initSocketIO(server);
+    console.log('⚡ [Socket.IO] Real-time engine initialized.');
   } catch (error) {
     console.error('❌ Failed to connect database:', error);
     process.exit(1);

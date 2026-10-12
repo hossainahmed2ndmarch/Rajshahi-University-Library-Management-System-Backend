@@ -40,6 +40,7 @@ model User {
   approvedBorrows     Borrow[]            @relation("ApprovedBorrows")
   returnedBorrows     Borrow[]            @relation("ReturnedBorrows")
   purchases           Purchase[]          @relation("UserPurchases")
+  orders              Order[]             @relation("UserOrders")
   approvedPurchaseBy  Purchase[]          @relation("ApprovedPurchases")
   donations           Donation[]          @relation("UserDonations")
   receivedDonations   Donation[]          @relation("ReceivedDonations")
