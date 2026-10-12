@@ -52,8 +52,8 @@ export const formatUserWithRudcProfile = (user: any) => {
   };
 };
 
-// 1. Volunteer Application
-const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: number) => {
+// 1. Volunteer Application (Registers a brand-new user with RUDC Profile)
+const applyForRudc = async (payload: TRudcApplyPayload) => {
   if (!payload.rudcTermsAccepted) {
     throw new AppError(
       httpStatus.BAD_REQUEST,
@@ -61,67 +61,14 @@ const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: nu
     );
   }
 
-  // Check if authenticated user is applying
-  if (authenticatedUserId) {
-    const existing = await prisma.user.findUnique({
-      where: { id: authenticatedUserId },
-      include: { rudcProfile: true },
-    });
-    if (!existing) {
-      throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
-    }
-
-    const updated = await prisma.user.update({
-      where: { id: authenticatedUserId },
-      data: {
-        department: payload.department,
-        org: existing.org === Organization.RUIL ? Organization.BOTH : Organization.RUDC,
-        rudcProfile: {
-          upsert: {
-            create: {
-              faculty: payload.faculty,
-              whatsappNumber: payload.whatsappNumber,
-              bloodGroup: payload.bloodGroup,
-              skills: payload.skills,
-              accommodationType: payload.accommodationType,
-              accommodationName: payload.accommodationName,
-              permanentAddress: payload.permanentAddress,
-              isAffiliatedWithOther: payload.isAffiliatedWithOther,
-              otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-              rudcTermsAccepted: true,
-              isRudcMember: true,
-              rudcMemberType: RudcMemberType.VOLUNTEER,
-              rudcStatus: RudcApplicationStatus.PENDING_REVIEW,
-              rudcJoinedAt: new Date(),
-            },
-            update: {
-              faculty: payload.faculty,
-              whatsappNumber: payload.whatsappNumber,
-              bloodGroup: payload.bloodGroup,
-              skills: payload.skills,
-              accommodationType: payload.accommodationType,
-              accommodationName: payload.accommodationName,
-              permanentAddress: payload.permanentAddress,
-              isAffiliatedWithOther: payload.isAffiliatedWithOther,
-              otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-              rudcTermsAccepted: true,
-              isRudcMember: true,
-              rudcMemberType: RudcMemberType.VOLUNTEER,
-              rudcStatus: RudcApplicationStatus.PENDING_REVIEW,
-              rudcJoinedAt: existing.rudcProfile?.rudcJoinedAt || new Date(),
-            },
-          },
-        },
-      },
-      include: {
-        rudcProfile: true,
-      },
-    });
-
-    return formatUserWithRudcProfile(updated);
+  if (!payload.password || payload.password.trim().length < 6) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'A valid password with at least 6 characters is required for your account.'
+    );
   }
 
-  // If not authenticated, check if user exists by email, phone, or studentOrVoterId
+  // Strictly check if an existing user already exists by email, phone, or studentOrVoterId
   const existingUser = await prisma.user.findFirst({
     where: {
       OR: [
@@ -130,64 +77,29 @@ const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: nu
         { studentOrVoterId: payload.studentOrVoterId },
       ],
     },
-    include: { rudcProfile: true },
   });
 
   if (existingUser) {
-    const updated = await prisma.user.update({
-      where: { id: existingUser.id },
-      data: {
-        name: payload.name || existingUser.name,
-        department: payload.department,
-        org: existingUser.org === Organization.RUIL ? Organization.BOTH : Organization.RUDC,
-        rudcProfile: {
-          upsert: {
-            create: {
-              faculty: payload.faculty,
-              whatsappNumber: payload.whatsappNumber,
-              bloodGroup: payload.bloodGroup,
-              skills: payload.skills,
-              accommodationType: payload.accommodationType,
-              accommodationName: payload.accommodationName,
-              permanentAddress: payload.permanentAddress,
-              isAffiliatedWithOther: payload.isAffiliatedWithOther,
-              otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-              rudcTermsAccepted: true,
-              isRudcMember: true,
-              rudcMemberType: RudcMemberType.VOLUNTEER,
-              rudcStatus: RudcApplicationStatus.PENDING_REVIEW,
-              rudcJoinedAt: new Date(),
-            },
-            update: {
-              faculty: payload.faculty,
-              whatsappNumber: payload.whatsappNumber,
-              bloodGroup: payload.bloodGroup,
-              skills: payload.skills,
-              accommodationType: payload.accommodationType,
-              accommodationName: payload.accommodationName,
-              permanentAddress: payload.permanentAddress,
-              isAffiliatedWithOther: payload.isAffiliatedWithOther,
-              otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
-              rudcTermsAccepted: true,
-              isRudcMember: true,
-              rudcMemberType: RudcMemberType.VOLUNTEER,
-              rudcStatus: RudcApplicationStatus.PENDING_REVIEW,
-              rudcJoinedAt: existingUser.rudcProfile?.rudcJoinedAt || new Date(),
-            },
-          },
-        },
-      },
-      include: {
-        rudcProfile: true,
-      },
-    });
-
-    return formatUserWithRudcProfile(updated);
+    if (existingUser.email.toLowerCase() === payload.email.toLowerCase()) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'An account with this email address already exists. Please use a different email or log in.'
+      );
+    }
+    if (existingUser.phone === payload.phone) {
+      throw new AppError(
+        httpStatus.CONFLICT,
+        'An account with this phone number already exists. Please use a different phone number.'
+      );
+    }
+    throw new AppError(
+      httpStatus.CONFLICT,
+      'An account with this Student / Voter ID or NID already exists.'
+    );
   }
 
-  // Create new applicant user account
-  const rawPass = payload.password || payload.phone;
-  const hashedPassword = await hashPassword(rawPass, config.bcrypt_salt_rounds);
+  // Create brand-new applicant user account
+  const hashedPassword = await hashPassword(payload.password, config.bcrypt_salt_rounds);
 
   const createdUser = await prisma.user.create({
     data: {
@@ -200,9 +112,8 @@ const applyForRudc = async (payload: TRudcApplyPayload, authenticatedUserId?: nu
       org: Organization.RUDC,
       role: UserRole.MEMBER,
       // RUDC-only applicants start as INACTIVE — they are NOT RUIL members.
-      // They can still log in and view their RUDC application status in the
-      // dashboard. Admin approval makes them a RUDC volunteer but does NOT
-      // activate RUIL membership.
+      // They can still log in and view their RUDC application status in the dashboard.
+      // Admin approval makes them a RUDC volunteer/member, but does NOT grant RUIL library access.
       status: UserStatus.INACTIVE,
       isPaid: false,
       membershipStartedAt: null,

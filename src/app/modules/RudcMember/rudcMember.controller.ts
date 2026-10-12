@@ -5,8 +5,7 @@ import sendResponse from '../../utils/sendResponse';
 import { RudcMemberService } from './rudcMember.service';
 
 const applyForRudc = catchAsync(async (req: Request, res: Response) => {
-  const requestingUserId = (req as any).user?.id;
-  const result = await RudcMemberService.applyForRudc(req.body, requestingUserId);
+  const result = await RudcMemberService.applyForRudc(req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.CREATED,

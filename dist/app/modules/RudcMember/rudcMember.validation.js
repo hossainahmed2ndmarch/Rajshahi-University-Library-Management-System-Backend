@@ -8,7 +8,7 @@ const applyRudcZodSchema = zod_1.z.object({
         name: zod_1.z.string().min(1, 'Full name is required'),
         email: zod_1.z.string().min(1, 'Email is required').email('Valid email is required'),
         phone: zod_1.z.string().min(11, 'Phone number must be at least 11 digits'),
-        password: zod_1.z.string().min(6).optional(),
+        password: zod_1.z.string().min(6, 'Password must be at least 6 characters'),
         department: zod_1.z.string().min(1, 'Department is required'),
         faculty: zod_1.z.string().min(1, 'Faculty is required'),
         studentOrVoterId: zod_1.z.string().min(1, 'NID/Student ID/HSC Reg is required'),

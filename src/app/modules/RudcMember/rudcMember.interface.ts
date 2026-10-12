@@ -10,7 +10,7 @@ export type TRudcApplyPayload = {
   name: string;
   email: string;
   phone: string;
-  password?: string;
+  password: string;
   department: string;
   faculty: string;
   studentOrVoterId: string;

@@ -18,9 +18,7 @@ const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const rudcMember_service_1 = require("./rudcMember.service");
 const applyForRudc = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a;
-    const requestingUserId = (_a = req.user) === null || _a === void 0 ? void 0 : _a.id;
-    const result = yield rudcMember_service_1.RudcMemberService.applyForRudc(req.body, requestingUserId);
+    const result = yield rudcMember_service_1.RudcMemberService.applyForRudc(req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
         success: true,

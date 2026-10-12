@@ -7,10 +7,9 @@ import { RudcMemberValidation } from './rudcMember.validation';
 
 const router = Router();
 
-// Public / Guest / Member Application
+// Public Volunteer Application (Registration)
 router.post(
   '/apply',
-  optionalAuth,
   validateRequest(RudcMemberValidation.applyRudcZodSchema),
   RudcMemberController.applyForRudc
 );
