@@ -26,6 +26,8 @@ const fundDonation_routes_1 = require("../modules/FundDonation/fundDonation.rout
 const author_routes_1 = require("../modules/Author/author.routes");
 const publisher_routes_1 = require("../modules/Publisher/publisher.routes");
 const coupon_routes_1 = require("../modules/Coupon/coupon.routes");
+const order_routes_1 = require("../modules/Order/order.routes");
+const bkash_routes_1 = require("../modules/Bkash/bkash.routes");
 const router = (0, express_1.Router)();
 const moduleRoutes = [
     {
@@ -127,6 +129,14 @@ const moduleRoutes = [
     {
         path: '/coupons',
         route: coupon_routes_1.CouponRoutes,
+    },
+    {
+        path: '/orders',
+        route: order_routes_1.OrderRoutes,
+    },
+    {
+        path: '/bkash',
+        route: bkash_routes_1.BkashRoutes,
     },
 ];
 moduleRoutes.forEach((route) => router.use(route.path, route.route));

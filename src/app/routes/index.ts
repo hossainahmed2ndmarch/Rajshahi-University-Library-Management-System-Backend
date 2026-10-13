@@ -24,6 +24,8 @@ import { FundDonationRoutes } from '../modules/FundDonation/fundDonation.routes'
 import { AuthorRoutes } from '../modules/Author/author.routes';
 import { PublisherRoutes } from '../modules/Publisher/publisher.routes';
 import { CouponRoutes } from '../modules/Coupon/coupon.routes';
+import { OrderRoutes } from '../modules/Order/order.routes';
+import { BkashRoutes } from '../modules/Bkash/bkash.routes';
 
 const router = Router();
 
@@ -132,6 +134,14 @@ const moduleRoutes: TModuleRoute[] = [
   {
     path: '/coupons',
     route: CouponRoutes,
+  },
+  {
+    path: '/orders',
+    route: OrderRoutes,
+  },
+  {
+    path: '/bkash',
+    route: BkashRoutes,
   },
 ];
 
