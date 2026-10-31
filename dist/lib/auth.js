@@ -23,10 +23,7 @@ exports.betterAuthInstance = (0, better_auth_1.betterAuth)({
     database: (0, prisma_1.prismaAdapter)(db_1.default, {
         provider: 'postgresql',
     }),
-    baseURL: process.env.BETTER_AUTH_URL ||
-        (config_1.default.backend_url
-            ? config_1.default.backend_url.replace(/\/api\/v1\/?$/, '')
-            : 'http://localhost:5000'),
+    baseURL: process.env.BETTER_AUTH_URL || (config_1.default.backend_url ? config_1.default.backend_url.replace(/\/api\/v1\/?$/, '') : 'http://localhost:5000'),
     basePath: '/api/v1/auth',
     secret: config_1.default.jwt.jwt_secret || 'super-secure-better-auth-secret-key-2026',
     trustedOrigins: [
@@ -40,33 +37,28 @@ exports.betterAuthInstance = (0, better_auth_1.betterAuth)({
     emailAndPassword: {
         enabled: true,
     },
-    socialProviders: Object.assign(Object.assign(Object.assign({}, (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-        ? {
-            google: {
-                clientId: process.env.GOOGLE_CLIENT_ID,
-                clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-            },
-        }
-        : {})), (process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
-        ? {
-            github: {
-                clientId: process.env.GITHUB_CLIENT_ID,
-                clientSecret: process.env.GITHUB_CLIENT_SECRET,
-            },
-        }
-        : {})), (process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET
-        ? {
-            facebook: {
-                clientId: process.env.FACEBOOK_CLIENT_ID,
-                clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-            },
-        }
-        : {})),
+    socialProviders: {
+        google: {
+            clientId: process.env.GOOGLE_CLIENT_ID || '',
+            clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+            enabled: !!process.env.GOOGLE_CLIENT_ID,
+        },
+        github: {
+            clientId: process.env.GITHUB_CLIENT_ID || '',
+            clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+            enabled: !!process.env.GITHUB_CLIENT_ID,
+        },
+        facebook: {
+            clientId: process.env.FACEBOOK_CLIENT_ID || '',
+            clientSecret: process.env.FACEBOOK_CLIENT_SECRET || '',
+            enabled: !!process.env.FACEBOOK_CLIENT_ID,
+        },
+    },
     plugins: [
         (0, plugins_1.bearer)(),
         (0, plugins_1.jwt)(),
         (0, plugins_1.phoneNumber)({
-            sendOTP: (_a) => __awaiter(void 0, [_a], void 0, function* ({ phoneNumber: targetPhone, code, }) {
+            sendOTP: (_a) => __awaiter(void 0, [_a], void 0, function* ({ phoneNumber: targetPhone, code }) {
                 yield (0, sms_1.sendSMS)(targetPhone, `RU Islamic Library Verification Code: ${code}. Valid for 5 minutes.`);
             }),
         }),

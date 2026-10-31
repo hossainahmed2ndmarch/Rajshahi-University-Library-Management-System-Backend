@@ -9,11 +9,7 @@ export const betterAuthInstance = betterAuth({
   database: prismaAdapter(prisma, {
     provider: 'postgresql',
   }),
-  baseURL:
-    process.env.BETTER_AUTH_URL ||
-    (config.backend_url
-      ? config.backend_url.replace(/\/api\/v1\/?$/, '')
-      : 'http://localhost:5000'),
+  baseURL: process.env.BETTER_AUTH_URL || (config.backend_url ? config.backend_url.replace(/\/api\/v1\/?$/, '') : 'http://localhost:5000'),
   basePath: '/api/v1/auth',
   secret: config.jwt.jwt_secret || 'super-secure-better-auth-secret-key-2026',
   trustedOrigins: [
@@ -28,46 +24,28 @@ export const betterAuthInstance = betterAuth({
     enabled: true,
   },
   socialProviders: {
-    ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
-      ? {
-          google: {
-            clientId: process.env.GOOGLE_CLIENT_ID,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-          },
-        }
-      : {}),
-    ...(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET
-      ? {
-          github: {
-            clientId: process.env.GITHUB_CLIENT_ID,
-            clientSecret: process.env.GITHUB_CLIENT_SECRET,
-          },
-        }
-      : {}),
-    ...(process.env.FACEBOOK_CLIENT_ID && process.env.FACEBOOK_CLIENT_SECRET
-      ? {
-          facebook: {
-            clientId: process.env.FACEBOOK_CLIENT_ID,
-            clientSecret: process.env.FACEBOOK_CLIENT_SECRET,
-          },
-        }
-      : {}),
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID || '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+      enabled: !!process.env.GOOGLE_CLIENT_ID,
+    },
+    github: {
+      clientId: process.env.GITHUB_CLIENT_ID || '',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET || '',
+      enabled: !!process.env.GITHUB_CLIENT_ID,
+    },
+    facebook: {
+      clientId: process.env.FACEBOOK_CLIENT_ID || '',
+      clientSecret: process.env.FACEBOOK_CLIENT_SECRET || '',
+      enabled: !!process.env.FACEBOOK_CLIENT_ID,
+    },
   },
   plugins: [
     bearer(),
     jwt(),
     phoneNumber({
-      sendOTP: async ({
-        phoneNumber: targetPhone,
-        code,
-      }: {
-        phoneNumber: string;
-        code: string;
-      }) => {
-        await sendSMS(
-          targetPhone,
-          `RU Islamic Library Verification Code: ${code}. Valid for 5 minutes.`
-        );
+      sendOTP: async ({ phoneNumber: targetPhone, code }: { phoneNumber: string; code: string }) => {
+        await sendSMS(targetPhone, `RU Islamic Library Verification Code: ${code}. Valid for 5 minutes.`);
       },
     }),
   ],

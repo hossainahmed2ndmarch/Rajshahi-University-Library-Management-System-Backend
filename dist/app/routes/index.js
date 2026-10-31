@@ -35,7 +35,7 @@ const order_routes_1 = require("../modules/Order/order.routes");
 const bkash_routes_1 = require("../modules/Bkash/bkash.routes");
 const router = (0, express_1.Router)();
 // Better Auth Master Handler (Express 5 wildcard syntax)
-router.all('/auth/*', (0, node_1.toNodeHandler)(auth_1.default));
+router.all('/auth/*splat', (0, node_1.toNodeHandler)(auth_1.default));
 const moduleRoutes = [
     {
         path: '/auth',

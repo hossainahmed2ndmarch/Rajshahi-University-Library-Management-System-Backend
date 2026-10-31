@@ -32,7 +32,7 @@ import { BkashRoutes } from '../modules/Bkash/bkash.routes';
 const router = Router();
 
 // Better Auth Master Handler (Express 5 wildcard syntax)
-router.all('/auth/*', toNodeHandler(betterAuthInstance));
+router.all('/auth/*splat', toNodeHandler(betterAuthInstance));
 
 type TModuleRoute = {
   path: string;
