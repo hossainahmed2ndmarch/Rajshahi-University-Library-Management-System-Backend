@@ -36,8 +36,11 @@ app.use(
 app.use(cookieParser());
 app.use(compression());
 
-// Better Auth Master Handler (/api/auth & /api/auth/*)
-app.all(['/api/auth', '/api/auth{/*splat}'], toNodeHandler(betterAuthInstance));
+// Better Auth Master Handler (/api/auth, /api/v1/auth & subroutes)
+app.all(
+  ['/api/auth', '/api/auth{/*splat}', '/api/v1/auth', '/api/v1/auth{/*splat}'],
+  toNodeHandler(betterAuthInstance)
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

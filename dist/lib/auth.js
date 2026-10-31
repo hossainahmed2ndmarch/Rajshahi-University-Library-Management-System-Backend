@@ -24,7 +24,7 @@ exports.betterAuthInstance = (0, better_auth_1.betterAuth)({
         provider: 'postgresql',
     }),
     baseURL: process.env.BETTER_AUTH_URL || (config_1.default.backend_url ? config_1.default.backend_url.replace(/\/api\/v1\/?$/, '') : 'http://localhost:5000'),
-    basePath: '/api/v1/auth',
+    basePath: '/api/auth',
     secret: config_1.default.jwt.jwt_secret || 'super-secure-better-auth-secret-key-2026',
     trustedOrigins: [
         'http://localhost:3000',

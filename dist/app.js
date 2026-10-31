@@ -35,8 +35,8 @@ app.use((0, cors_1.default)({
 }));
 app.use((0, cookie_parser_1.default)());
 app.use((0, compression_1.default)());
-// Better Auth Master Handler (/api/auth & /api/auth/*)
-app.all(['/api/auth', '/api/auth{/*splat}'], (0, node_1.toNodeHandler)(auth_1.default));
+// Better Auth Master Handler (/api/auth, /api/v1/auth & subroutes)
+app.all(['/api/auth', '/api/auth{/*splat}', '/api/v1/auth', '/api/v1/auth{/*splat}'], (0, node_1.toNodeHandler)(auth_1.default));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 // Serve static uploaded media files
