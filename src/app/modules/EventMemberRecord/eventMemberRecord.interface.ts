@@ -2,7 +2,7 @@ import { AttendanceStatus, Prisma } from '@prisma/client';
 
 export interface TBulkAttendanceItem {
   eventId: number;
-  userId: number;
+  userId: string;
   sessionId?: number | null;
   sessionDate?: string | Date | null;
   status: AttendanceStatus;

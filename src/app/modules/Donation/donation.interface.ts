@@ -16,7 +16,7 @@ export type TGuestDonation = {
 };
 
 export type TMemberDonation = {
-  donorId?: number;
+  donorId?: string;
   method?: DonationMethod;
   isAnonymous?: boolean;
   donorNote?: string;

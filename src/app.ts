@@ -3,6 +3,8 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Application, Request, Response } from 'express';
 import path from 'path';
+import { toNodeHandler } from 'better-auth/node';
+import betterAuthInstance from './lib/auth';
 import config from './app/config';
 import globalErrorHandler from './app/errors/globalErrorHandler';
 import notFound from './app/errors/notFound';
@@ -13,6 +15,7 @@ const app: Application = express();
 // Allowed origins
 const allowedOrigins = [
   'http://localhost:5000',
+  'http://localhost:3000',
   'http://localhost:5173',
   config.client_url,
 ].filter(Boolean);
@@ -32,6 +35,10 @@ app.use(
 );
 app.use(cookieParser());
 app.use(compression());
+
+// Better Auth Master Handler (/api/auth & /api/auth/*)
+app.all(['/api/auth', '/api/auth{/*splat}'], toNodeHandler(betterAuthInstance));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

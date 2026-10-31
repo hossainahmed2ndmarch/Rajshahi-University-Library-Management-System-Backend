@@ -1,66 +1,75 @@
 // Modern E-Commerce Normalized Order & OrderItem Models
 
 model Order {
-  id              Int            @id @default(autoincrement())
-  orderCode       String         @unique // e.g. "ORD-20261012-7891"
-  transactionId   String?        @unique // Payment gateway or MFS reference
+  id            String  @id @default(cuid())
+  orderCode     String  @unique // e.g. "ORD-20261012-7891"
+  transactionId String? @unique // Payment gateway or MFS reference
 
-  // Customer Relation (optional for guest checkout)
-  userId          Int?
-  user            User?          @relation("UserOrders", fields: [userId], references: [id], onDelete: SetNull)
+  // Customer Relation (Mandatory - No guest buy)
+  userId String
+  user   User   @relation("UserOrders", fields: [userId], references: [id], onDelete: Restrict)
 
-  // Customer Contact Info
+  // Optional Link to User's Saved Address
+  addressId String?
+  address   UserAddress? @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  // Customer Contact Snapshot (Immutable historical snapshot)
   customerName    String
-  customerEmail   String
+  customerEmail   String?
   customerPhone   String
-  shippingAddress String?        @db.Text
+  shippingAddress String  @db.Text
 
   // Logistics & Delivery
-  deliveryMethod  DeliveryMethod @default(COURIER)
-  deliveryCharge  Float          @default(0)
+  deliveryMethod DeliveryMethod @default(COURIER)
+  deliveryCharge Float          @default(0)
 
   // Financial Breakdown
-  subtotal        Float          @default(0)
-  discountAmount  Float          @default(0)
-  totalAmount     Float          @default(0)
+  subtotal       Float @default(0)
+  discountAmount Float @default(0)
+  giftWrapCharge Float @default(0)
+  totalAmount    Float @default(0)
+
+  // Gift Wrapping (Rokomari style)
+  isGiftWrap  Boolean @default(false)
+  giftMessage String? @db.Text
 
   // Coupon Relation
-  couponId        Int?
-  coupon          Coupon?        @relation("CouponOrders", fields: [couponId], references: [id], onDelete: SetNull)
-  couponCode      String?
+  couponId   Int?
+  coupon     Coupon? @relation("CouponOrders", fields: [couponId], references: [id], onDelete: SetNull)
+  couponCode String?
 
   // Order & Payment Pipeline
-  orderStatus     OrderStatus    @default(PENDING)
-  paymentStatus   PaymentStatus  @default(PENDING)
-  paymentMethod   PaymentMethod  @default(CASH)
+  orderStatus   OrderStatus   @default(PENDING)
+  paymentStatus PaymentStatus @default(PENDING)
+  paymentMethod PaymentMethod @default(CASH)
 
   // Manual MFS Verification (bKash / Nagad / Rocket)
   mfsProvider     MFSProvider?
   senderPhone     String?
   customerTrxId   String?
-  paymentVerified Boolean        @default(false)
+  paymentVerified Boolean      @default(false)
   verifiedAt      DateTime?
 
   // POS Metadata (Counter / Walk-in sale)
-  isPOSSale       Boolean        @default(false)
-  posNotes        String?
+  isPOSSale Boolean @default(false)
+  posNotes  String?
 
   // Courier & Handover Tracking
   courierName     String?
   trackingNumber  String?
-  deliveryOtpHash String?        // 6-digit OTP hashed for secure delivery handover
+  deliveryOtpHash String? // 6-digit OTP hashed for secure delivery handover
   otpExpiresAt    DateTime?
-  otpVerified     Boolean        @default(false)
+  otpVerified     Boolean   @default(false)
 
   // Operational Stamps
-  shippedAt       DateTime?
-  deliveredAt     DateTime?
+  shippedAt   DateTime?
+  deliveredAt DateTime?
 
   // Items in this order (1-to-many normalized items)
-  items           OrderItem[]
+  items OrderItem[]
 
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@index([orderStatus])
@@ -69,19 +78,19 @@ model Order {
 }
 
 model OrderItem {
-  id         Int      @id @default(autoincrement())
-  orderId    Int
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  bookId     Int
-  book       Book     @relation("BookOrderItems", fields: [bookId], references: [id])
+  bookId Int
+  book   Book @relation("BookOrderItems", fields: [bookId], references: [id])
 
-  quantity   Int      @default(1)
+  quantity   Int   @default(1)
   unitPrice  Float
   totalPrice Float
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([orderId])
   @@index([bookId])

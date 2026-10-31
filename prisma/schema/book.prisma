@@ -1,9 +1,9 @@
 model Book {
   id           Int      @id @default(autoincrement())
   title        String
+  slug         String   @unique
   isbn         String   @unique
   locationCell String
-  category     String
   categories   String[] @default([])
   pages        Int?
   type         BookType
@@ -28,25 +28,23 @@ model Book {
   isArchived  Boolean  @default(false)
 
   // Registration Relations
-  addedById   Int?
-  addedBy     User? @relation("BooksAdded", fields: [addedById], references: [id], onDelete: SetNull)
-  donatedById Int?
-  donatedBy   User? @relation("BooksDonated", fields: [donatedById], references: [id], onDelete: SetNull)
+  addedById   String?
+  addedBy     User?   @relation("BooksAdded", fields: [addedById], references: [id], onDelete: SetNull)
+  donatedById String?
+  donatedBy   User?   @relation("BooksDonated", fields: [donatedById], references: [id], onDelete: SetNull)
 
   // Virtual Relations
   borrows    Borrow[]
-  purchases  Purchase[]
   orderItems OrderItem[]  @relation("BookOrderItems")
   donations  Donation[]   @relation("CatalogedFromDonation")
-  reviews   BookReview[]
-  articles  Article[]
-  events    Event[]
+  reviews    BookReview[]
+  articles   Article[]
+  events     Event[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([type, isArchived])
-  @@index([category])
   @@index([publisherId])
   @@map("books")
 }

@@ -4,7 +4,7 @@ import prisma from '../../../lib/db';
 import AppError from '../../errors/AppError';
 import { TRecordIyanotPayload } from './rudcIyanot.interface';
 
-const getRudcIyanotRecords = async (query: Record<string, unknown>, user: { id: number; role: string }) => {
+const getRudcIyanotRecords = async (query: Record<string, unknown>, user: { id: string; role: string }) => {
   const { month, year, status, userId, page = 1, limit = 20 } = query;
 
   const take = Number(limit) || 20;
@@ -16,7 +16,7 @@ const getRudcIyanotRecords = async (query: Record<string, unknown>, user: { id: 
   if (user.role === UserRole.MEMBER) {
     whereConditions.userId = user.id;
   } else if (userId) {
-    whereConditions.userId = Number(userId);
+    whereConditions.userId = String(userId);
   }
 
   if (month && month !== 'ALL') {
@@ -51,7 +51,6 @@ const getRudcIyanotRecords = async (query: Record<string, unknown>, user: { id: 
                 rudcMemberType: true,
               },
             },
-            department: true,
           },
         },
         collectedBy: {
@@ -79,7 +78,7 @@ const getRudcIyanotRecords = async (query: Record<string, unknown>, user: { id: 
 
 const recordIyanotPayment = async (
   payload: TRecordIyanotPayload,
-  actingUser: { id: number; role: string }
+  actingUser: { id: string; role: string }
 ) => {
   const { userId, month, year, amount = 50, paymentMethod, transactionId, remarks, collectedById: payloadCollectedById } = payload;
 
@@ -99,7 +98,7 @@ const recordIyanotPayment = async (
   const isAdmin = (['SUPER_ADMIN', 'ADMIN'] as string[]).includes(actingUser.role);
   let status: IyanotStatus;
   let paidAt: Date | null = null;
-  let collectedById: number | null = payloadCollectedById ? Number(payloadCollectedById) : null;
+  let collectedById: string | null = payloadCollectedById ? String(payloadCollectedById) : null;
 
   if (paymentMethod === IyanotPaymentMethod.ONLINE) {
     status = IyanotStatus.PAID;
@@ -180,8 +179,8 @@ const recordIyanotPayment = async (
 
 const updateIyanotStatus = async (
   id: number,
-  payload: { status: IyanotStatus; remarks?: string; collectedById?: number },
-  actingUser: { id: number; role: string }
+  payload: { status: IyanotStatus; remarks?: string; collectedById?: string },
+  actingUser: { id: string; role: string }
 ) => {
   const existing = await prisma.rudcIyanot.findUnique({
     where: { id },
@@ -199,7 +198,7 @@ const updateIyanotStatus = async (
       status: payload.status,
       remarks: payload.remarks || existing.remarks,
       paidAt: isPaid ? new Date() : existing.paidAt,
-      collectedById: payload.collectedById ? Number(payload.collectedById) : (existing.collectedById || actingUser.id),
+      collectedById: payload.collectedById ? String(payload.collectedById) : (existing.collectedById || actingUser.id),
     },
     include: {
       user: {

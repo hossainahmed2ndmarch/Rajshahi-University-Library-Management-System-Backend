@@ -75,7 +75,7 @@ const completePayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
     if (purpose === 'ORDER' && referenceId) {
         const order = yield db_1.default.order.findFirst({
             where: {
-                OR: [{ id: Number(referenceId) || 0 }, { orderCode: String(referenceId) }],
+                OR: [{ id: String(referenceId) }, { orderCode: String(referenceId) }],
             },
         });
         if (order) {
@@ -98,7 +98,7 @@ const completePayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
     }
     else if (purpose === 'MEMBERSHIP' && referenceId) {
         const user = yield db_1.default.user.findUnique({
-            where: { id: Number(referenceId) },
+            where: { id: String(referenceId) },
         });
         if (user) {
             const now = new Date();
@@ -109,6 +109,19 @@ const completePayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
                     where: { id: user.id },
                     data: {
                         status: client_1.UserStatus.ACTIVE,
+                    },
+                }),
+                db_1.default.ruilMemberProfile.upsert({
+                    where: { userId: user.id },
+                    create: {
+                        userId: user.id,
+                        membershipStatus: client_1.UserStatus.ACTIVE,
+                        isPaid: true,
+                        membershipStartedAt: now,
+                        membershipExpiresAt: expires,
+                    },
+                    update: {
+                        membershipStatus: client_1.UserStatus.ACTIVE,
                         isPaid: true,
                         membershipStartedAt: now,
                         membershipExpiresAt: expires,
@@ -167,7 +180,7 @@ const submitPersonalPayment = (0, catchAsync_1.default)((req, res) => __awaiter(
     if (purpose === 'ORDER' && referenceId) {
         const order = yield db_1.default.order.findFirst({
             where: {
-                OR: [{ id: Number(referenceId) || 0 }, { orderCode: String(referenceId) }],
+                OR: [{ id: String(referenceId) }, { orderCode: String(referenceId) }],
             },
         });
         if (!order) {
@@ -189,7 +202,7 @@ const submitPersonalPayment = (0, catchAsync_1.default)((req, res) => __awaiter(
     }
     else if (purpose === 'MEMBERSHIP' && referenceId) {
         const user = yield db_1.default.user.findUnique({
-            where: { id: Number(referenceId) },
+            where: { id: String(referenceId) },
         });
         if (!user) {
             throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Member not found!');

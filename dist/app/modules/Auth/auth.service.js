@@ -66,40 +66,47 @@ const passwordHelpers_1 = require("../../utils/passwordHelpers");
 const jwtHelpers_1 = require("../../utils/jwtHelpers");
 const rudcMember_service_1 = require("../RudcMember/rudcMember.service");
 const loginUser = (payload) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const user = yield db_1.default.user.findUnique({
         where: {
             email: payload.email,
         },
         include: {
             rudcProfile: true,
+            ruilProfile: true,
+            academicProfile: true,
         },
     });
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User does not exist!');
     }
     if (user.status === client_1.UserStatus.BLOCKED) {
-        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account has been blocked by library administration. Please contact the desk.');
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account has been blocked by administration. Please contact the desk.');
+    }
+    if (!user.password) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'This account was created via social/mobile login. Please log in with Google or your phone OTP.');
     }
     const isPasswordMatched = yield (0, passwordHelpers_1.comparePassword)(payload.password, user.password);
     if (!isPasswordMatched) {
         throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'Password does not match!');
     }
-    // If active user membership has expired, automatically sync status to INACTIVE
+    // If active user library membership has expired, automatically sync status to INACTIVE
     let currentStatus = user.status;
-    let isPaid = user.isPaid;
-    if (user.status === client_1.UserStatus.ACTIVE &&
-        user.membershipExpiresAt &&
-        new Date(user.membershipExpiresAt) < new Date()) {
+    let isPaid = ((_a = user.ruilProfile) === null || _a === void 0 ? void 0 : _a.isPaid) || false;
+    if (user.ruilProfile &&
+        user.ruilProfile.membershipStatus === client_1.UserStatus.ACTIVE &&
+        user.ruilProfile.membershipExpiresAt &&
+        new Date(user.ruilProfile.membershipExpiresAt) < new Date()) {
         currentStatus = client_1.UserStatus.INACTIVE;
         isPaid = false;
-        yield db_1.default.user.update({
-            where: { id: user.id },
-            data: { status: client_1.UserStatus.INACTIVE, isPaid: false },
+        yield db_1.default.ruilMemberProfile.update({
+            where: { userId: user.id },
+            data: { membershipStatus: client_1.UserStatus.INACTIVE, isPaid: false },
         });
     }
     const jwtPayload = {
         userId: user.id,
-        email: user.email,
+        email: user.email || '',
         role: user.role,
         status: currentStatus,
     };
@@ -133,13 +140,12 @@ const refreshToken = (token) => __awaiter(void 0, void 0, void 0, function* () {
     if (user.status === 'BLOCKED') {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'User account has been suspended!');
     }
-    // INACTIVE users with RUDC org can still refresh their tokens to access the dashboard
     if (user.status === 'INACTIVE' && user.org !== 'RUDC' && user.org !== 'BOTH') {
         throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'User account is not active!');
     }
     const jwtPayload = {
         userId: user.id,
-        email: user.email,
+        email: user.email || '',
         role: user.role,
         status: user.status,
     };
@@ -151,11 +157,14 @@ const refreshToken = (token) => __awaiter(void 0, void 0, void 0, function* () {
 const changePassword = (authUser, payload) => __awaiter(void 0, void 0, void 0, function* () {
     const user = yield db_1.default.user.findUnique({
         where: {
-            id: Number(authUser.userId),
+            id: String(authUser.userId),
         },
     });
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
+    }
+    if (!user.password) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Please set a password using forgot/reset password first!');
     }
     const isPasswordMatched = yield (0, passwordHelpers_1.comparePassword)(payload.oldPassword, user.password);
     if (!isPasswordMatched) {
@@ -188,7 +197,7 @@ const forgotPassword = (payload) => __awaiter(void 0, void 0, void 0, function* 
     }
     const jwtPayload = {
         userId: user.id,
-        email: user.email,
+        email: user.email || '',
         role: user.role,
     };
     const resetToken = (0, jwtHelpers_1.createToken)(jwtPayload, config_1.default.jwt.reset_pass_secret, config_1.default.jwt.reset_pass_expires_in);
@@ -219,7 +228,7 @@ const forgotPassword = (payload) => __awaiter(void 0, void 0, void 0, function* 
   `;
     const { sendEmail } = yield Promise.resolve().then(() => __importStar(require('../../utils/emailSender')));
     yield sendEmail({
-        to: user.email,
+        to: user.email || '',
         subject: '[RU Islamic Library] Reset Your Password',
         html: emailHtml,
         text: `Assalamu Alaikum ${user.name}, please reset your password using this link: ${resetLink}`,

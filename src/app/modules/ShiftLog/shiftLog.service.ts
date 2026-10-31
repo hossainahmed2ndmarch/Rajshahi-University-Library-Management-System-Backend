@@ -18,7 +18,7 @@ import {
 } from '../../utils/notificationSender';
 
 const resolveRecipients = async (
-  currentUserId: number,
+  currentUserId: string,
   targetRecipients?: 'ALL' | 'SHIFTER' | 'ADMIN' | 'SUPER_ADMIN' | string[] | number[]
 ) => {
   let whereClause: any = {
@@ -37,7 +37,7 @@ const resolveRecipients = async (
   } else if (targetRecipients === 'SUPER_ADMIN') {
     whereClause.role = UserRole.SUPER_ADMIN;
   } else if (Array.isArray(targetRecipients)) {
-    const ids = targetRecipients.map((id) => Number(id)).filter((id) => !isNaN(id));
+    const ids = targetRecipients.map((id) => String(id)).filter(Boolean);
     if (ids.length > 0) {
       whereClause.id = { in: ids, not: currentUserId };
     }
@@ -62,7 +62,7 @@ const resolveRecipients = async (
   }));
 };
 
-const checkInShiftInDB = async (shifterId: number, payload: TCheckInShift) => {
+const checkInShiftInDB = async (shifterId: string, payload: TCheckInShift) => {
   const activeShift = await prisma.shiftLog.findFirst({
     where: {
       shifterId,
@@ -132,7 +132,7 @@ const checkInShiftInDB = async (shifterId: number, payload: TCheckInShift) => {
   });
 };
 
-const checkOutShiftInDB = async (shifterId: number, payload: TCheckOutShift) => {
+const checkOutShiftInDB = async (shifterId: string, payload: TCheckOutShift) => {
   const activeShift = await prisma.shiftLog.findFirst({
     where: {
       shifterId,
@@ -166,7 +166,7 @@ const checkOutShiftInDB = async (shifterId: number, payload: TCheckOutShift) => 
   });
 };
 
-const scheduleShiftInDB = async (shifterId: number, payload: TScheduleShift) => {
+const scheduleShiftInDB = async (shifterId: string, payload: TScheduleShift) => {
   const shifter = await prisma.user.findUnique({
     where: { id: shifterId },
     select: {
@@ -231,7 +231,7 @@ const scheduleShiftInDB = async (shifterId: number, payload: TScheduleShift) => 
 
 const cancelShiftInDB = async (
   shiftId: number,
-  currentUser: { userId: number; role: UserRole },
+  currentUser: { userId: string; role: UserRole },
   payload: TCancelShift
 ) => {
   const shift = await prisma.shiftLog.findUnique({
@@ -369,7 +369,7 @@ const getActiveShiftFromDB = async () => {
 
 const rescheduleShiftInDB = async (
   shiftId: number,
-  currentUser: { userId: number; role: UserRole },
+  currentUser: { userId: string; role: UserRole },
   payload: TRescheduleShift
 ) => {
   const shift = await prisma.shiftLog.findUnique({
@@ -433,7 +433,7 @@ const rescheduleShiftInDB = async (
 
 const completeOfflineShiftInDB = async (
   shiftId: number,
-  currentUser: { userId: number; role: UserRole },
+  currentUser: { userId: string; role: UserRole },
   payload: TCompleteOfflineShift
 ) => {
   const shift = await prisma.shiftLog.findUnique({
@@ -519,7 +519,7 @@ const emailActionShiftInDB = async (payload: TEmailAction) => {
 
 const verifyShiftInDB = async (
   shiftId: number,
-  currentUser: { userId: number; role: UserRole }
+  currentUser: { userId: string; role: UserRole }
 ) => {
   const shift = await prisma.shiftLog.findUnique({
     where: { id: shiftId },

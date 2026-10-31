@@ -23,7 +23,17 @@ const registerUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
         success: true,
-        message: 'Member registered successfully! Pending payment or approval.',
+        message: 'Member registered successfully!',
+        data: result,
+    });
+}));
+const registerBulkMembers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { members, targetOrg } = req.body;
+    const result = yield user_service_1.UserService.registerBulkMembersInDB(members, targetOrg);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.CREATED,
+        success: true,
+        message: 'Bulk members processed successfully!',
         data: result,
     });
 }));
@@ -38,8 +48,8 @@ const getAllUsers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
     });
 }));
 const getUserById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const result = yield user_service_1.UserService.getUserByIdFromDB(Number(id));
+    const id = req.params.id;
+    const result = yield user_service_1.UserService.getUserByIdFromDB(id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -48,11 +58,11 @@ const getUserById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
     });
 }));
 const updateUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
+    const id = req.params.id;
     const authUser = req.user
-        ? { role: req.user.role, userId: Number(req.user.userId || req.user.id) }
+        ? { role: req.user.role, userId: String(req.user.userId || req.user.id) }
         : undefined;
-    const result = yield user_service_1.UserService.updateUserInDB(Number(id), req.body, authUser);
+    const result = yield user_service_1.UserService.updateUserInDB(id, req.body, authUser);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -62,7 +72,7 @@ const updateUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
 }));
 const getMe = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield user_service_1.UserService.getUserByIdFromDB(userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -73,8 +83,8 @@ const getMe = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, 
 }));
 const approveCashPayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const { id } = req.params;
-    const result = yield user_service_1.UserService.approveCashPaymentInDB(Number(id), (_a = req.body) === null || _a === void 0 ? void 0 : _a.amount);
+    const id = req.params.id;
+    const result = yield user_service_1.UserService.approveCashPaymentInDB(id, (_a = req.body) === null || _a === void 0 ? void 0 : _a.amount);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -84,7 +94,7 @@ const approveCashPayment = (0, catchAsync_1.default)((req, res) => __awaiter(voi
 }));
 const updateMyProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield user_service_1.UserService.updateMyProfileInDB(userId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -95,38 +105,37 @@ const updateMyProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
 }));
 const uploadAvatar = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const file = req.file;
     if (!file) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Please select an image file to upload!');
     }
-    // With CloudinaryStorage, multer sets req.file.path or req.file.secure_url to the Cloudinary HTTPS URL
     const avatarUrl = (file.path || file.secure_url || file.url);
     if (!avatarUrl) {
-        throw new AppError_1.default(http_status_1.default.INTERNAL_SERVER_ERROR, 'Failed to retrieve uploaded image URL from Cloudinary.');
+        throw new AppError_1.default(http_status_1.default.INTERNAL_SERVER_ERROR, 'Failed to retrieve uploaded image URL.');
     }
     const result = yield user_service_1.UserService.updateMyProfileInDB(userId, { avatarUrl });
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
-        message: 'Profile photo uploaded to Cloudinary and updated successfully!',
+        message: 'Profile photo uploaded and updated successfully!',
         data: result,
     });
 }));
 const renewMembership = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield user_service_1.UserService.renewMembershipInDB(userId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
-        message: 'Membership renewed successfully for 6 months!',
+        message: 'Membership renewed successfully!',
         data: result,
     });
 }));
 const sendNoticeToUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const result = yield user_service_1.UserService.sendNoticeToUserInDB(Number(id), req.body);
+    const id = req.params.id;
+    const result = yield user_service_1.UserService.sendNoticeToUserInDB(id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -134,15 +143,33 @@ const sendNoticeToUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 
         data: result,
     });
 }));
-const deleteUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b;
-    const { id } = req.params;
-    const requestingUserId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
-    const result = yield user_service_1.UserService.deleteUserFromDB(Number(id), requestingUserId);
+const sendCustomNotice = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.sendCustomNoticeInDB(req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
-        message: 'User account deleted successfully from library records!',
+        message: 'Customizable email notice dispatched successfully!',
+        data: result,
+    });
+}));
+const getEmailNoticeTemplates = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.getEmailNoticeTemplatesInDB();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Notice templates retrieved successfully!',
+        data: result,
+    });
+}));
+const deleteUser = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a, _b;
+    const id = req.params.id;
+    const requestingUserId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const result = yield user_service_1.UserService.deleteUserFromDB(id, requestingUserId);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'User account deleted successfully!',
         data: result,
     });
 }));
@@ -164,8 +191,36 @@ const convertMembership = (0, catchAsync_1.default)((req, res) => __awaiter(void
         data: result,
     });
 }));
+const bulkUpdateUsers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.bulkUpdateUsersInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Users updated in bulk successfully!',
+        data: result,
+    });
+}));
+const bulkDeleteUsers = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.bulkDeleteUsersInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Users deleted in bulk successfully!',
+        data: result,
+    });
+}));
+const getPublicStats = (0, catchAsync_1.default)((_req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield user_service_1.UserService.getPublicStatsInDB();
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Public statistics retrieved successfully!',
+        data: result,
+    });
+}));
 exports.UserController = {
     registerUser,
+    registerBulkMembers,
     getAllUsers,
     getUserById,
     getUserOptions,
@@ -177,5 +232,10 @@ exports.UserController = {
     convertMembership,
     approveCashPayment,
     sendNoticeToUser,
+    sendCustomNotice,
+    getEmailNoticeTemplates,
+    bulkUpdateUsers,
+    bulkDeleteUsers,
     deleteUser,
+    getPublicStats,
 };

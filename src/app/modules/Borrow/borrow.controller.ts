@@ -5,7 +5,7 @@ import sendResponse from '../../utils/sendResponse';
 import { BorrowService } from './borrow.service';
 
 const createBorrow = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.body.userId ? Number(req.body.userId) : Number(req.user?.userId || req.user?.id);
+  const userId = req.body.userId ? String(req.body.userId) : String(req.user?.userId || req.user?.id);
   const result = await BorrowService.createBorrowInDB(req.body, userId);
 
   sendResponse(res, {
@@ -17,11 +17,11 @@ const createBorrow = catchAsync(async (req: Request, res: Response) => {
 });
 
 const issueBook = catchAsync(async (req: Request, res: Response) => {
-  const shifterId = Number(req.user?.userId || req.user?.id);
+  const shifterId = String(req.user?.userId || req.user?.id);
   const result = await BorrowService.issueBookDirectlyInDB(
     {
       bookId: Number(req.body.bookId),
-      memberId: req.body.memberId ? Number(req.body.memberId) : undefined,
+      memberId: req.body.memberId ? String(req.body.memberId) : undefined,
       studentOrVoterId: req.body.studentOrVoterId,
       memberPhone: req.body.memberPhone,
       memberEmail: req.body.memberEmail,
@@ -41,7 +41,7 @@ const issueBook = catchAsync(async (req: Request, res: Response) => {
 
 const returnBook = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const returnedById = Number(req.user?.userId || req.user?.id);
+  const returnedById = String(req.user?.userId || req.user?.id);
   const result = await BorrowService.returnBookInDB(Number(id), returnedById, req.body);
 
   sendResponse(res, {
@@ -53,7 +53,7 @@ const returnBook = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyBorrows = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number(req.user?.userId || req.user?.id);
+  const userId = String(req.user?.userId || req.user?.id);
   const scopedQuery = { ...req.query, userId: String(userId) };
   const user = {
     userId,
@@ -72,7 +72,7 @@ const getMyBorrows = catchAsync(async (req: Request, res: Response) => {
 
 const approveBorrow = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const approvedById = Number(req.user?.userId || req.user?.id);
+  const approvedById = String(req.user?.userId || req.user?.id);
   const result = await BorrowService.approveBorrowInDB(Number(id), approvedById);
 
   sendResponse(res, {
@@ -97,7 +97,7 @@ const rejectBorrow = catchAsync(async (req: Request, res: Response) => {
 
 const getAllBorrows = catchAsync(async (req: Request, res: Response) => {
   const user = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as string,
   };
   const result = await BorrowService.getAllBorrowsFromDB(req.query, user);

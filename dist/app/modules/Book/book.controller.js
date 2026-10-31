@@ -19,7 +19,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const book_service_1 = require("./book.service");
 const createBook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a;
-    const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) ? Number(req.user.userId) : undefined;
+    const adminId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) ? String(req.user.userId) : undefined;
     const result = yield book_service_1.BookService.createBookIntoDB(req.body, adminId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -165,6 +165,33 @@ const uploadBookImages = (0, catchAsync_1.default)((req, res) => __awaiter(void 
         data: { urls },
     });
 }));
+const bulkUpdateBooks = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield book_service_1.BookService.bulkUpdateBooksInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Books updated in bulk successfully!',
+        data: result,
+    });
+}));
+const bulkArchiveBooks = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield book_service_1.BookService.bulkArchiveBooksInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Books archived/unarchived in bulk successfully!',
+        data: result,
+    });
+}));
+const bulkDeleteBooks = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const result = yield book_service_1.BookService.bulkDeleteBooksInDB(req.body);
+    (0, sendResponse_1.default)(res, {
+        statusCode: http_status_1.default.OK,
+        success: true,
+        message: 'Books deleted in bulk successfully!',
+        data: result,
+    });
+}));
 exports.BookController = {
     createBook,
     getAllBooks,
@@ -175,4 +202,7 @@ exports.BookController = {
     deleteBook,
     uploadBookCover,
     uploadBookImages,
+    bulkUpdateBooks,
+    bulkArchiveBooks,
+    bulkDeleteBooks,
 };

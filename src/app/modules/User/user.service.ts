@@ -20,31 +20,47 @@ import {
   TUpdateMyProfile,
   TRenewMembership,
   TConvertMembership,
+  TBulkUpdateUsers,
+  TBulkDeleteUsers,
+  TCustomNotice,
 } from './user.interface';
 
 const registerMember = async (payload: TRegisterMember) => {
-  if (!payload.email || !payload.phone || !payload.studentOrVoterId) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      'Email, Phone, and Student/Voter ID are mandatory fields!'
-    );
+  if (!payload.name) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Name is a mandatory field!');
   }
 
-  const isExistingUser = await prisma.user.findFirst({
-    where: {
-      OR: [
-        { email: payload.email },
-        { phone: payload.phone },
-        { studentOrVoterId: payload.studentOrVoterId },
-      ],
-    },
-  });
-
-  if (isExistingUser) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Email, phone, or Student/Voter ID already registered!');
+  // Check unique constraints for email and phone if provided
+  if (payload.email) {
+    const existingEmail = await prisma.user.findUnique({
+      where: { email: payload.email },
+    });
+    if (existingEmail) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Email is already registered!');
+    }
   }
 
-  const hashedPassword = await hashPassword(payload.password, config.bcrypt_salt_rounds);
+  if (payload.phone) {
+    const existingPhone = await prisma.user.findUnique({
+      where: { phone: payload.phone },
+    });
+    if (existingPhone) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Phone number is already registered!');
+    }
+  }
+
+  if (payload.studentOrVoterId) {
+    const existingAcademic = await prisma.academicProfile.findUnique({
+      where: { studentOrVoterId: payload.studentOrVoterId },
+    });
+    if (existingAcademic) {
+      throw new AppError(httpStatus.BAD_REQUEST, 'Student / Voter ID is already registered!');
+    }
+  }
+
+  const hashedPassword = payload.password
+    ? await hashPassword(payload.password, config.bcrypt_salt_rounds)
+    : null;
 
   const paymentMethod = payload.paymentMethod || PaymentMethod.CASH;
   
@@ -77,83 +93,109 @@ const registerMember = async (payload: TRegisterMember) => {
     }
   }
 
-  // Auto-set INACTIVE if membership is already expired
-  if (
-    membershipExpiresAt &&
-    new Date(membershipExpiresAt) < new Date() &&
-    initialStatus !== UserStatus.BLOCKED
-  ) {
-    initialStatus = UserStatus.INACTIVE;
-    isPaid = false;
-  }
+  const targetRole = payload.role || UserRole.MEMBER;
+  const targetOrg = payload.org || Organization.RUIL;
 
-  const newUser = await prisma.user.create({
-    data: {
-      name: payload.name,
-      email: payload.email,
-      phone: payload.phone,
-      password: hashedPassword,
-      role: UserRole.MEMBER,
-      status: initialStatus,
-      paymentMethod,
-      isPaid,
-      membershipStartedAt,
-      membershipExpiresAt,
-      studentOrVoterId: payload.studentOrVoterId,
-      institution: payload.institution || null,
-      department: payload.department || null,
-      session: payload.session || null,
-      ...(payload.faculty ||
-      payload.whatsappNumber ||
-      payload.bloodGroup ||
-      (payload.skills && payload.skills.length > 0) ||
-      payload.accommodationType ||
-      payload.accommodationName ||
-      payload.permanentAddress
-        ? {
-            rudcProfile: {
-              create: {
-                faculty: payload.faculty || null,
-                whatsappNumber: payload.whatsappNumber || null,
-                bloodGroup: payload.bloodGroup || null,
-                skills: payload.skills || [],
-                accommodationType: payload.accommodationType || null,
-                accommodationName: payload.accommodationName || null,
-                permanentAddress: payload.permanentAddress || null,
-              },
-            },
-          }
-        : {}),
-    },
-    include: {
-      rudcProfile: true,
-    },
+  const newUser = await prisma.$transaction(async (tx) => {
+    const createdUser = await tx.user.create({
+      data: {
+        name: payload.name,
+        email: payload.email || null,
+        phone: payload.phone || null,
+        password: hashedPassword,
+        role: targetRole,
+        status: initialStatus,
+        gender: payload.gender || null,
+        dateOfBirth: payload.dateOfBirth ? new Date(payload.dateOfBirth) : null,
+        org: targetOrg,
+      },
+    });
+
+    // 1. Create AcademicProfile if student details provided
+    if (payload.studentOrVoterId || payload.department || payload.session || payload.faculty) {
+      await tx.academicProfile.create({
+        data: {
+          userId: createdUser.id,
+          institution: payload.institution || 'University of Rajshahi',
+          faculty: payload.faculty || 'General',
+          department: payload.department || 'General',
+          session: payload.session || '2025-2026',
+          studentOrVoterId: payload.studentOrVoterId || `ID-${createdUser.id}`,
+          bloodGroup: payload.bloodGroup || null,
+          accommodationType: payload.accommodationType || null,
+          accommodationName: payload.accommodationName || null,
+        },
+      });
+    }
+
+    // 2. Create RUIL Profile if targetOrg includes RUIL
+    if (targetOrg === Organization.RUIL || targetOrg === Organization.BOTH) {
+      await tx.ruilMemberProfile.create({
+        data: {
+          userId: createdUser.id,
+          membershipStatus: initialStatus,
+          isPaid,
+          paymentMethod,
+          paymentTrxId: payload.paymentTrxId || null,
+          membershipStartedAt,
+          membershipExpiresAt,
+          maxBorrowLimit: 2,
+        },
+      });
+    }
+
+    // 3. Create RUDC Profile if targetOrg includes RUDC
+    if (targetOrg === Organization.RUDC || targetOrg === Organization.BOTH) {
+      await tx.rudcMemberProfile.create({
+        data: {
+          userId: createdUser.id,
+          whatsappNumber: payload.whatsappNumber || payload.phone || null,
+          skills: payload.skills || [],
+          permanentAddress: payload.permanentAddress || null,
+          rudcMemberType: payload.rudcMemberType || RudcMemberType.VOLUNTEER,
+          rudcStatus: payload.rudcStatus || RudcApplicationStatus.PENDING_REVIEW,
+          rudcJoinedAt: isPaid ? new Date() : null,
+        },
+      });
+    }
+
+    return await tx.user.findUnique({
+      where: { id: createdUser.id },
+      include: {
+        academicProfile: true,
+        ruilProfile: true,
+        rudcProfile: true,
+      },
+    });
   });
 
-  const { password: _, ...userData } = newUser;
+  const { password: _, ...userData } = newUser as any;
   return formatUserWithRudcProfile(userData);
 };
 
-const getAllUsersFromDB = async (query: Record<string, unknown>) => {
-  // Automatically sync expired memberships to INACTIVE status (unless blocked)
-  await prisma.user.updateMany({
-    where: {
-      status: UserStatus.ACTIVE,
-      membershipExpiresAt: {
-        lt: new Date(),
-      },
-    },
-    data: {
-      status: UserStatus.INACTIVE,
-      isPaid: false,
-    },
-  });
+// Bulk Member Registration by Admin/Shifter
+const registerBulkMembersInDB = async (members: TRegisterMember[], targetOrg?: Organization) => {
+  const results = [];
+  for (const member of members) {
+    try {
+      const created = await registerMember({
+        ...member,
+        org: targetOrg || member.org || Organization.RUIL,
+      });
+      results.push({ success: true, email: member.email, data: created });
+    } catch (err: any) {
+      results.push({ success: false, email: member.email, error: err.message });
+    }
+  }
+  return results;
+};
 
+const getAllUsersFromDB = async (query: Record<string, unknown>) => {
   const { org, isRudcMember, ...remainingQuery } = query;
 
   const userQuery = new QueryBuilder(prisma.user, remainingQuery, {
-    searchableFields: ['name', 'email', 'phone', 'studentOrVoterId', 'department', 'institution'],
-    filterableFields: ['role', 'status', 'department', 'session', 'paymentMethod', 'isPaid'],
+    searchableFields: ['name', 'email', 'phone'],
+    filterableFields: ['role', 'status', 'gender'],
   })
     .search()
     .filter()
@@ -186,6 +228,8 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
 
   userQuery.include({
     rudcProfile: true,
+    ruilProfile: true,
+    academicProfile: true,
   });
 
   const result = await userQuery.execute();
@@ -201,10 +245,13 @@ const getAllUsersFromDB = async (query: Record<string, unknown>) => {
   };
 };
 
-const getUserByIdFromDB = async (id: number) => {
+const getUserByIdFromDB = async (id: string) => {
   const user = await prisma.user.findUnique({
     where: { id },
     include: {
+      academicProfile: true,
+      ruilProfile: true,
+      addresses: true,
       rudcProfile: {
         include: {
           supervisor: {
@@ -225,66 +272,33 @@ const getUserByIdFromDB = async (id: number) => {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  // Auto-sync status to INACTIVE if expired
-  if (
-    user.status === UserStatus.ACTIVE &&
-    user.membershipExpiresAt &&
-    new Date(user.membershipExpiresAt) < new Date()
-  ) {
-    const updatedUser = await prisma.user.update({
-      where: { id },
-      data: {
-        status: UserStatus.INACTIVE,
-        isPaid: false,
-      },
-      include: {
-        rudcProfile: {
-          include: {
-            supervisor: {
-              select: {
-                id: true,
-                name: true,
-                email: true,
-                phone: true,
-                avatarUrl: true,
-              },
-            },
-          },
-        },
-      },
-    });
-    const { password: _, ...userData } = updatedUser;
-    return formatUserWithRudcProfile(userData);
-  }
-
   const { password, ...userData } = user;
   return formatUserWithRudcProfile(userData);
 };
 
 const updateUserInDB = async (
-  id: number,
+  id: string,
   payload: TUpdateUser,
-  authUser?: { role: UserRole; userId: number }
+  authUser?: { role: UserRole; userId: string }
 ) => {
   const user = await prisma.user.findUnique({
     where: { id },
+    include: { academicProfile: true, ruilProfile: true, rudcProfile: true },
   });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
   }
 
-  // Shifters are strictly forbidden from modifying user roles (own, other members, or staff)
   if (authUser && authUser.role === UserRole.SHIFTER) {
     if (payload.role !== undefined && payload.role !== user.role) {
       throw new AppError(
         httpStatus.FORBIDDEN,
-        'Shifters are not permitted to change user roles of members, others, or their own!'
+        'Shifters are not permitted to change user roles!'
       );
     }
   }
 
-  // Check uniqueness if email, phone, or studentOrVoterId is modified
   if (payload.email && payload.email !== user.email) {
     const existing = await prisma.user.findFirst({
       where: { email: payload.email, id: { not: id } },
@@ -303,270 +317,163 @@ const updateUserInDB = async (
     }
   }
 
-  if (payload.studentOrVoterId && payload.studentOrVoterId !== user.studentOrVoterId) {
-    const existing = await prisma.user.findFirst({
-      where: { studentOrVoterId: payload.studentOrVoterId, id: { not: id } },
-    });
-    if (existing) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'Student or Voter ID is already registered to another user!');
+  const userUpdateData: Record<string, any> = {};
+  if (payload.name) userUpdateData.name = payload.name;
+  if (payload.email) userUpdateData.email = payload.email;
+  if (payload.phone) userUpdateData.phone = payload.phone;
+  if (payload.avatarUrl) userUpdateData.avatarUrl = payload.avatarUrl;
+  if (payload.gender !== undefined) userUpdateData.gender = payload.gender;
+  if (payload.dateOfBirth !== undefined)
+    userUpdateData.dateOfBirth = payload.dateOfBirth ? new Date(payload.dateOfBirth) : null;
+  if (payload.role) userUpdateData.role = payload.role;
+  if (payload.status) userUpdateData.status = payload.status;
+  if (payload.org) userUpdateData.org = payload.org;
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Update root User
+    if (Object.keys(userUpdateData).length > 0) {
+      await tx.user.update({ where: { id }, data: userUpdateData });
     }
-  }
 
-  const rudcFields: Record<string, any> = {};
-  if (payload.faculty !== undefined) rudcFields.faculty = payload.faculty;
-  if (payload.whatsappNumber !== undefined) rudcFields.whatsappNumber = payload.whatsappNumber;
-  if (payload.bloodGroup !== undefined) rudcFields.bloodGroup = payload.bloodGroup;
-  if (payload.skills !== undefined) rudcFields.skills = payload.skills;
-  if (payload.accommodationType !== undefined) rudcFields.accommodationType = payload.accommodationType;
-  if (payload.accommodationName !== undefined) rudcFields.accommodationName = payload.accommodationName;
-  if (payload.permanentAddress !== undefined) rudcFields.permanentAddress = payload.permanentAddress;
-  if (payload.isRudcMember !== undefined) rudcFields.isRudcMember = payload.isRudcMember;
-  if (payload.rudcMemberType !== undefined) rudcFields.rudcMemberType = payload.rudcMemberType;
-  if (payload.rudcStatus !== undefined) rudcFields.rudcStatus = payload.rudcStatus;
-  if (payload.supervisorId !== undefined) rudcFields.supervisorId = payload.supervisorId;
+    // 2. Update/Upsert AcademicProfile
+    const hasAcademicUpdates =
+      payload.institution ||
+      payload.faculty ||
+      payload.department ||
+      payload.session ||
+      payload.studentOrVoterId ||
+      payload.bloodGroup !== undefined ||
+      payload.accommodationType !== undefined ||
+      payload.accommodationName !== undefined;
 
-  const updateData: Record<string, any> = { ...payload };
+    if (hasAcademicUpdates) {
+      const academicData: Record<string, any> = {};
+      if (payload.institution) academicData.institution = payload.institution;
+      if (payload.faculty) academicData.faculty = payload.faculty;
+      if (payload.department) academicData.department = payload.department;
+      if (payload.session) academicData.session = payload.session;
+      if (payload.studentOrVoterId) academicData.studentOrVoterId = payload.studentOrVoterId;
+      if (payload.bloodGroup !== undefined) academicData.bloodGroup = payload.bloodGroup;
+      if (payload.accommodationType !== undefined) academicData.accommodationType = payload.accommodationType;
+      if (payload.accommodationName !== undefined) academicData.accommodationName = payload.accommodationName;
 
-  // Strip normalized rudc profile fields from top-level user data
-  delete updateData.faculty;
-  delete updateData.whatsappNumber;
-  delete updateData.bloodGroup;
-  delete updateData.skills;
-  delete updateData.accommodationType;
-  delete updateData.accommodationName;
-  delete updateData.permanentAddress;
-  delete updateData.isRudcMember;
-  delete updateData.rudcMemberType;
-  delete updateData.rudcStatus;
-  delete updateData.supervisorId;
-
-  if (Object.keys(rudcFields).length > 0) {
-    updateData.rudcProfile = {
-      upsert: {
+      await tx.academicProfile.upsert({
+        where: { userId: id },
         create: {
-          isRudcMember: rudcFields.isRudcMember ?? true,
-          ...rudcFields,
+          userId: id,
+          faculty: payload.faculty || 'General',
+          department: payload.department || 'General',
+          session: payload.session || '2025-2026',
+          studentOrVoterId: payload.studentOrVoterId || `ID-${id}`,
+          ...academicData,
         },
-        update: rudcFields,
-      },
-    };
-  }
-
-  if (payload.membershipStartedAt !== undefined) {
-    updateData.membershipStartedAt = payload.membershipStartedAt
-      ? new Date(payload.membershipStartedAt)
-      : null;
-  }
-  if (payload.membershipExpiresAt !== undefined) {
-    updateData.membershipExpiresAt = payload.membershipExpiresAt
-      ? new Date(payload.membershipExpiresAt)
-      : null;
-  }
-
-  const effectiveExpiry =
-    updateData.membershipExpiresAt !== undefined
-      ? updateData.membershipExpiresAt
-      : user.membershipExpiresAt;
-
-  const isExpired = effectiveExpiry && new Date(effectiveExpiry) < new Date();
-
-  // Status handling:
-  // 1. If explicitly set to BLOCKED, keep BLOCKED
-  // 2. If user is currently BLOCKED and no status change provided, stay BLOCKED
-  // 3. When membership is expired, status automatically becomes INACTIVE
-  // 4. When membership is active/renewed, status automatically becomes ACTIVE & isPaid = true
-  if (payload.status === UserStatus.BLOCKED) {
-    updateData.status = UserStatus.BLOCKED;
-  } else if (user.status === UserStatus.BLOCKED && payload.status === undefined) {
-    updateData.status = UserStatus.BLOCKED;
-  } else if (isExpired) {
-    updateData.status = UserStatus.INACTIVE;
-    updateData.isPaid = false;
-  } else if (
-    payload.status === UserStatus.ACTIVE ||
-    (user.status === UserStatus.INACTIVE && !isExpired && effectiveExpiry)
-  ) {
-    updateData.status = UserStatus.ACTIVE;
-    updateData.isPaid = true;
-
-    if (!user.membershipStartedAt && !updateData.membershipStartedAt) {
-      const startDate = new Date();
-      const expireDate = new Date(startDate.getTime());
-      expireDate.setFullYear(expireDate.getFullYear() + 1);
-
-      updateData.membershipStartedAt = startDate;
-      updateData.membershipExpiresAt = expireDate;
+        update: academicData,
+      });
     }
-  }
 
-  const updatedUser = await prisma.user.update({
-    where: { id },
-    data: updateData,
-    include: {
-      rudcProfile: {
-        include: {
-          supervisor: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phone: true,
-              avatarUrl: true,
-            },
-          },
-        },
-      },
-    },
-  });
+    // 3. Update/Upsert RuilProfile
+    const hasRuilUpdates =
+      payload.isPaid !== undefined ||
+      payload.paymentMethod !== undefined ||
+      payload.membershipStartedAt !== undefined ||
+      payload.membershipExpiresAt !== undefined ||
+      payload.status !== undefined;
 
-  // If user role was changed or demoted to MEMBER, deactivate their active duty schedules
-  if (updateData.role === UserRole.MEMBER) {
-    await prisma.shifterSchedule.updateMany({
-      where: { shifterId: id },
-      data: { isActive: false },
-    });
-  }
+    if (hasRuilUpdates) {
+      const ruilData: Record<string, any> = {};
+      if (payload.isPaid !== undefined) ruilData.isPaid = payload.isPaid;
+      if (payload.paymentMethod !== undefined) ruilData.paymentMethod = payload.paymentMethod;
+      if (payload.status) ruilData.membershipStatus = payload.status;
+      if (payload.membershipStartedAt) ruilData.membershipStartedAt = new Date(payload.membershipStartedAt);
+      if (payload.membershipExpiresAt) ruilData.membershipExpiresAt = new Date(payload.membershipExpiresAt);
 
-  const { password, ...userData } = updatedUser;
-  return formatUserWithRudcProfile(userData);
-};
-
-const approveCashPaymentInDB = async (userId: number, amount?: number) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
-  }
-
-  const now = new Date();
-  let baseDate = now;
-  if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
-    baseDate = new Date(user.membershipExpiresAt);
-  }
-  const expireDate = new Date(baseDate.getTime());
-
-  // Pricing formula: 3 months = 100 Tk, 6 months = 200 Tk, 12 months = 400 Tk
-  const months = amount ? Math.max(3, Math.round((amount / 100) * 3)) : 12;
-  const membershipAmount = amount || (months / 3) * 100;
-  expireDate.setMonth(expireDate.getMonth() + months);
-  const transactionId = `CASH-MEM-${user.id}-${Date.now()}`;
-
-  const result = await prisma.$transaction(async (tx) => {
-    const updatedUser = await tx.user.update({
-      where: { id: userId },
-      data: {
-        status: UserStatus.ACTIVE,
-        isPaid: true,
-        paymentMethod: PaymentMethod.CASH,
-        membershipStartedAt: user.membershipStartedAt || now,
-        membershipExpiresAt: expireDate,
-      },
-      include: {
-        rudcProfile: true,
-      },
-    });
-
-    const paymentRecord = await tx.payment.create({
-      data: {
-        transactionId,
-        userId,
-        amount: membershipAmount,
-        paymentMethod: PaymentMethod.CASH,
-        status: PaymentStatus.COMPLETED,
-        paidAt: now,
-      },
-    });
-
-    const { password: _, ...userData } = updatedUser;
-    return { user: formatUserWithRudcProfile(userData), payment: paymentRecord };
-  });
-
-  return result;
-};
-
-const updateMyProfileInDB = async (userId: number, payload: TUpdateMyProfile) => {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { rudcProfile: true },
-  });
-
-  if (!user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
-  }
-
-  const safeUserData: Record<string, any> = {};
-  if (payload.name !== undefined) safeUserData.name = payload.name;
-  if (payload.avatarUrl !== undefined) safeUserData.avatarUrl = payload.avatarUrl;
-  if (payload.department !== undefined) safeUserData.department = payload.department;
-  if (payload.session !== undefined) safeUserData.session = payload.session;
-  if (payload.institution !== undefined) safeUserData.institution = payload.institution;
-  if (payload.phone !== undefined) safeUserData.phone = payload.phone;
-
-  const rudcData: Record<string, any> = {};
-  if (payload.faculty !== undefined) rudcData.faculty = payload.faculty;
-  if (payload.whatsappNumber !== undefined) rudcData.whatsappNumber = payload.whatsappNumber;
-  if (payload.bloodGroup !== undefined) rudcData.bloodGroup = payload.bloodGroup;
-  if (payload.skills !== undefined) rudcData.skills = payload.skills;
-  if (payload.accommodationType !== undefined) rudcData.accommodationType = payload.accommodationType;
-  if (payload.accommodationName !== undefined) rudcData.accommodationName = payload.accommodationName;
-  if (payload.permanentAddress !== undefined) rudcData.permanentAddress = payload.permanentAddress;
-
-  // A member can also update their Registered Email and Student / National Voter ID
-  if (payload.email !== undefined && payload.email.trim() && payload.email.trim() !== user.email) {
-    const emailExists = await prisma.user.findFirst({
-      where: { email: payload.email.trim(), id: { not: userId } },
-    });
-    if (emailExists) {
-      throw new AppError(httpStatus.BAD_REQUEST, 'This email address is already in use by another member!');
-    }
-    safeUserData.email = payload.email.trim();
-  }
-
-  if (
-    payload.studentOrVoterId !== undefined &&
-    payload.studentOrVoterId.trim() &&
-    payload.studentOrVoterId.trim() !== user.studentOrVoterId
-  ) {
-    const idExists = await prisma.user.findFirst({
-      where: { studentOrVoterId: payload.studentOrVoterId.trim(), id: { not: userId } },
-    });
-    if (idExists) {
-      throw new AppError(
-        httpStatus.BAD_REQUEST,
-        'This Student or Voter ID is already registered to another member!'
-      );
-    }
-    safeUserData.studentOrVoterId = payload.studentOrVoterId.trim();
-  }
-
-  if (Object.keys(rudcData).length > 0) {
-    safeUserData.rudcProfile = {
-      upsert: {
+      await tx.ruilMemberProfile.upsert({
+        where: { userId: id },
         create: {
+          userId: id,
+          membershipStatus: payload.status || UserStatus.ACTIVE,
+          isPaid: payload.isPaid ?? true,
+          ...ruilData,
+        },
+        update: ruilData,
+      });
+    }
+
+    // 4. Update/Upsert RudcProfile
+    const hasRudcUpdates =
+      payload.whatsappNumber !== undefined ||
+      payload.skills !== undefined ||
+      payload.permanentAddress !== undefined ||
+      payload.isRudcMember !== undefined ||
+      payload.rudcMemberType !== undefined ||
+      payload.rudcStatus !== undefined ||
+      payload.supervisorId !== undefined;
+
+    if (hasRudcUpdates) {
+      const rudcData: Record<string, any> = {};
+      if (payload.whatsappNumber !== undefined) rudcData.whatsappNumber = payload.whatsappNumber;
+      if (payload.skills !== undefined) rudcData.skills = payload.skills;
+      if (payload.permanentAddress !== undefined) rudcData.permanentAddress = payload.permanentAddress;
+      if (payload.isRudcMember !== undefined) rudcData.isRudcMember = payload.isRudcMember;
+      if (payload.rudcMemberType !== undefined) rudcData.rudcMemberType = payload.rudcMemberType;
+      if (payload.rudcStatus !== undefined) rudcData.rudcStatus = payload.rudcStatus;
+      if (payload.supervisorId !== undefined) rudcData.supervisorId = payload.supervisorId;
+
+      await tx.rudcMemberProfile.upsert({
+        where: { userId: id },
+        create: {
+          userId: id,
+          isRudcMember: payload.isRudcMember ?? false,
           ...rudcData,
         },
         update: rudcData,
-      },
-    };
-  }
-
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: safeUserData,
-    include: {
-      rudcProfile: true,
-    },
+      });
+    }
   });
 
-  const { password: _, ...userData } = updatedUser;
-  return formatUserWithRudcProfile(userData);
+  return await getUserByIdFromDB(id);
 };
 
-const renewMembershipInDB = async (userId: number, payload: TRenewMembership) => {
+// Bulk Update Users
+const bulkUpdateUsersInDB = async (payload: TBulkUpdateUsers) => {
+  const { userIds, status, role, org } = payload;
+  const updateData: Record<string, any> = {};
+  if (status) updateData.status = status;
+  if (role) updateData.role = role;
+  if (org) updateData.org = org;
+
+  const result = await prisma.user.updateMany({
+    where: { id: { in: userIds } },
+    data: updateData,
+  });
+
+  return {
+    updatedCount: result.count,
+    message: `${result.count} users updated successfully!`,
+  };
+};
+
+// Bulk Delete Users
+const bulkDeleteUsersInDB = async (payload: TBulkDeleteUsers) => {
+  const { userIds } = payload;
+  const result = await prisma.user.deleteMany({
+    where: { id: { in: userIds } },
+  });
+
+  return {
+    deletedCount: result.count,
+    message: `${result.count} users deleted successfully!`,
+  };
+};
+
+const updateMyProfileInDB = async (userId: string, payload: TUpdateMyProfile) => {
+  return await updateUserInDB(userId, payload);
+};
+
+const approveCashPaymentInDB = async (userId: string, amount?: number) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
+    include: { ruilProfile: true },
   });
 
   if (!user) {
@@ -574,245 +481,90 @@ const renewMembershipInDB = async (userId: number, payload: TRenewMembership) =>
   }
 
   const now = new Date();
-  let baseDate = now;
-  if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
-    baseDate = new Date(user.membershipExpiresAt);
-  }
-  const expireDate = new Date(baseDate.getTime());
+  const expireDate = new Date(now.getTime());
+  expireDate.setFullYear(expireDate.getFullYear() + 1);
 
-  // Pricing formula: 3 months = 100 Tk, 6 months = 200 Tk, 12 months = 400 Tk
-  let monthsToAdd = payload.months;
-  let amount = payload.amount;
-  if (monthsToAdd) {
-    amount = amount || (monthsToAdd / 3) * 100;
-  } else if (amount) {
-    monthsToAdd = Math.max(3, Math.round((amount / 100) * 3));
-  } else {
-    monthsToAdd = 6;
-    amount = 200;
-  }
-
-  expireDate.setMonth(expireDate.getMonth() + monthsToAdd);
-
-  const paymentMethod = payload.paymentMethod || PaymentMethod.CASH;
-  const transactionId = `MEM-RENEW-${user.id}-${Date.now()}`;
-
-  const result = await prisma.$transaction(async (tx) => {
-    const updatedUser = await tx.user.update({
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
       where: { id: userId },
-      data: {
-        status: UserStatus.ACTIVE,
+      data: { status: UserStatus.ACTIVE },
+    });
+
+    await tx.ruilMemberProfile.upsert({
+      where: { userId },
+      create: {
+        userId,
+        membershipStatus: UserStatus.ACTIVE,
         isPaid: true,
-        paymentMethod,
-        membershipStartedAt: user.membershipStartedAt || now,
+        paymentMethod: PaymentMethod.CASH,
+        membershipStartedAt: now,
         membershipExpiresAt: expireDate,
       },
-      include: {
-        rudcProfile: true,
+      update: {
+        membershipStatus: UserStatus.ACTIVE,
+        isPaid: true,
+        paymentMethod: PaymentMethod.CASH,
+        membershipStartedAt: user.ruilProfile?.membershipStartedAt || now,
+        membershipExpiresAt: expireDate,
       },
     });
 
-    const paymentRecord = await tx.payment.create({
+    await tx.payment.create({
       data: {
-        transactionId,
+        transactionId: `CASH-${userId}-${Date.now()}`,
         userId,
-        amount,
-        paymentMethod,
-        status: PaymentStatus.COMPLETED,
+        amount: amount || 200,
+        paymentMethod: PaymentMethod.CASH,
+        status: PaymentStatus.PAID,
         paidAt: now,
       },
     });
-
-    const { password: _, ...userData } = updatedUser;
-    return { user: formatUserWithRudcProfile(userData), payment: paymentRecord };
   });
 
-  return result;
+  return await getUserByIdFromDB(userId);
 };
 
-import { sendMembershipNoticeAlert } from '../../utils/notificationSender';
-
-const sendNoticeToUserInDB = async (
-  userId: number,
-  payload: { subject?: string; message: string }
-) => {
+const renewMembershipInDB = async (userId: string, payload: TRenewMembership) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
+    include: { ruilProfile: true },
   });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User account not found!');
   }
 
-  if (!payload.message || !payload.message.trim()) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Notice message cannot be empty!');
+  const months = payload.months || 6;
+  const now = new Date();
+  let baseDate = now;
+
+  if (user.ruilProfile?.membershipExpiresAt && new Date(user.ruilProfile.membershipExpiresAt) > now) {
+    baseDate = new Date(user.ruilProfile.membershipExpiresAt);
   }
 
-  await sendMembershipNoticeAlert({
-    userName: user.name,
-    userEmail: user.email,
-    userPhone: user.phone,
-    subject: payload.subject || `[Notice from RU Islamic Library] Account Expiry / Inactivity Warning`,
-    message: payload.message,
-    expiryDate: user.membershipExpiresAt,
-    status: user.status,
-  });
+  const expireDate = new Date(baseDate.getTime());
+  expireDate.setMonth(expireDate.getMonth() + months);
 
-  return {
-    success: true,
-    user: {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-    },
-    message: 'Notice alert successfully sent to member via email & mobile log.',
-  };
-};
-
-const deleteUserFromDB = async (userId: number, requestingUserId: number) => {
-  if (userId === requestingUserId) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'You cannot delete your own Super Admin account!');
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-  });
-
-  if (!user) {
-    throw new AppError(httpStatus.NOT_FOUND, 'User account not found!');
-  }
-
-  // Check if member has active borrows before deletion
-  const activeBorrows = await prisma.borrow.count({
-    where: {
+  await prisma.ruilMemberProfile.upsert({
+    where: { userId },
+    create: {
       userId,
-      status: { in: ['PENDING', 'APPROVED', 'OVERDUE'] },
+      membershipStatus: UserStatus.ACTIVE,
+      isPaid: true,
+      membershipStartedAt: now,
+      membershipExpiresAt: expireDate,
+    },
+    update: {
+      membershipStatus: UserStatus.ACTIVE,
+      isPaid: true,
+      membershipExpiresAt: expireDate,
     },
   });
 
-  if (activeBorrows > 0) {
-    throw new AppError(
-      httpStatus.BAD_REQUEST,
-      `Cannot delete user! Member currently has ${activeBorrows} active/overdue book loan(s) that must be returned first.`
-    );
-  }
-
-  // Delete user record from DB
-  return await prisma.user.delete({
-    where: { id: userId },
-  });
+  return await getUserByIdFromDB(userId);
 };
 
-const getUserOptionsFromDB = async () => {
-  const users = await prisma.user.findMany({
-    select: {
-      department: true,
-      session: true,
-      institution: true,
-      rudcProfile: {
-        select: {
-          faculty: true,
-          accommodationName: true,
-          skills: true,
-          permanentAddress: true,
-        },
-      },
-    },
-  });
-
-  const departmentsSet = new Set<string>();
-  const sessionsSet = new Set<string>();
-  const institutionsSet = new Set<string>();
-  const facultiesSet = new Set<string>();
-  const accommodationNamesSet = new Set<string>();
-  const skillsSet = new Set<string>();
-  const villagesSet = new Set<string>();
-
-  users.forEach((u) => {
-    if (u.department?.trim()) departmentsSet.add(u.department.trim());
-    if (u.session?.trim()) sessionsSet.add(u.session.trim());
-    if (u.institution?.trim()) institutionsSet.add(u.institution.trim());
-    if (u.rudcProfile?.faculty?.trim()) facultiesSet.add(u.rudcProfile.faculty.trim());
-    if (u.rudcProfile?.accommodationName?.trim()) accommodationNamesSet.add(u.rudcProfile.accommodationName.trim());
-    if (Array.isArray(u.rudcProfile?.skills)) {
-      u.rudcProfile.skills.forEach((s) => {
-        if (s?.trim()) skillsSet.add(s.trim());
-      });
-    }
-    if (u.rudcProfile?.permanentAddress?.trim()) {
-      try {
-        const parsed = JSON.parse(u.rudcProfile.permanentAddress);
-        if (parsed?.village?.trim()) villagesSet.add(parsed.village.trim());
-      } catch {
-        // Plain text address or non-JSON
-      }
-    }
-  });
-
-  const defaultDepts = [
-    'Islamic Studies', 'Arabic', 'Philosophy', 'History', 'Sociology', 'Social Work', 'Economics',
-    'Accounting & Information Systems', 'Management Studies', 'Marketing', 'Finance & Banking',
-    'Law & Justice', 'International Relations', 'Political Science', 'Public Administration',
-    'Psychology', 'Bangla', 'English', 'Statistics', 'Mathematics', 'Physics', 'Chemistry',
-    'Botany', 'Zoology', 'Pharmacy', 'Computer Science & Engineering',
-    'Information & Communication Engineering', 'Electrical & Electronic Engineering',
-    'Applied Chemistry & Chemical Engineering', 'Materials Science & Engineering',
-    'Geography & Environmental Studies', 'Geology & Mining', 'Agricultural Sciences',
-    'Fisheries', 'Education', 'Physical Education', 'Fine Arts', 'Music', 'Theater',
-  ];
-  defaultDepts.forEach((d) => departmentsSet.add(d));
-
-  const defaultFaculties = [
-    'Faculty of Arts',
-    'Faculty of Law',
-    'Faculty of Science',
-    'Faculty of Business Studies',
-    'Faculty of Social Science',
-    'Faculty of Agriculture',
-    'Faculty of Engineering',
-    'Faculty of Fine Arts',
-    'Faculty of Geosciences',
-    'Faculty of Fisheries',
-    'Faculty of Veterinary and Animal Sciences',
-    'Institute of Bangladesh Studies',
-    'Institute of Biological Sciences',
-  ];
-  defaultFaculties.forEach((f) => facultiesSet.add(f));
-
-  const defaultSessions = [
-    '2016-2017', '2017-2018', '2018-2019', '2019-2020', '2020-2021',
-    '2021-2022', '2022-2023', '2023-2024', '2024-2025', '2025-2026', '2026-2027',
-  ];
-  defaultSessions.forEach((s) => sessionsSet.add(s));
-
-  const defaultAccommodations = [
-    'Shah Makhdum Hall', 'Nawab Abdul Latif Hall', 'Syed Amir Ali Hall',
-    'Shahid Shamsuzzoha Hall', 'Shahid Habibur Rahman Hall', 'Motihar Hall',
-    'Madar Bux Hall', 'Suhrawardy Hall', 'Shahid Ziaur Rahman Hall',
-    'Bangabandhu Sheikh Mujibur Rahman Hall', 'Mannujan Hall', 'Rokeya Hall',
-    'Tapashi Rabeya Hall', 'Begum Khaleda Zia Hall', 'Rahamatunnesa Hall',
-    'Bangamata Sheikh Fazilatunnesa Mujib Hall', 'Resident Area / Mess'
-  ];
-  defaultAccommodations.forEach((a) => accommodationNamesSet.add(a));
-
-  const defaultSkills = [
-    'Dawah & Public Speaking', 'Content Writing', 'Graphic Design',
-    'Video Editing', 'Web Development', 'Event Management', 'Social Media Management',
-    'Photography', 'Recitation (Qirat)', 'Teaching / Mentoring', 'Logistics & Coordination'
-  ];
-  defaultSkills.forEach((s) => skillsSet.add(s));
-
-  return {
-    departments: Array.from(departmentsSet).sort((a, b) => a.localeCompare(b)),
-    faculties: Array.from(facultiesSet).sort((a, b) => a.localeCompare(b)),
-    sessions: Array.from(sessionsSet).sort((a, b) => a.localeCompare(b)),
-    institutions: Array.from(institutionsSet).sort((a, b) => a.localeCompare(b)),
-    accommodationNames: Array.from(accommodationNamesSet).sort((a, b) => a.localeCompare(b)),
-    skills: Array.from(skillsSet).sort((a, b) => a.localeCompare(b)),
-    villages: Array.from(villagesSet).sort((a, b) => a.localeCompare(b)),
-  };
-};
-
+// Enhanced Bulk Conversion Engine
 const convertMembershipInDB = async (payload: TConvertMembership) => {
   const {
     userIds,
@@ -824,7 +576,7 @@ const convertMembershipInDB = async (payload: TConvertMembership) => {
 
   const users = await prisma.user.findMany({
     where: { id: { in: userIds } },
-    include: { rudcProfile: true },
+    include: { rudcProfile: true, ruilProfile: true, academicProfile: true },
   });
 
   if (users.length === 0) {
@@ -834,130 +586,256 @@ const convertMembershipInDB = async (payload: TConvertMembership) => {
   const results = [];
 
   for (const user of users) {
-    const updateData: Record<string, any> = {};
-    let paymentRecord: any = null;
+    const now = new Date();
 
-    if (targetRoleOrOrg === 'MAKE_RUDC_MEMBER') {
-      updateData.rudcProfile = {
-        upsert: {
-          create: {
-            isRudcMember: true,
-            rudcMemberType: RudcMemberType.MEMBER,
-            rudcStatus: RudcApplicationStatus.APPROVED,
-            rudcJoinedAt: new Date(),
+    if (targetRoleOrOrg === 'MAKE_RUDC_MEMBER' || targetRoleOrOrg === 'MAKE_RUDC_VOLUNTEER') {
+      const memberType =
+        targetRoleOrOrg === 'MAKE_RUDC_MEMBER' ? RudcMemberType.MEMBER : RudcMemberType.VOLUNTEER;
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            role: UserRole.MEMBER,
+            org: user.org === Organization.RUIL ? Organization.BOTH : Organization.RUDC,
           },
-          update: {
-            isRudcMember: true,
-            rudcMemberType: RudcMemberType.MEMBER,
-            rudcStatus: RudcApplicationStatus.APPROVED,
-            rudcJoinedAt: user.rudcProfile?.rudcJoinedAt || new Date(),
-          },
-        },
-      };
-      if (user.org === Organization.RUIL) {
-        updateData.org = Organization.BOTH;
-      }
-    } else if (targetRoleOrOrg === 'MAKE_RUDC_VOLUNTEER') {
-      updateData.rudcProfile = {
-        upsert: {
-          create: {
-            isRudcMember: true,
-            rudcMemberType: RudcMemberType.VOLUNTEER,
-            rudcStatus: RudcApplicationStatus.APPROVED,
-            rudcJoinedAt: new Date(),
-          },
-          update: {
-            isRudcMember: true,
-            rudcMemberType: RudcMemberType.VOLUNTEER,
-            rudcStatus: RudcApplicationStatus.APPROVED,
-            rudcJoinedAt: user.rudcProfile?.rudcJoinedAt || new Date(),
-          },
-        },
-      };
-      if (user.org === Organization.RUIL) {
-        updateData.org = Organization.BOTH;
-      }
-    } else if (targetRoleOrOrg === 'MAKE_RUIL_MEMBER') {
-      const now = new Date();
-      const hasActivePaidMembership =
-        user.isPaid &&
-        user.membershipExpiresAt &&
-        new Date(user.membershipExpiresAt) > now;
-
-      if (!hasActivePaidMembership && !confirmPayment) {
-        throw new AppError(
-          httpStatus.BAD_REQUEST,
-          `User "${user.name}" (#${user.id}) does not have an active RUIL paid membership! Please confirm payment to grant RUIL membership.`
-        );
-      }
-
-      if (!hasActivePaidMembership && confirmPayment) {
-        let baseDate = now;
-        if (user.membershipExpiresAt && new Date(user.membershipExpiresAt) > now) {
-          baseDate = new Date(user.membershipExpiresAt);
-        }
-        const expireDate = new Date(baseDate.getTime());
-        expireDate.setMonth(expireDate.getMonth() + (months || 12));
-
-        updateData.isPaid = true;
-        updateData.status = UserStatus.ACTIVE;
-        updateData.paymentMethod = paymentMethod;
-        updateData.membershipStartedAt = user.membershipStartedAt || now;
-        updateData.membershipExpiresAt = expireDate;
-
-        const membershipAmount = ((months || 12) / 3) * 100;
-        const transactionId = `CONVERT-MEM-${user.id}-${Date.now()}`;
-        paymentRecord = {
-          transactionId,
-          userId: user.id,
-          amount: membershipAmount,
-          paymentMethod,
-          status: PaymentStatus.COMPLETED,
-          paidAt: now,
-        };
-      }
-
-      if (user.org === Organization.RUDC) {
-        updateData.org = Organization.BOTH;
-      }
-    }
-
-    const updatedUser = await prisma.$transaction(async (tx) => {
-      const u = await tx.user.update({
-        where: { id: user.id },
-        data: updateData,
-        include: {
-          rudcProfile: true,
-        },
-      });
-
-      if (paymentRecord) {
-        await tx.payment.create({
-          data: paymentRecord,
         });
-      }
 
-      return u;
-    });
+        if (payload.department || payload.session || payload.faculty || payload.studentOrVoterId || !user.academicProfile) {
+          await tx.academicProfile.upsert({
+            where: { userId: user.id },
+            create: {
+              userId: user.id,
+              institution: 'University of Rajshahi',
+              faculty: payload.faculty || 'General',
+              department: payload.department || 'General',
+              session: payload.session || '2025-2026',
+              studentOrVoterId: payload.studentOrVoterId || `ID-${user.id}`,
+            },
+            update: {
+              faculty: payload.faculty || undefined,
+              department: payload.department || undefined,
+              session: payload.session || undefined,
+              studentOrVoterId: payload.studentOrVoterId || undefined,
+            },
+          });
+        }
 
-    const { password: _, ...userData } = updatedUser;
-    results.push(formatUserWithRudcProfile(userData));
+        await tx.rudcMemberProfile.upsert({
+          where: { userId: user.id },
+          create: {
+            userId: user.id,
+            isRudcMember: true,
+            rudcMemberType: memberType,
+            rudcStatus: RudcApplicationStatus.APPROVED,
+            rudcJoinedAt: now,
+          },
+          update: {
+            isRudcMember: true,
+            rudcMemberType: memberType,
+            rudcStatus: RudcApplicationStatus.APPROVED,
+            rudcJoinedAt: user.rudcProfile?.rudcJoinedAt || now,
+          },
+        });
+      });
+      results.push({ userId: user.id, status: 'CONVERTED_TO_RUDC' });
+    } else if (targetRoleOrOrg === 'MAKE_RUIL_MEMBER') {
+      const expireDate = new Date(now.getTime());
+      expireDate.setMonth(expireDate.getMonth() + months);
+
+      await prisma.$transaction(async (tx) => {
+        await tx.user.update({
+          where: { id: user.id },
+          data: {
+            role: UserRole.MEMBER,
+            org: user.org === Organization.RUDC ? Organization.BOTH : Organization.RUIL,
+          },
+        });
+
+        if (payload.department || payload.session || payload.faculty || payload.studentOrVoterId || !user.academicProfile) {
+          await tx.academicProfile.upsert({
+            where: { userId: user.id },
+            create: {
+              userId: user.id,
+              institution: 'University of Rajshahi',
+              faculty: payload.faculty || 'General',
+              department: payload.department || 'General',
+              session: payload.session || '2025-2026',
+              studentOrVoterId: payload.studentOrVoterId || `ID-${user.id}`,
+            },
+            update: {
+              faculty: payload.faculty || undefined,
+              department: payload.department || undefined,
+              session: payload.session || undefined,
+              studentOrVoterId: payload.studentOrVoterId || undefined,
+            },
+          });
+        }
+
+        await tx.ruilMemberProfile.upsert({
+          where: { userId: user.id },
+          create: {
+            userId: user.id,
+            membershipStatus: UserStatus.ACTIVE,
+            isPaid: confirmPayment,
+            paymentMethod,
+            membershipStartedAt: now,
+            membershipExpiresAt: expireDate,
+          },
+          update: {
+            membershipStatus: UserStatus.ACTIVE,
+            isPaid: confirmPayment || user.ruilProfile?.isPaid || false,
+            membershipExpiresAt: expireDate,
+          },
+        });
+      });
+      results.push({ userId: user.id, status: 'CONVERTED_TO_RUIL' });
+    } else if (targetRoleOrOrg === 'MAKE_GENERAL_USER') {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { role: UserRole.GENERAL_USER },
+      });
+      results.push({ userId: user.id, status: 'CONVERTED_TO_GENERAL_USER' });
+    }
   }
 
   return results;
 };
 
+// CMS-Style Customizable Email Notice Dispatcher
+const sendCustomNoticeInDB = async (payload: TCustomNotice) => {
+  const { userIds, recipients, subject, htmlContent } = payload;
+  const { sendEmail, compileEmailTemplate } = await import('../../utils/emailSender');
+
+  const recipientsList: { email: string; name?: string }[] = [];
+
+  if (userIds && userIds.length > 0) {
+    const users = await prisma.user.findMany({
+      where: { id: { in: userIds } },
+      select: { email: true, name: true },
+    });
+    users.forEach((u) => {
+      if (u.email) recipientsList.push({ email: u.email, name: u.name });
+    });
+  }
+
+  if (recipients && recipients.length > 0) {
+    recipients.forEach((email) => {
+      if (!recipientsList.some((r) => r.email === email)) {
+        recipientsList.push({ email, name: 'Member' });
+      }
+    });
+  }
+
+  let successCount = 0;
+  for (const item of recipientsList) {
+    const personalizedHtml = compileEmailTemplate(htmlContent, {
+      name: item.name || 'Member',
+    });
+    const personalizedSubject = compileEmailTemplate(subject, {
+      name: item.name || 'Member',
+    });
+
+    const success = await sendEmail({
+      to: item.email,
+      subject: personalizedSubject,
+      html: personalizedHtml,
+    });
+    if (success) successCount++;
+  }
+
+  return {
+    totalRecipients: recipientsList.length,
+    sentSuccessfully: successCount,
+  };
+};
+
+const getEmailNoticeTemplatesInDB = async () => {
+  const { DefaultEmailTemplates } = await import('../../utils/emailSender');
+  return DefaultEmailTemplates;
+};
+
+const sendNoticeToUserInDB = async (userId: string, payload: { subject?: string; message?: string }) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user || !user.email) {
+    throw new AppError(httpStatus.NOT_FOUND, 'User email not found!');
+  }
+
+  return await sendCustomNoticeInDB({
+    recipients: [user.email],
+    subject: payload.subject || '[Notice from RU Islamic Library]',
+    htmlContent: `<p>${payload.message || 'Important update regarding your account.'}</p>`,
+  });
+};
+
+const deleteUserFromDB = async (userId: string, requestingUserId: string) => {
+  if (userId === requestingUserId) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'You cannot delete your own account!');
+  }
+
+  return await prisma.user.delete({
+    where: { id: userId },
+  });
+};
+
+const getUserOptionsFromDB = async () => {
+  const [departments, sessions, faculties] = await Promise.all([
+    prisma.academicProfile.findMany({ distinct: ['department'], select: { department: true } }),
+    prisma.academicProfile.findMany({ distinct: ['session'], select: { session: true } }),
+    prisma.academicProfile.findMany({ distinct: ['faculty'], select: { faculty: true } }),
+  ]);
+
+  return {
+    departments: departments.map((d) => d.department).filter(Boolean),
+    sessions: sessions.map((s) => s.session).filter(Boolean),
+    faculties: faculties.map((f) => f.faculty).filter(Boolean),
+  };
+};
+
+// Public Member Counts for Landing Page (Unauthenticated)
+const getPublicStatsInDB = async () => {
+  const [activeRuilMembers, approvedRudcMembers, totalBooks, totalArticles] = await Promise.all([
+    prisma.ruilMemberProfile.count({
+      where: { membershipStatus: UserStatus.ACTIVE },
+    }),
+    prisma.rudcMemberProfile.count({
+      where: { rudcStatus: RudcApplicationStatus.APPROVED },
+    }),
+    prisma.book.count({
+      where: { isArchived: false },
+    }),
+    prisma.article.count({
+      where: { isPublished: true },
+    }),
+  ]);
+
+  return {
+    ruilMembersCount: activeRuilMembers,
+    rudcMembersCount: approvedRudcMembers,
+    totalBooksCount: totalBooks,
+    totalArticlesCount: totalArticles,
+  };
+};
+
 export const UserService = {
   registerMember,
+  registerBulkMembersInDB,
   getAllUsersFromDB,
   getUserByIdFromDB,
   getUserOptionsFromDB,
   updateUserInDB,
   updateMyProfileInDB,
+  approveCashPaymentInDB,
   renewMembershipInDB,
   convertMembershipInDB,
-  approveCashPaymentInDB,
+  bulkUpdateUsersInDB,
+  bulkDeleteUsersInDB,
+  sendCustomNoticeInDB,
+  getEmailNoticeTemplatesInDB,
   sendNoticeToUserInDB,
   deleteUserFromDB,
+  getPublicStatsInDB,
 };
-

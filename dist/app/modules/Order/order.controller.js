@@ -18,7 +18,7 @@ const catchAsync_1 = __importDefault(require("../../utils/catchAsync"));
 const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const order_service_1 = require("./order.service");
 const createOrder = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = req.user ? Number(req.user.userId) : undefined;
+    const userId = req.user ? String(req.user.userId) : undefined;
     const result = yield order_service_1.OrderService.createOrderInDB(req.body, userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -38,8 +38,8 @@ const getAllOrders = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
     });
 }));
 const getOrderById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const result = yield order_service_1.OrderService.getOrderByIdFromDB(Number(id));
+    const id = req.params.id;
+    const result = yield order_service_1.OrderService.getOrderByIdFromDB(id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -48,7 +48,7 @@ const getOrderById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
     });
 }));
 const trackOrderByCode = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { orderCode } = req.params;
+    const orderCode = req.params.orderCode;
     const result = yield order_service_1.OrderService.trackOrderByCodeFromDB(String(orderCode));
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -58,7 +58,7 @@ const trackOrderByCode = (0, catchAsync_1.default)((req, res) => __awaiter(void 
     });
 }));
 const getMyOrders = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = Number(req.user.userId);
+    const userId = String(req.user.userId);
     const result = yield order_service_1.OrderService.getMyOrdersFromDB(userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -68,8 +68,8 @@ const getMyOrders = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
     });
 }));
 const updateOrderStatus = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const result = yield order_service_1.OrderService.updateOrderStatusInDB(Number(id), req.body);
+    const id = req.params.id;
+    const result = yield order_service_1.OrderService.updateOrderStatusInDB(id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -78,8 +78,8 @@ const updateOrderStatus = (0, catchAsync_1.default)((req, res) => __awaiter(void
     });
 }));
 const verifyOrderPayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const result = yield order_service_1.OrderService.verifyPaymentInDB(Number(id), req.body);
+    const id = req.params.id;
+    const result = yield order_service_1.OrderService.verifyPaymentInDB(id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -88,8 +88,8 @@ const verifyOrderPayment = (0, catchAsync_1.default)((req, res) => __awaiter(voi
     });
 }));
 const dispatchCourier = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const result = yield order_service_1.OrderService.dispatchCourierInDB(Number(id), req.body);
+    const id = req.params.id;
+    const result = yield order_service_1.OrderService.dispatchCourierInDB(id, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -99,8 +99,8 @@ const dispatchCourier = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
 }));
 const verifyDeliveryOtp = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { otp, orderId, trackingNumber } = req.body;
-    const paramId = req.params.id ? Number(req.params.id) : undefined;
-    const result = yield order_service_1.OrderService.verifyDeliveryOtpInDB({ orderId: paramId || (orderId ? Number(orderId) : undefined), trackingNumber }, otp);
+    const paramId = req.params.id ? String(req.params.id) : undefined;
+    const result = yield order_service_1.OrderService.verifyDeliveryOtpInDB({ orderId: paramId || (orderId ? String(orderId) : undefined), trackingNumber }, otp);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -109,11 +109,11 @@ const verifyDeliveryOtp = (0, catchAsync_1.default)((req, res) => __awaiter(void
     });
 }));
 const cancelOrder = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    const userId = req.user ? Number(req.user.userId) : undefined;
+    const id = req.params.id;
+    const userId = req.user ? String(req.user.userId) : undefined;
     const userRole = req.user ? req.user.role : undefined;
     const isStaff = ['SUPER_ADMIN', 'ADMIN', 'SHIFTER'].includes(userRole);
-    const result = yield order_service_1.OrderService.cancelOrderInDB(Number(id), userId, isStaff);
+    const result = yield order_service_1.OrderService.cancelOrderInDB(id, userId, isStaff);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -122,8 +122,8 @@ const cancelOrder = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
     });
 }));
 const deleteOrder = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { id } = req.params;
-    yield order_service_1.OrderService.deleteOrderInDB(Number(id));
+    const id = req.params.id;
+    yield order_service_1.OrderService.deleteOrderInDB(id);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

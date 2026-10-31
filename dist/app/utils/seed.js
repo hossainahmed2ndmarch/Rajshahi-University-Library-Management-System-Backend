@@ -79,7 +79,6 @@ function seedSuperAdmin() {
                 phone: SUPER_ADMIN_CONFIG.phone,
                 role: client_1.UserRole.SUPER_ADMIN,
                 status: client_1.UserStatus.ACTIVE,
-                isPaid: true,
             },
             create: {
                 name: SUPER_ADMIN_CONFIG.name,
@@ -88,9 +87,22 @@ function seedSuperAdmin() {
                 password: hashedPassword,
                 role: client_1.UserRole.SUPER_ADMIN,
                 status: client_1.UserStatus.ACTIVE,
-                studentOrVoterId: SUPER_ADMIN_CONFIG.identifier,
-                isPaid: true,
-                membershipStartedAt: new Date(),
+                academicProfile: {
+                    create: {
+                        institution: 'University of Rajshahi',
+                        faculty: 'Administration',
+                        department: 'Executive Office',
+                        session: '2024-2025',
+                        studentOrVoterId: SUPER_ADMIN_CONFIG.identifier,
+                    },
+                },
+                ruilProfile: {
+                    create: {
+                        isPaid: true,
+                        membershipStatus: client_1.UserStatus.ACTIVE,
+                        membershipStartedAt: new Date(),
+                    },
+                },
             },
         });
         console.log('--------------------------------------------------');
@@ -156,9 +168,6 @@ function seedSampleUsers() {
                     phone: u.phone,
                     role: u.role,
                     status: u.status,
-                    isPaid: u.isPaid,
-                    department: u.department,
-                    institution: u.institution,
                 },
                 create: {
                     name: u.name,
@@ -167,12 +176,23 @@ function seedSampleUsers() {
                     password: hashedPassword,
                     role: u.role,
                     status: u.status,
-                    studentOrVoterId: u.studentOrVoterId,
-                    department: u.department,
-                    institution: u.institution,
-                    isPaid: u.isPaid,
-                    membershipStartedAt: startDate,
-                    membershipExpiresAt: expireDate,
+                    academicProfile: {
+                        create: {
+                            institution: u.institution,
+                            faculty: 'General',
+                            department: u.department,
+                            session: '2024-2025',
+                            studentOrVoterId: u.studentOrVoterId,
+                        },
+                    },
+                    ruilProfile: {
+                        create: {
+                            isPaid: u.isPaid,
+                            membershipStatus: u.status,
+                            membershipStartedAt: startDate,
+                            membershipExpiresAt: expireDate,
+                        },
+                    },
                 },
             });
         }
@@ -357,13 +377,19 @@ function seedBooks(adminId) {
             const existingBook = yield prisma.book.findUnique({
                 where: { isbn: book.isbn },
             });
+            const bookSlug = book.title
+                .toLowerCase()
+                .replace(/[^a-z0-9\s-]/g, '')
+                .replace(/\s+/g, '-')
+                .slice(0, 60) + '-' + book.isbn.toLowerCase().replace(/[^a-z0-9]/g, '').slice(-6);
             if (existingBook) {
                 yield prisma.book.update({
                     where: { id: existingBook.id },
                     data: {
                         title: book.title,
+                        slug: existingBook.slug || bookSlug,
                         locationCell: book.locationCell,
-                        category: book.category,
+                        categories: [book.category],
                         publisherId: (publisherRecord === null || publisherRecord === void 0 ? void 0 : publisherRecord.id) || null,
                         pages: book.pages,
                         type: book.type,
@@ -397,9 +423,10 @@ function seedBooks(adminId) {
                 yield prisma.book.create({
                     data: {
                         title: book.title,
+                        slug: bookSlug,
                         isbn: book.isbn,
                         locationCell: book.locationCell,
-                        category: book.category,
+                        categories: [book.category],
                         publisherId: (publisherRecord === null || publisherRecord === void 0 ? void 0 : publisherRecord.id) || null,
                         pages: book.pages,
                         type: book.type,

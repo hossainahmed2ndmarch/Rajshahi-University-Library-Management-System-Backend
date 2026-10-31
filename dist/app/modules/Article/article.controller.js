@@ -20,7 +20,7 @@ const article_service_1 = require("./article.service");
 const createArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const requestingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)
-        ? Number(req.user.userId || req.user.id)
+        ? String(req.user.userId || req.user.id)
         : undefined;
     const result = yield article_service_1.ArticleService.createArticleIntoDB(req.body, requestingUserId);
     (0, sendResponse_1.default)(res, {
@@ -33,7 +33,7 @@ const createArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
 const submitArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const requestingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)
-        ? Number(req.user.userId || req.user.id)
+        ? String(req.user.userId || req.user.id)
         : undefined;
     const result = yield article_service_1.ArticleService.submitArticleIntoDB(req.body, requestingUserId);
     (0, sendResponse_1.default)(res, {

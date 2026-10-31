@@ -16,6 +16,8 @@ const loginUser = async (payload: TLoginUser) => {
     },
     include: {
       rudcProfile: true,
+      ruilProfile: true,
+      academicProfile: true,
     },
   });
 
@@ -26,7 +28,14 @@ const loginUser = async (payload: TLoginUser) => {
   if (user.status === UserStatus.BLOCKED) {
     throw new AppError(
       httpStatus.FORBIDDEN,
-      'Your account has been blocked by library administration. Please contact the desk.'
+      'Your account has been blocked by administration. Please contact the desk.'
+    );
+  }
+
+  if (!user.password) {
+    throw new AppError(
+      httpStatus.BAD_REQUEST,
+      'This account was created via social/mobile login. Please log in with Google or your phone OTP.'
     );
   }
 
@@ -36,25 +45,26 @@ const loginUser = async (payload: TLoginUser) => {
     throw new AppError(httpStatus.UNAUTHORIZED, 'Password does not match!');
   }
 
-  // If active user membership has expired, automatically sync status to INACTIVE
+  // If active user library membership has expired, automatically sync status to INACTIVE
   let currentStatus = user.status;
-  let isPaid = user.isPaid;
+  let isPaid = user.ruilProfile?.isPaid || false;
   if (
-    user.status === UserStatus.ACTIVE &&
-    user.membershipExpiresAt &&
-    new Date(user.membershipExpiresAt) < new Date()
+    user.ruilProfile &&
+    user.ruilProfile.membershipStatus === UserStatus.ACTIVE &&
+    user.ruilProfile.membershipExpiresAt &&
+    new Date(user.ruilProfile.membershipExpiresAt) < new Date()
   ) {
     currentStatus = UserStatus.INACTIVE;
     isPaid = false;
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { status: UserStatus.INACTIVE, isPaid: false },
+    await prisma.ruilMemberProfile.update({
+      where: { userId: user.id },
+      data: { membershipStatus: UserStatus.INACTIVE, isPaid: false },
     });
   }
 
   const jwtPayload = {
     userId: user.id,
-    email: user.email,
+    email: user.email || '',
     role: user.role,
     status: currentStatus,
   };
@@ -72,8 +82,8 @@ const loginUser = async (payload: TLoginUser) => {
   );
 
   const { password: _, ...userData } = user;
-  userData.status = currentStatus;
-  userData.isPaid = isPaid;
+  (userData as any).status = currentStatus;
+  (userData as any).isPaid = isPaid;
 
   return {
     accessToken,
@@ -105,14 +115,13 @@ const refreshToken = async (token: string) => {
     throw new AppError(httpStatus.FORBIDDEN, 'User account has been suspended!');
   }
 
-  // INACTIVE users with RUDC org can still refresh their tokens to access the dashboard
   if (user.status === 'INACTIVE' && user.org !== 'RUDC' && user.org !== 'BOTH') {
     throw new AppError(httpStatus.FORBIDDEN, 'User account is not active!');
   }
 
   const jwtPayload = {
     userId: user.id,
-    email: user.email,
+    email: user.email || '',
     role: user.role,
     status: user.status,
   };
@@ -131,12 +140,16 @@ const refreshToken = async (token: string) => {
 const changePassword = async (authUser: JwtPayload, payload: TChangePassword) => {
   const user = await prisma.user.findUnique({
     where: {
-      id: Number(authUser.userId),
+      id: String(authUser.userId),
     },
   });
 
   if (!user) {
     throw new AppError(httpStatus.NOT_FOUND, 'User not found!');
+  }
+
+  if (!user.password) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Please set a password using forgot/reset password first!');
   }
 
   const isPasswordMatched = await comparePassword(payload.oldPassword, user.password);
@@ -178,7 +191,7 @@ const forgotPassword = async (payload: { email: string }) => {
 
   const jwtPayload = {
     userId: user.id,
-    email: user.email,
+    email: user.email || '',
     role: user.role,
   };
 
@@ -217,7 +230,7 @@ const forgotPassword = async (payload: { email: string }) => {
 
   const { sendEmail } = await import('../../utils/emailSender');
   await sendEmail({
-    to: user.email,
+    to: user.email || '',
     subject: '[RU Islamic Library] Reset Your Password',
     html: emailHtml,
     text: `Assalamu Alaikum ${user.name}, please reset your password using this link: ${resetLink}`,
@@ -230,7 +243,7 @@ const forgotPassword = async (payload: { email: string }) => {
 
 const resetPassword = async (
   token: string,
-  payload: { id: number; newPassword: string }
+  payload: { id: string; newPassword: string }
 ) => {
   const user = await prisma.user.findUnique({
     where: {

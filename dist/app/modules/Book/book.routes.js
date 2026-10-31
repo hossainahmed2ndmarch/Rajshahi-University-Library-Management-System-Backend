@@ -20,6 +20,10 @@ router.post('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.Use
 router.get('/', book_controller_1.BookController.getAllBooks);
 router.get('/categories', book_controller_1.BookController.getBookCategories);
 router.get('/options', book_controller_1.BookController.getBookOptions);
+// Bulk actions for Admin / Shifter
+router.patch('/bulk-update', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), book_controller_1.BookController.bulkUpdateBooks);
+router.post('/bulk-archive', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), book_controller_1.BookController.bulkArchiveBooks);
+router.post('/bulk-delete', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), book_controller_1.BookController.bulkDeleteBooks);
 router.get('/:id', book_controller_1.BookController.getBookById);
 router.patch('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), (0, validateRequest_1.default)(book_validation_1.BookValidation.updateBookValidationSchema), book_controller_1.BookController.updateBook);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), book_controller_1.BookController.deleteBook);

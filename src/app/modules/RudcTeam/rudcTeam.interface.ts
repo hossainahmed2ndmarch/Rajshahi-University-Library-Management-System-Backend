@@ -5,6 +5,6 @@ export type TRudcTeamPayload = {
 
 export type TAssignTeamMembersPayload = {
   teamId: number;
-  userIds: number[];
+  userIds: string[];
   role?: string;
 };

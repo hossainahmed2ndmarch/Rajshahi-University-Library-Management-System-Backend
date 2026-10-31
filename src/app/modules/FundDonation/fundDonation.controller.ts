@@ -7,7 +7,7 @@ import { FundDonationService } from './fundDonation.service';
 import { PaymentStatus } from '@prisma/client';
 
 const initiateDonation = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user?.userId || req.user?.id ? Number(req.user?.userId || req.user?.id) : undefined;
+  const userId = req.user?.userId || req.user?.id ? String(req.user?.userId || req.user?.id) : undefined;
   const result = await FundDonationService.initiateOnlineDonation(req.body, userId);
 
   sendResponse(res, {
@@ -76,7 +76,7 @@ const handleIPN = catchAsync(async (req: Request, res: Response) => {
 });
 
 const createManualDonation = catchAsync(async (req: Request, res: Response) => {
-  const actingUserId = req.user?.userId || req.user?.id ? Number(req.user?.userId || req.user?.id) : undefined;
+  const actingUserId = req.user?.userId || req.user?.id ? String(req.user?.userId || req.user?.id) : undefined;
   const result = await FundDonationService.createManualDonation(req.body, actingUserId);
 
   sendResponse(res, {

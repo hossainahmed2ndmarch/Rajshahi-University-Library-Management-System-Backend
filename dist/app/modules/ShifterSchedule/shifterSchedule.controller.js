@@ -46,7 +46,7 @@ const getTodaySchedule = (0, catchAsync_1.default)((req, res) => __awaiter(void 
 }));
 const getMySchedule = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const shifterId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const shifterId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield shifterSchedule_service_1.ShifterScheduleService.getMyScheduleFromDB(shifterId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,

@@ -24,11 +24,11 @@ model Donation {
   pickupAddress String? @db.Text
 
   // Relations to User 
-  donorId Int?
-  donor   User? @relation("UserDonations", fields: [donorId], references: [id], onDelete: SetNull)
+  donorId String?
+  donor   User?   @relation("UserDonations", fields: [donorId], references: [id], onDelete: SetNull)
 
-  receivedById Int?
-  receivedBy   User? @relation("ReceivedDonations", fields: [receivedById], references: [id], onDelete: SetNull)
+  receivedById String?
+  receivedBy   User?   @relation("ReceivedDonations", fields: [receivedById], references: [id], onDelete: SetNull)
 
   // Auto-Cataloging Relation (Links donation to the generated Book entry)
   catalogedBookId Int?

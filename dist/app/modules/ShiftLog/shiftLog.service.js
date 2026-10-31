@@ -39,7 +39,7 @@ const resolveRecipients = (currentUserId, targetRecipients) => __awaiter(void 0,
         whereClause.role = client_1.UserRole.SUPER_ADMIN;
     }
     else if (Array.isArray(targetRecipients)) {
-        const ids = targetRecipients.map((id) => Number(id)).filter((id) => !isNaN(id));
+        const ids = targetRecipients.map((id) => String(id)).filter(Boolean);
         if (ids.length > 0) {
             whereClause.id = { in: ids, not: currentUserId };
         }

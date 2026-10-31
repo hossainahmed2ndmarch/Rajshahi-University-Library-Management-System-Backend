@@ -19,7 +19,11 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const donation_service_1 = require("./donation.service");
 const createDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const donorId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) ? Number(req.user.userId) : (((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) ? Number(req.user.id) : undefined);
+    const donorId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId)
+        ? String(req.user.userId)
+        : ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)
+            ? String(req.user.id)
+            : undefined;
     const result = yield donation_service_1.DonationService.createDonationInDB(req.body, donorId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -31,7 +35,7 @@ const createDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 const approveDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const { id } = req.params;
-    const adminId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const adminId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield donation_service_1.DonationService.approveDonationInDB(Number(id), adminId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -53,7 +57,7 @@ const rejectDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 const convertDonationToStock = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const { id } = req.params;
-    const adminId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const adminId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield donation_service_1.DonationService.convertDonationToStock(Number(id), req.body, adminId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -65,7 +69,7 @@ const convertDonationToStock = (0, catchAsync_1.default)((req, res) => __awaiter
 const getAllDonations = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const user = req.user
         ? {
-            userId: Number(req.user.userId || req.user.id),
+            userId: String(req.user.userId || req.user.id),
             role: req.user.role,
             email: req.user.email,
         }
@@ -81,7 +85,7 @@ const getAllDonations = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
 }));
 const createPOSDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const shifterId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const shifterId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield donation_service_1.DonationService.createPOSDonationInDB(req.body, shifterId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,

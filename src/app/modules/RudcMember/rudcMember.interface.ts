@@ -28,7 +28,7 @@ export type TRudcApplyPayload = {
 export type TUpdateRudcMemberPayload = {
   rudcMemberType?: RudcMemberType;
   rudcStatus?: RudcApplicationStatus;
-  supervisorId?: number | null;
+  supervisorId?: string | null;
   department?: string;
   faculty?: string;
   whatsappNumber?: string;
@@ -44,7 +44,7 @@ export type TUpdateRudcMemberPayload = {
 };
 
 export type TSendInterviewEmailPayload = {
-  userIds: number[];
+  userIds: string[];
   interviewDate: string;
   interviewTime?: string;
   venueOrLink: string;
@@ -72,7 +72,7 @@ export type TCreatePreExistedRudcMemberPayload = {
   otherOrgName?: string | null;
   rudcMemberType?: RudcMemberType;
   rudcStatus?: RudcApplicationStatus;
-  supervisorId?: number | null;
+  supervisorId?: string | null;
   rudcJoinedAt?: string;
   teamIds?: number[];
   org?: Organization;

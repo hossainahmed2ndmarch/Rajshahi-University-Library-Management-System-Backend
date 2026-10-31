@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import { toNodeHandler } from 'better-auth/node';
+import betterAuthInstance from '../../lib/auth';
 import { AuthRoutes } from '../modules/Auth/auth.routes';
 import { UserRoutes } from '../modules/User/user.routes';
 import { BookRoutes } from '../modules/Book/book.routes';
@@ -28,6 +30,9 @@ import { OrderRoutes } from '../modules/Order/order.routes';
 import { BkashRoutes } from '../modules/Bkash/bkash.routes';
 
 const router = Router();
+
+// Better Auth Master Handler (Express 5 wildcard syntax)
+router.all('/auth/better{/*splat}', toNodeHandler(betterAuthInstance));
 
 type TModuleRoute = {
   path: string;

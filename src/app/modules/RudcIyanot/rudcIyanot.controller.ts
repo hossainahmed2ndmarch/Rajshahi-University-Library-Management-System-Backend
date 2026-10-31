@@ -7,7 +7,7 @@ import { RudcIyanotService } from './rudcIyanot.service';
 const getRudcIyanotRecords = catchAsync(async (req: Request, res: Response) => {
   const reqUser = (req as any).user;
   const user = {
-    id: Number(reqUser?.userId || reqUser?.id),
+    id: String(reqUser?.userId || reqUser?.id),
     role: reqUser?.role,
   };
   const result = await RudcIyanotService.getRudcIyanotRecords(req.query, user);
@@ -24,7 +24,7 @@ const getRudcIyanotRecords = catchAsync(async (req: Request, res: Response) => {
 const recordIyanotPayment = catchAsync(async (req: Request, res: Response) => {
   const reqUser = (req as any).user;
   const actingUser = {
-    id: Number(reqUser?.userId || reqUser?.id),
+    id: String(reqUser?.userId || reqUser?.id),
     role: reqUser?.role,
   };
   const result = await RudcIyanotService.recordIyanotPayment(req.body, actingUser);
@@ -41,7 +41,7 @@ const updateIyanotStatus = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const reqUser = (req as any).user;
   const actingUser = {
-    id: Number(reqUser?.userId || reqUser?.id),
+    id: String(reqUser?.userId || reqUser?.id),
     role: reqUser?.role,
   };
   const result = await RudcIyanotService.updateIyanotStatus(Number(id), req.body, actingUser);

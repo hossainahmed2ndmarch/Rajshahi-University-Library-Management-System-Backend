@@ -38,7 +38,7 @@ const getTodaySchedule = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMySchedule = catchAsync(async (req: Request, res: Response) => {
-  const shifterId = Number(req.user?.userId || req.user?.id);
+  const shifterId = String(req.user?.userId || req.user?.id);
   const result = await ShifterScheduleService.getMyScheduleFromDB(shifterId);
 
   sendResponse(res, {

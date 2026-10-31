@@ -37,6 +37,25 @@ router.get('/categories', BookController.getBookCategories);
 
 router.get('/options', BookController.getBookOptions);
 
+// Bulk actions for Admin / Shifter
+router.patch(
+  '/bulk-update',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER),
+  BookController.bulkUpdateBooks
+);
+
+router.post(
+  '/bulk-archive',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  BookController.bulkArchiveBooks
+);
+
+router.post(
+  '/bulk-delete',
+  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  BookController.bulkDeleteBooks
+);
+
 router.get('/:id', BookController.getBookById);
 
 router.patch(

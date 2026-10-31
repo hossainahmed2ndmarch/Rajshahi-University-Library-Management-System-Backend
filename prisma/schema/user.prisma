@@ -1,47 +1,54 @@
-// Model User 
+// Model User (Root Identity & Better-Auth Compatible)
 
 model User {
-  id       Int          @id @default(autoincrement())
-  email    String       @unique
-  phone    String       @unique
-  password String
-  role     UserRole     @default(MEMBER)
-  status   UserStatus   @default(PENDING_APPROVAL)
-  org      Organization @default(RUIL)
+  id            String  @id @default(cuid())
+  name          String
+  email         String? @unique
+  emailVerified Boolean @default(false)
+  phone         String? @unique
+  phoneVerified Boolean @default(false)
+  password      String?
+  avatarUrl     String?
 
-  // Profile Details
-  name             String
-  avatarUrl        String?
-  studentOrVoterId String  @unique
-  institution      String?
-  department       String?
-  session          String?
+  // Personal Demographics
+  gender      Gender?
+  dateOfBirth DateTime? @db.Date
 
-  // Membership Payment & Window
-  paymentMethod       PaymentMethod?
-  isPaid              Boolean        @default(false)
-  membershipStartedAt DateTime?
-  membershipExpiresAt DateTime?
+  // RBAC & Lifecycle
+  role   UserRole     @default(GENERAL_USER)
+  status UserStatus   @default(ACTIVE)
+  org    Organization @default(RUIL)
 
-  // 1:1 RUDC Profile Extension
-  rudcProfile         RudcMemberProfile?
-  supervisedMembers   RudcMemberProfile[] @relation("SupervisorVolunteers")
+  // 1:1 Unified Academic Profile (Shared by RUIL & RUDC members)
+  academicProfile AcademicProfile?
+
+  // Organization Specific Profiles
+  ruilProfile       RuilMemberProfile?
+  rudcProfile       RudcMemberProfile?
+  supervisedMembers RudcMemberProfile[] @relation("SupervisorVolunteers")
+
+  // E-Commerce Delivery Address Book
+  addresses UserAddress[]
+
+  // Better-Auth Relations
+  sessions Session[]
+  accounts Account[]
 
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   // Relation Arrays (1:N)
-  booksAdded          Book[]              @relation("BooksAdded")
-  authorProfile        Author?            @relation("UserAuthorProfile")
-  booksDonated        Book[]              @relation("BooksDonated")
-  fundDonations       FundDonation[]      @relation("UserFundDonations")
-  borrows             Borrow[]            @relation("UserBorrows")
-  approvedBorrows     Borrow[]            @relation("ApprovedBorrows")
-  returnedBorrows     Borrow[]            @relation("ReturnedBorrows")
-  purchases           Purchase[]          @relation("UserPurchases")
-  orders              Order[]             @relation("UserOrders")
-  approvedPurchaseBy  Purchase[]          @relation("ApprovedPurchases")
+  booksAdded      Book[]         @relation("BooksAdded")
+  authorProfile   Author?        @relation("UserAuthorProfile")
+  booksDonated    Book[]         @relation("BooksDonated")
+  fundDonations   FundDonation[] @relation("UserFundDonations")
+  borrows         Borrow[]       @relation("UserBorrows")
+  approvedBorrows Borrow[]       @relation("ApprovedBorrows")
+  returnedBorrows Borrow[]       @relation("ReturnedBorrows")
+
+  orders Order[] @relation("UserOrders")
+
   donations           Donation[]          @relation("UserDonations")
   receivedDonations   Donation[]          @relation("ReceivedDonations")
   shifts              ShiftLog[]          @relation("UserShifts")
@@ -54,10 +61,10 @@ model User {
   rudcTeams           UserRudcTeam[]
   iyanotPayments      RudcIyanot[]        @relation("UserIyanot")
   iyanotCollectedByMe RudcIyanot[]        @relation("IyanotCollector")
+  articlesSubmitted   Article[]           @relation("UserSubmittedArticles")
 
   @@index([role])
   @@index([status])
   @@index([org])
-  @@index([membershipExpiresAt])
   @@map("users")
 }

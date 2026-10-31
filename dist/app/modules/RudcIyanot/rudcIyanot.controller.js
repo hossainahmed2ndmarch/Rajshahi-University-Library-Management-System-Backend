@@ -20,7 +20,7 @@ const rudcIyanot_service_1 = require("./rudcIyanot.service");
 const getRudcIyanotRecords = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const reqUser = req.user;
     const user = {
-        id: Number((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
+        id: String((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
         role: reqUser === null || reqUser === void 0 ? void 0 : reqUser.role,
     };
     const result = yield rudcIyanot_service_1.RudcIyanotService.getRudcIyanotRecords(req.query, user);
@@ -35,7 +35,7 @@ const getRudcIyanotRecords = (0, catchAsync_1.default)((req, res) => __awaiter(v
 const recordIyanotPayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const reqUser = req.user;
     const actingUser = {
-        id: Number((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
+        id: String((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
         role: reqUser === null || reqUser === void 0 ? void 0 : reqUser.role,
     };
     const result = yield rudcIyanot_service_1.RudcIyanotService.recordIyanotPayment(req.body, actingUser);
@@ -50,7 +50,7 @@ const updateIyanotStatus = (0, catchAsync_1.default)((req, res) => __awaiter(voi
     const { id } = req.params;
     const reqUser = req.user;
     const actingUser = {
-        id: Number((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
+        id: String((reqUser === null || reqUser === void 0 ? void 0 : reqUser.userId) || (reqUser === null || reqUser === void 0 ? void 0 : reqUser.id)),
         role: reqUser === null || reqUser === void 0 ? void 0 : reqUser.role,
     };
     const result = yield rudcIyanot_service_1.RudcIyanotService.updateIyanotStatus(Number(id), req.body, actingUser);

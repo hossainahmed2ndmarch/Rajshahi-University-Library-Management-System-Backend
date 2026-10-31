@@ -12,7 +12,7 @@ export interface TInitiateDonationPayload {
 
 export interface TCreateManualDonationPayload {
   eventId?: number | null;
-  userId?: number | null;
+  userId?: string | null;
   amount: number;
   donorName?: string;
   donorEmail?: string;

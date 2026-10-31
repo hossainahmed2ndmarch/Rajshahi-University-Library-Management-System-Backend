@@ -6,27 +6,24 @@ model EventMemberRecord {
   sessionId Int? // Optional link to a specific weekly session
   session   EventSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
-  // 👤 Made optional to support non-members / guests
-  userId Int?
-  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Submitter / Attendee User Relation
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // --- Attendance & Feedback Fields ---
+  // Attendance & Feedback Fields
   status      AttendanceStatus @default(PRESENT)
   sessionDate DateTime?        @db.Date // Specific roll call date (YYYY-MM-DD)
 
   rating  Int? // 1-5 Rating score
   comment String? @db.Text // Discussion comment / book feedback
 
-  // 📦 Dynamic Campaign & Guest Payload (Jumuah campaign answers, guest info, comeback stories)
+  // Dynamic Campaign & User Submissions
   submissionData Json?
-
-  // 🛡️ Admin approval for public display / campaign winners (default false for guest safety)
-  isApproved Boolean @default(false)
+  isApproved     Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Prevents double roll-call for registered members on the same session date
   @@unique([eventId, userId, sessionDate])
   @@map("event_member_records")
 }

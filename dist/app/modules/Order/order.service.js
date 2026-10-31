@@ -21,15 +21,18 @@ const steadfast_1 = require("../../../lib/steadfast");
 const sms_1 = require("../../../lib/sms");
 const socket_1 = require("../../../lib/socket");
 const createOrderInDB = (payload, authUserId) => __awaiter(void 0, void 0, void 0, function* () {
-    var _a, _b, _c, _d, _e, _f;
-    const userId = authUserId || payload.userId || null;
+    var _a, _b, _c, _d, _e;
+    const userId = authUserId || payload.userId;
+    if (!userId) {
+        throw new AppError_1.default(http_status_1.default.UNAUTHORIZED, 'You must be logged in to place an order! Guest buy is no longer supported.');
+    }
     const customerName = (_a = payload.customerName) === null || _a === void 0 ? void 0 : _a.trim();
     const customerEmail = (_b = payload.customerEmail) === null || _b === void 0 ? void 0 : _b.trim();
     const customerPhone = (_c = payload.customerPhone) === null || _c === void 0 ? void 0 : _c.trim();
     const shippingAddress = ((_d = payload.shippingAddress) === null || _d === void 0 ? void 0 : _d.trim()) || 'Counter Pickup (RUIL Central Library)';
     const paymentMethod = payload.paymentMethod || client_1.PaymentMethod.CASH;
-    if (!customerName || !customerEmail || !customerPhone) {
-        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Customer name, email, and phone are required!');
+    if (!customerName || !customerPhone) {
+        throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Customer name and phone number are required!');
     }
     if (!payload.items || payload.items.length === 0) {
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Order must contain at least one book item!');
@@ -88,16 +91,36 @@ const createOrderInDB = (payload, authUserId) => __awaiter(void 0, void 0, void 
             }
         }
     }
-    const rawDelivery = (_f = payload.deliveryCharge) !== null && _f !== void 0 ? _f : (payload.deliveryMethod === 'PICKUP' || payload.isPOSSale ? 0 : 60);
-    const deliveryCharge = Math.round(rawDelivery);
-    const totalAmount = Math.round(Math.max(0, subtotal - discountAmount + deliveryCharge));
+    // 3. Gift Wrapping (Rokomari style)
+    const isGiftWrap = Boolean(payload.isGiftWrap);
+    const giftWrapCharge = isGiftWrap ? (payload.giftWrapCharge || 30) : 0;
+    const giftMessage = payload.giftMessage || null;
+    // 4. Dynamic Delivery calculation & Free delivery threshold (Rokomari style)
+    let deliveryCharge = payload.deliveryCharge;
+    if (deliveryCharge === undefined) {
+        if (payload.deliveryMethod === 'PICKUP' || payload.isPOSSale) {
+            deliveryCharge = 0;
+        }
+        else if (subtotal >= 1000) {
+            deliveryCharge = 0; // Free delivery for orders 1000 BDT or more
+        }
+        else if (shippingAddress.toLowerCase().includes('university') ||
+            shippingAddress.toLowerCase().includes('campus') ||
+            shippingAddress.toLowerCase().includes('hall')) {
+            deliveryCharge = 30; // On-campus delivery rate
+        }
+        else {
+            deliveryCharge = 60; // Standard courier delivery
+        }
+    }
+    const totalAmount = Math.round(Math.max(0, subtotal - discountAmount) + deliveryCharge + giftWrapCharge);
     // Generate unique human-readable Order Code and Transaction Reference
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const orderCode = `ORD-${dateStr}-${randomSuffix}`;
     const transactionId = payload.customerTrxId || `TXN-${Date.now()}-${randomSuffix}`;
-    // 3. Transactionally create normalized Order and OrderItems, and update inventory
+    // 5. Transactionally create normalized Order and OrderItems, and update inventory
     const createdOrder = yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
         var _a;
         // Re-check inventory inside TX to prevent race conditions
@@ -126,7 +149,6 @@ const createOrderInDB = (payload, authUserId) => __awaiter(void 0, void 0, void 
                 },
             });
         }
-        // Create Order
         const isMfs = ['BKASH', 'NAGAD', 'ROCKET'].includes(paymentMethod);
         const isOnlinePaid = paymentMethod === client_1.PaymentMethod.ONLINE;
         const order = yield tx.order.create({
@@ -134,10 +156,14 @@ const createOrderInDB = (payload, authUserId) => __awaiter(void 0, void 0, void 
                 orderCode,
                 transactionId,
                 userId,
+                addressId: payload.addressId || null,
                 customerName,
-                customerEmail,
+                customerEmail: customerEmail || null,
                 customerPhone,
                 shippingAddress,
+                isGiftWrap,
+                giftWrapCharge,
+                giftMessage,
                 deliveryMethod: payload.deliveryMethod || 'COURIER',
                 deliveryCharge,
                 subtotal,
@@ -199,10 +225,9 @@ const createOrderInDB = (payload, authUserId) => __awaiter(void 0, void 0, void 
 });
 const getAllOrdersFromDB = (query) => __awaiter(void 0, void 0, void 0, function* () {
     const queryObj = Object.assign({}, query);
-    const excludeFields = ['page', 'limit', 'sortBy', 'sortOrder', 'searchTerm', 'buyerType'];
+    const excludeFields = ['page', 'limit', 'sortBy', 'sortOrder', 'searchTerm'];
     excludeFields.forEach((field) => delete queryObj[field]);
     const conditions = [];
-    // Search filter
     if (query.searchTerm) {
         const search = String(query.searchTerm).trim();
         conditions.push({
@@ -216,13 +241,6 @@ const getAllOrdersFromDB = (query) => __awaiter(void 0, void 0, void 0, function
                 { trackingNumber: { contains: search, mode: 'insensitive' } },
             ],
         });
-    }
-    // Buyer type filter (MEMBER vs GUEST)
-    if (query.buyerType === 'MEMBER') {
-        conditions.push({ userId: { not: null } });
-    }
-    else if (query.buyerType === 'GUEST') {
-        conditions.push({ userId: null });
     }
     if (Object.keys(queryObj).length > 0) {
         conditions.push(queryObj);
@@ -347,7 +365,6 @@ const updateOrderStatusInDB = (orderId, payload) => __awaiter(void 0, void 0, vo
     if (!order) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Order not found!');
     }
-    // If transitioning to CANCELLED and was not previously cancelled, restock books
     if (payload.orderStatus === client_1.OrderStatus.CANCELLED && order.orderStatus !== client_1.OrderStatus.CANCELLED) {
         return yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
             for (const item of order.items) {
@@ -441,12 +458,10 @@ const dispatchCourierInDB = (orderId, payload) => __awaiter(void 0, void 0, void
     if (!order) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Order not found!');
     }
-    // Generate 6-digit OTP code for customer delivery confirmation
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiresAt = new Date();
     otpExpiresAt.setDate(otpExpiresAt.getDate() + 7);
     const courierName = (payload === null || payload === void 0 ? void 0 : payload.courierName) || 'Steadfast Courier';
-    // Book with Steadfast API
     const codAmount = order.paymentStatus === client_1.PaymentStatus.PAID ? 0 : order.totalAmount;
     const steadfastResult = yield (0, steadfast_1.createSteadfastOrder)({
         invoice: order.orderCode,
@@ -470,7 +485,6 @@ const dispatchCourierInDB = (orderId, payload) => __awaiter(void 0, void 0, void
         },
         include: { items: { include: { book: true } }, user: true },
     });
-    // SMS Customer with tracking number and OTP
     if (updated.customerPhone) {
         (0, sms_1.sendSMS)(updated.customerPhone, sms_1.SMSTemplates.courierShippedWithOTP(updated.orderCode, courierName, trackingNumber, rawOtp)).catch((e) => console.error('SMS notification error:', e));
     }
@@ -487,10 +501,6 @@ const dispatchCourierInDB = (orderId, payload) => __awaiter(void 0, void 0, void
         courierName,
     };
 });
-/**
- * Public or authenticated OTP verification:
- * Can be called by delivery riders via public delivery confirmation page!
- */
 const verifyDeliveryOtpInDB = (identifier, otp) => __awaiter(void 0, void 0, void 0, function* () {
     const cleanOtp = otp.trim();
     const whereClause = {};
@@ -584,7 +594,6 @@ const deleteOrderInDB = (orderId) => __awaiter(void 0, void 0, void 0, function*
     if (!order) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'Order not found!');
     }
-    // If pending or processing, restore inventory
     if (order.orderStatus === client_1.OrderStatus.PENDING || order.orderStatus === client_1.OrderStatus.PROCESSING) {
         yield db_1.default.$transaction((tx) => __awaiter(void 0, void 0, void 0, function* () {
             for (const item of order.items) {

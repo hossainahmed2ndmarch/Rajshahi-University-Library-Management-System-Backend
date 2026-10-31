@@ -8,6 +8,8 @@ const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const cors_1 = __importDefault(require("cors"));
 const express_1 = __importDefault(require("express"));
 const path_1 = __importDefault(require("path"));
+const node_1 = require("better-auth/node");
+const auth_1 = __importDefault(require("./lib/auth"));
 const config_1 = __importDefault(require("./app/config"));
 const globalErrorHandler_1 = __importDefault(require("./app/errors/globalErrorHandler"));
 const notFound_1 = __importDefault(require("./app/errors/notFound"));
@@ -16,6 +18,7 @@ const app = (0, express_1.default)();
 // Allowed origins
 const allowedOrigins = [
     'http://localhost:5000',
+    'http://localhost:3000',
     'http://localhost:5173',
     config_1.default.client_url,
 ].filter(Boolean);
@@ -32,6 +35,8 @@ app.use((0, cors_1.default)({
 }));
 app.use((0, cookie_parser_1.default)());
 app.use((0, compression_1.default)());
+// Better Auth Master Handler (/api/auth & /api/auth/*)
+app.all(['/api/auth', '/api/auth{/*splat}'], (0, node_1.toNodeHandler)(auth_1.default));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 // Serve static uploaded media files

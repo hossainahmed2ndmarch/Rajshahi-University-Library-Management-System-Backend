@@ -4,7 +4,7 @@ export type TCreateAuthor = {
   bio?: string | null;
   authorDesignation?: string | null;
   socialLinks?: Record<string, string> | null;
-  userId?: number | null;
+  userId?: string | null;
 };
 
 export type TUpdateAuthor = Partial<TCreateAuthor>;

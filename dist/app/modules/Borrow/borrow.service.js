@@ -40,9 +40,11 @@ const MAX_ACTIVE_BORROWS_LIMIT = 5;
  * - Creates a Borrow record with status 'PENDING'
  */
 const createBorrowInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     // Validate user exists
     const user = yield db_1.default.user.findUnique({
         where: { id: userId },
+        include: { ruilProfile: true },
     });
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
@@ -56,7 +58,7 @@ const createBorrowInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, 
     if (user.role === client_1.UserRole.MEMBER) {
         if (user.status === client_1.UserStatus.PENDING_APPROVAL ||
             user.status === client_1.UserStatus.PENDING_PAYMENT ||
-            (user.membershipExpiresAt && user.membershipExpiresAt <= now)) {
+            (((_a = user.ruilProfile) === null || _a === void 0 ? void 0 : _a.membershipExpiresAt) && user.ruilProfile.membershipExpiresAt <= now)) {
             throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your membership has expired, is pending approval, or is pending payment. Please renew your membership to request book borrows.');
         }
     }
@@ -143,11 +145,16 @@ const createBorrowInDB = (payload, userId) => __awaiter(void 0, void 0, void 0, 
  * - Sets status to APPROVED, approvedAt to now, and records approvedById
  */
 const approveBorrowInDB = (borrowId, approvedById) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const borrow = yield db_1.default.borrow.findUnique({
         where: { id: borrowId },
         include: {
             book: true,
-            user: true,
+            user: {
+                include: {
+                    ruilProfile: true,
+                },
+            },
         },
     });
     if (!borrow) {
@@ -164,8 +171,8 @@ const approveBorrowInDB = (borrowId, approvedById) => __awaiter(void 0, void 0, 
     }
     // Check membership status at the time of approval for MEMBER role
     const now = new Date();
-    if (borrow.user.role === client_1.UserRole.MEMBER && borrow.user.membershipExpiresAt && borrow.user.membershipExpiresAt <= now) {
-        throw new AppError_1.default(http_status_1.default.FORBIDDEN, `Cannot approve borrow: Member's membership expired on ${borrow.user.membershipExpiresAt.toLocaleDateString()}. Member must renew first.`);
+    if (borrow.user.role === client_1.UserRole.MEMBER && ((_a = borrow.user.ruilProfile) === null || _a === void 0 ? void 0 : _a.membershipExpiresAt) && borrow.user.ruilProfile.membershipExpiresAt <= now) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, `Cannot approve borrow: Member's membership expired on ${borrow.user.ruilProfile.membershipExpiresAt.toLocaleDateString()}. Member must renew first.`);
     }
     // Calculate automatic due date: 15 pages per day
     const calculatedDueDate = (0, calculateDueDate_1.default)(borrow.book.pages, now);
@@ -354,9 +361,9 @@ const returnBookInDB = (borrowId, returnedById, payload) => __awaiter(void 0, vo
  */
 const issueBookDirectlyInDB = (payload, shifterId) => __awaiter(void 0, void 0, void 0, function* () {
     let user = null;
-    if (payload.memberId && !isNaN(Number(payload.memberId))) {
+    if (payload.memberId) {
         user = yield db_1.default.user.findUnique({
-            where: { id: Number(payload.memberId) },
+            where: { id: String(payload.memberId) },
         });
     }
     if (!user) {
@@ -368,7 +375,7 @@ const issueBookDirectlyInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
             user = yield db_1.default.user.findFirst({
                 where: {
                     OR: [
-                        { studentOrVoterId: identifier },
+                        { academicProfile: { studentOrVoterId: identifier } },
                         { phone: identifier },
                         { email: identifier },
                     ],
@@ -466,8 +473,12 @@ const issueBookDirectlyInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                         name: true,
                         email: true,
                         phone: true,
-                        studentOrVoterId: true,
-                        department: true,
+                        academicProfile: {
+                            select: {
+                                studentOrVoterId: true,
+                                department: true,
+                            },
+                        },
                     },
                 },
                 approvedBy: {
@@ -490,7 +501,7 @@ const getAllBorrowsFromDB = (query, user) => __awaiter(void 0, void 0, void 0, f
     const { overdue } = query, queryParams = __rest(query, ["overdue"]);
     queryParams.limit = queryParams.limit ? Number(queryParams.limit) : 100;
     if (user.role === client_1.UserRole.MEMBER || queryParams.userId) {
-        queryParams.userId = queryParams.userId ? Number(queryParams.userId) : user.userId;
+        queryParams.userId = queryParams.userId ? String(queryParams.userId) : user.userId;
     }
     const borrowQuery = new queryBuilder_1.default(db_1.default.borrow, queryParams, {
         searchableFields: ['book.title', 'book.author', 'user.name', 'user.email'],

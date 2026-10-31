@@ -1,12 +1,12 @@
 import { IyanotPaymentMethod } from '@prisma/client';
 
 export type TRecordIyanotPayload = {
-  userId: number;
+  userId: string;
   month: number;
   year: number;
   amount?: number;
   paymentMethod: IyanotPaymentMethod;
-  collectedById?: number;
+  collectedById?: string;
   transactionId?: string;
   remarks?: string;
 };

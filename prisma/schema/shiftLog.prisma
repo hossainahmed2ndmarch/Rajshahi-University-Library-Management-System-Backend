@@ -4,8 +4,8 @@ model ShiftLog {
   id Int @id @default(autoincrement())
 
   // Shifter Relation
-  shifterId Int
-  shifter   User @relation("UserShifts", fields: [shifterId], references: [id], onDelete: Cascade)
+  shifterId String
+  shifter   User   @relation("UserShifts", fields: [shifterId], references: [id], onDelete: Cascade)
 
   // Timing
   startTime DateTime  @default(now())
@@ -33,8 +33,8 @@ model ShiftLog {
   cancellationReason String?   @db.Text
 
   // Supervisor Verification
-  verifiedById Int?
-  verifiedBy   User? @relation("VerifiedShifts", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedById String?
+  verifiedBy   User?   @relation("VerifiedShifts", fields: [verifiedById], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -50,8 +50,8 @@ model ShiftLog {
 model ShifterSchedule {
   id Int @id @default(autoincrement())
 
-  shifterId Int
-  shifter   User @relation("UserSchedules", fields: [shifterId], references: [id], onDelete: Cascade)
+  shifterId String
+  shifter   User   @relation("UserSchedules", fields: [shifterId], references: [id], onDelete: Cascade)
 
   dayOfWeek Int // 0=Sunday, 1=Monday, 2=Tuesday, 3=Wednesday, 4=Thursday, 5=Friday, 6=Saturday
   dayName   String // e.g. "শনিবার", "রবিবার"

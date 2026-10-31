@@ -6,11 +6,11 @@ model FundDonation {
   eventId Int?
   event   Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
 
-  // Registered User Relation (Guest donator hole NULL)
-  userId Int?
-  user   User? @relation("UserFundDonations", fields: [userId], references: [id], onDelete: SetNull)
+  // Registered User Relation
+  userId String?
+  user   User?   @relation("UserFundDonations", fields: [userId], references: [id], onDelete: SetNull)
 
-  // Guest Donor Details (userId NULL hole egulo fillup hobe)
+  // Donor Details
   donorName   String?
   donorEmail  String?
   donorPhone  String?

@@ -15,8 +15,12 @@ const getAllRudcTeams = async () => {
               email: true,
               phone: true,
               avatarUrl: true,
-              department: true,
-              session: true,
+              academicProfile: {
+                select: {
+                  department: true,
+                  session: true,
+                },
+              },
               rudcProfile: {
                 select: {
                   whatsappNumber: true,
@@ -120,7 +124,7 @@ const assignTeamMembers = async (payload: TAssignTeamMembersPayload) => {
   });
 };
 
-const removeTeamMember = async (teamId: number, userId: number) => {
+const removeTeamMember = async (teamId: number, userId: string) => {
   await prisma.userRudcTeam.delete({
     where: {
       userId_teamId: {

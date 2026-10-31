@@ -16,7 +16,7 @@ const applyForRudc = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyRudcProfile = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number((req as any).user?.userId || (req as any).user?.id);
+  const userId = String((req as any).user?.userId || (req as any).user?.id);
   const result = await RudcMemberService.getMyRudcProfile(userId);
 
   sendResponse(res, {
@@ -52,7 +52,7 @@ const getAllRudcMembers = catchAsync(async (req: Request, res: Response) => {
 
 const getRudcMemberById = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const result = await RudcMemberService.getRudcMemberById(Number(id));
+  const result = await RudcMemberService.getRudcMemberById(String(id));
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -64,7 +64,7 @@ const getRudcMemberById = catchAsync(async (req: Request, res: Response) => {
 
 const updateRudcMember = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const result = await RudcMemberService.updateRudcMember(Number(id), req.body);
+  const result = await RudcMemberService.updateRudcMember(String(id), req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -98,7 +98,7 @@ const getPublicRudcStats = catchAsync(async (req: Request, res: Response) => {
 
 const deleteRudcMember = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const result = await RudcMemberService.deleteRudcMember(Number(id));
+  const result = await RudcMemberService.deleteRudcMember(String(id));
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

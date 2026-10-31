@@ -6,7 +6,7 @@ import { TCreateBookReview, TCreateServiceReview } from './review.interface';
 
 const createBookReviewInDB = async (
   payload: TCreateBookReview,
-  userId?: number,
+  userId?: string,
   userRole?: string
 ) => {
   const book = await prisma.book.findUnique({
@@ -257,7 +257,7 @@ const createBookReviewInDB = async (
   }
 };
 
-const createServiceReviewInDB = async (payload: TCreateServiceReview, userId?: number) => {
+const createServiceReviewInDB = async (payload: TCreateServiceReview, userId?: string) => {
   return await prisma.serviceReview.create({
     data: {
       org: payload.org || Organization.RUIL,
@@ -333,8 +333,7 @@ const getServiceReviewsFromDB = async (org?: string) => {
   };
 };
 
-const getBookReviewsFromDB = async (bookId: number) => {
-  const book = await prisma.book.findUnique({
+const getBookReviewsFromDB = async (bookId: number) => {  const book = await prisma.book.findUnique({
     where: { id: bookId },
   });
 
@@ -376,7 +375,7 @@ const getBookReviewsFromDB = async (bookId: number) => {
 const updateBookReviewInDB = async (
   reviewId: number,
   payload: { rating?: number; comment?: string },
-  requestingUser: { userId: number; role: string }
+  requestingUser: { userId: string; role: string }
 ) => {
   const review = await prisma.bookReview.findUnique({
     where: { id: reviewId },
@@ -463,7 +462,7 @@ const getAllReviewsFromDB = async () => {
 
 const deleteReviewInDB = async (
   reviewId: number,
-  requestingUser: { userId: number; role: string }
+  requestingUser: { userId: string; role: string }
 ) => {
   const isStaff = ['SUPER_ADMIN', 'ADMIN', 'SHIFTER'].includes(requestingUser.role);
 

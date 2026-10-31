@@ -19,7 +19,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const shiftLog_service_1 = require("./shiftLog.service");
 const checkInShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const shifterId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const shifterId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield shiftLog_service_1.ShiftLogService.checkInShiftInDB(shifterId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -30,7 +30,7 @@ const checkInShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 }));
 const checkOutShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const shifterId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const shifterId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield shiftLog_service_1.ShiftLogService.checkOutShiftInDB(shifterId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -41,7 +41,7 @@ const checkOutShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
 }));
 const scheduleShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const shifterId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const shifterId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield shiftLog_service_1.ShiftLogService.scheduleShiftInDB(shifterId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -53,7 +53,7 @@ const scheduleShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
 const cancelShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     const currentUser = {
-        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        userId: String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
         role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
     };
     const shiftId = Number(req.params.id);
@@ -97,7 +97,7 @@ const getActiveShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 const rescheduleShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     const currentUser = {
-        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        userId: String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
         role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
     };
     const shiftId = Number(req.params.id);
@@ -112,7 +112,7 @@ const rescheduleShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0
 const completeOfflineShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     const currentUser = {
-        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        userId: String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
         role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
     };
     const shiftId = Number(req.params.id);
@@ -136,7 +136,7 @@ const emailAction = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, vo
 const verifyShift = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     const currentUser = {
-        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        userId: String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
         role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
     };
     const shiftId = Number(req.params.id);

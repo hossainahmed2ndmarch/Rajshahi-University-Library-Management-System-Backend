@@ -18,5 +18,5 @@ export type TUpdateCouponPayload = Partial<TCreateCouponPayload>;
 export type TValidateCouponPayload = {
   code: string;
   cartTotal: number;
-  userId?: number;
+  userId?: string;
 };

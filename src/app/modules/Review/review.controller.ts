@@ -5,7 +5,9 @@ import sendResponse from '../../utils/sendResponse';
 import { ReviewService } from './review.service';
 
 const createBookReview = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user?.userId || req.user?.id ? Number(req.user?.userId || req.user?.id) : undefined;
+  const userId = req.user?.userId || req.user?.id
+    ? String(req.user?.userId || req.user?.id)
+    : undefined;
   const userRole = req.user?.role as string | undefined;
   const result = await ReviewService.createBookReviewInDB(req.body, userId, userRole);
 
@@ -18,7 +20,9 @@ const createBookReview = catchAsync(async (req: Request, res: Response) => {
 });
 
 const createServiceReview = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user?.userId || req.user?.id ? Number(req.user?.userId || req.user?.id) : undefined;
+  const userId = req.user?.userId || req.user?.id
+    ? String(req.user?.userId || req.user?.id)
+    : undefined;
   const result = await ReviewService.createServiceReviewInDB(req.body, userId);
 
   sendResponse(res, {
@@ -56,7 +60,7 @@ const getBookReviews = catchAsync(async (req: Request, res: Response) => {
 const updateReview = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const requestingUser = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as string,
   };
   const result = await ReviewService.updateBookReviewInDB(Number(id), req.body, requestingUser);
@@ -72,7 +76,7 @@ const updateReview = catchAsync(async (req: Request, res: Response) => {
 const deleteReview = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
   const requestingUser = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as string,
   };
   const result = await ReviewService.deleteBookReviewInDB(Number(id), requestingUser);

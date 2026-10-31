@@ -27,7 +27,7 @@ const getRudcIyanotRecords = (query, user) => __awaiter(void 0, void 0, void 0, 
         whereConditions.userId = user.id;
     }
     else if (userId) {
-        whereConditions.userId = Number(userId);
+        whereConditions.userId = String(userId);
     }
     if (month && month !== 'ALL') {
         whereConditions.month = Number(month);
@@ -58,7 +58,6 @@ const getRudcIyanotRecords = (query, user) => __awaiter(void 0, void 0, void 0, 
                                 rudcMemberType: true,
                             },
                         },
-                        department: true,
                     },
                 },
                 collectedBy: {
@@ -97,7 +96,7 @@ const recordIyanotPayment = (payload, actingUser) => __awaiter(void 0, void 0, v
     const isAdmin = ['SUPER_ADMIN', 'ADMIN'].includes(actingUser.role);
     let status;
     let paidAt = null;
-    let collectedById = payloadCollectedById ? Number(payloadCollectedById) : null;
+    let collectedById = payloadCollectedById ? String(payloadCollectedById) : null;
     if (paymentMethod === client_1.IyanotPaymentMethod.ONLINE) {
         status = client_1.IyanotStatus.PAID;
         paidAt = new Date();
@@ -187,7 +186,7 @@ const updateIyanotStatus = (id, payload, actingUser) => __awaiter(void 0, void 0
             status: payload.status,
             remarks: payload.remarks || existing.remarks,
             paidAt: isPaid ? new Date() : existing.paidAt,
-            collectedById: payload.collectedById ? Number(payload.collectedById) : (existing.collectedById || actingUser.id),
+            collectedById: payload.collectedById ? String(payload.collectedById) : (existing.collectedById || actingUser.id),
         },
         include: {
             user: {

@@ -45,7 +45,6 @@ async function seedSuperAdmin(): Promise<void> {
       phone: SUPER_ADMIN_CONFIG.phone,
       role: UserRole.SUPER_ADMIN,
       status: UserStatus.ACTIVE,
-      isPaid: true,
     },
     create: {
       name: SUPER_ADMIN_CONFIG.name,
@@ -54,9 +53,22 @@ async function seedSuperAdmin(): Promise<void> {
       password: hashedPassword,
       role: UserRole.SUPER_ADMIN,
       status: UserStatus.ACTIVE,
-      studentOrVoterId: SUPER_ADMIN_CONFIG.identifier,
-      isPaid: true,
-      membershipStartedAt: new Date(),
+      academicProfile: {
+        create: {
+          institution: 'University of Rajshahi',
+          faculty: 'Administration',
+          department: 'Executive Office',
+          session: '2024-2025',
+          studentOrVoterId: SUPER_ADMIN_CONFIG.identifier,
+        },
+      },
+      ruilProfile: {
+        create: {
+          isPaid: true,
+          membershipStatus: UserStatus.ACTIVE,
+          membershipStartedAt: new Date(),
+        },
+      },
     },
   });
 
@@ -125,9 +137,6 @@ async function seedSampleUsers(): Promise<void> {
         phone: u.phone,
         role: u.role,
         status: u.status,
-        isPaid: u.isPaid,
-        department: u.department,
-        institution: u.institution,
       },
       create: {
         name: u.name,
@@ -136,12 +145,23 @@ async function seedSampleUsers(): Promise<void> {
         password: hashedPassword,
         role: u.role,
         status: u.status,
-        studentOrVoterId: u.studentOrVoterId,
-        department: u.department,
-        institution: u.institution,
-        isPaid: u.isPaid,
-        membershipStartedAt: startDate,
-        membershipExpiresAt: expireDate,
+        academicProfile: {
+          create: {
+            institution: u.institution,
+            faculty: 'General',
+            department: u.department,
+            session: '2024-2025',
+            studentOrVoterId: u.studentOrVoterId,
+          },
+        },
+        ruilProfile: {
+          create: {
+            isPaid: u.isPaid,
+            membershipStatus: u.status,
+            membershipStartedAt: startDate,
+            membershipExpiresAt: expireDate,
+          },
+        },
       },
     });
   }
@@ -301,7 +321,7 @@ const INITIAL_BOOKS = [
   },
 ];
 
-async function seedBooks(adminId: number): Promise<void> {
+async function seedBooks(adminId: string): Promise<void> {
   console.log('📚 [SEED] Synchronizing Islamic Library books catalog...');
 
   for (const book of INITIAL_BOOKS) {
@@ -330,13 +350,20 @@ async function seedBooks(adminId: number): Promise<void> {
       where: { isbn: book.isbn },
     });
 
+    const bookSlug = book.title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .slice(0, 60) + '-' + book.isbn.toLowerCase().replace(/[^a-z0-9]/g, '').slice(-6);
+
     if (existingBook) {
       await prisma.book.update({
         where: { id: existingBook.id },
         data: {
           title: book.title,
+          slug: existingBook.slug || bookSlug,
           locationCell: book.locationCell,
-          category: book.category,
+          categories: [book.category],
           publisherId: publisherRecord?.id || null,
           pages: book.pages,
           type: book.type,
@@ -370,9 +397,10 @@ async function seedBooks(adminId: number): Promise<void> {
       await prisma.book.create({
         data: {
           title: book.title,
+          slug: bookSlug,
           isbn: book.isbn,
           locationCell: book.locationCell,
-          category: book.category,
+          categories: [book.category],
           publisherId: publisherRecord?.id || null,
           pages: book.pages,
           type: book.type,
@@ -459,7 +487,7 @@ The critical footnotes cross-reference Quranic ayahs and authentic Hadith narrat
   },
 ];
 
-async function seedArticles(adminId: number): Promise<void> {
+async function seedArticles(adminId: string): Promise<void> {
   console.log('📰 [SEED] Synchronizing Islamic Library publications & articles...');
 
   for (const article of INITIAL_ARTICLES) {

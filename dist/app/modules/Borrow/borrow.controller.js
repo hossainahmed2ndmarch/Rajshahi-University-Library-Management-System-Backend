@@ -19,7 +19,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const borrow_service_1 = require("./borrow.service");
 const createBorrow = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = req.body.userId ? Number(req.body.userId) : Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = req.body.userId ? String(req.body.userId) : String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield borrow_service_1.BorrowService.createBorrowInDB(req.body, userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,
@@ -30,10 +30,10 @@ const createBorrow = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 }));
 const issueBook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const shifterId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const shifterId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield borrow_service_1.BorrowService.issueBookDirectlyInDB({
         bookId: Number(req.body.bookId),
-        memberId: req.body.memberId ? Number(req.body.memberId) : undefined,
+        memberId: req.body.memberId ? String(req.body.memberId) : undefined,
         studentOrVoterId: req.body.studentOrVoterId,
         memberPhone: req.body.memberPhone,
         memberEmail: req.body.memberEmail,
@@ -50,7 +50,7 @@ const issueBook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void
 const returnBook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const { id } = req.params;
-    const returnedById = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const returnedById = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield borrow_service_1.BorrowService.returnBookInDB(Number(id), returnedById, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -61,7 +61,7 @@ const returnBook = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, voi
 }));
 const getMyBorrows = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const scopedQuery = Object.assign(Object.assign({}, req.query), { userId: String(userId) });
     const user = {
         userId,
@@ -79,7 +79,7 @@ const getMyBorrows = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 const approveBorrow = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
     const { id } = req.params;
-    const approvedById = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const approvedById = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield borrow_service_1.BorrowService.approveBorrowInDB(Number(id), approvedById);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -101,7 +101,7 @@ const rejectBorrow = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 const getAllBorrows = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
     const user = {
-        userId: Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
+        userId: String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id)),
         role: (_c = req.user) === null || _c === void 0 ? void 0 : _c.role,
     };
     const result = yield borrow_service_1.BorrowService.getAllBorrowsFromDB(req.query, user);

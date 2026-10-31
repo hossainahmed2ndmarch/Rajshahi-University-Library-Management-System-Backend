@@ -5,7 +5,7 @@ import sendResponse from '../../utils/sendResponse';
 import { PaymentService } from './payment.service';
 
 const initiateMembershipPayment = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number(req.user?.userId || req.user?.id);
+  const userId = String(req.user?.userId || req.user?.id);
   const result = await PaymentService.initiateMembershipPayment(userId, req.body?.amount);
 
   sendResponse(res, {

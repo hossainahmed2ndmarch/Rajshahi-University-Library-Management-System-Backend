@@ -19,7 +19,7 @@ const sendResponse_1 = __importDefault(require("../../utils/sendResponse"));
 const payment_service_1 = require("./payment.service");
 const initiateMembershipPayment = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield payment_service_1.PaymentService.initiateMembershipPayment(userId, (_c = req.body) === null || _c === void 0 ? void 0 : _c.amount);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,

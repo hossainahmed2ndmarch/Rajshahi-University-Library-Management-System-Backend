@@ -18,6 +18,15 @@ const client_1 = require("@prisma/client");
 const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const queryBuilder_1 = __importDefault(require("../../builder/queryBuilder"));
+const generateSlug = (title) => {
+    const base = title
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return `${base || 'book'}-${Date.now().toString(36)}`;
+};
 const createDonationInDB = (payload, donorId) => __awaiter(void 0, void 0, void 0, function* () {
     const { bookTitle, author, category, quantity, method, isAnonymous, donorName, donorEmail, contactPhone, donorNote, pickupAddress, scheduledAt, } = payload;
     const rawContactPhone = contactPhone || payload.donorPhone || null;
@@ -127,9 +136,10 @@ const approveDonationInDB = (donationId, adminId, payload) => __awaiter(void 0, 
                 const newBook = yield tx.book.create({
                     data: {
                         title: donation.bookTitle || 'Donated Book',
+                        slug: generateSlug(donation.bookTitle || 'Donated Book'),
                         isbn: generatedIsbn,
                         locationCell: initialLocation,
-                        category: assignedCat,
+                        categories: [assignedCat],
                         pages: initialPages,
                         type: client_1.BookType.BORROW_ONLY,
                         sellPrice: null,
@@ -137,7 +147,7 @@ const approveDonationInDB = (donationId, adminId, payload) => __awaiter(void 0, 
                         sellStock: (_h = payload === null || payload === void 0 ? void 0 : payload.sellStock) !== null && _h !== void 0 ? _h : 0,
                         description: donation.donorNote ||
                             'Donated book added into library catalog collection as borrowable. Further details can be updated by admin/shifter.',
-                        addedById: adminId,
+                        addedById: adminId || null,
                         donatedById: donation.donorId || null,
                         authors: authorRecord
                             ? {
@@ -160,7 +170,7 @@ const approveDonationInDB = (donationId, adminId, payload) => __awaiter(void 0, 
             data: {
                 status: client_1.DonationStatus.APPROVED,
                 catalogedBookId: bookId,
-                receivedById: adminId,
+                receivedById: adminId || null,
                 receivedAt: new Date(),
             },
             include: {
@@ -271,9 +281,10 @@ const convertDonationToStock = (donationId, payload, adminId) => __awaiter(void 
             const book = yield tx.book.create({
                 data: {
                     title: donation.bookTitle || 'Donated Book',
+                    slug: generateSlug(donation.bookTitle || 'Donated Book'),
                     isbn: payload.isbn,
                     locationCell: payload.locationCell,
-                    category: donation.category || 'General',
+                    categories: [donation.category || 'General'],
                     pages: payload.pages,
                     type: payload.type,
                     sellPrice: payload.sellPrice || null,
@@ -281,7 +292,7 @@ const convertDonationToStock = (donationId, payload, adminId) => __awaiter(void 
                     sellStock: (_d = payload.sellStock) !== null && _d !== void 0 ? _d : (payload.type !== 'BORROW_ONLY' ? donation.quantity : 0),
                     coverImage: payload.coverImage || null,
                     description: payload.description || donation.donorNote || null,
-                    addedById: adminId,
+                    addedById: adminId || null,
                     donatedById: donation.donorId || null,
                     authors: authorRecord
                         ? {
@@ -302,7 +313,7 @@ const convertDonationToStock = (donationId, payload, adminId) => __awaiter(void 
             data: {
                 status: client_1.DonationStatus.CATALOGED,
                 catalogedBookId: bookId,
-                receivedById: adminId,
+                receivedById: adminId || null,
                 receivedAt: donation.receivedAt || new Date(),
             },
             include: {
@@ -370,7 +381,7 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
     let finalContactPhone = ((_c = payload.contactPhone) === null || _c === void 0 ? void 0 : _c.trim()) || null;
     if (donorType === 'MEMBER' && payload.memberId) {
         const member = yield db_1.default.user.findUnique({
-            where: { id: Number(payload.memberId) },
+            where: { id: String(payload.memberId) },
         });
         if (member) {
             donorId = member.id;
@@ -447,9 +458,10 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                 const newBook = yield tx.book.create({
                     data: {
                         title: bookTitle,
+                        slug: generateSlug(bookTitle),
                         isbn: generatedIsbn,
                         locationCell: initialLocation,
-                        category,
+                        categories: [category],
                         pages: initialPages,
                         type: client_1.BookType.BORROW_ONLY,
                         sellPrice: null,
@@ -457,8 +469,8 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                         sellStock: 0,
                         description: payload.donorNote ||
                             `In-person donation received at POS Desk by staff. Condition: ${payload.condition || 'GOOD'}.`,
-                        addedById: shifterId,
-                        donatedById: donorId,
+                        addedById: shifterId || null,
+                        donatedById: donorId || null,
                         authors: authorRecord
                             ? {
                                 create: [
@@ -487,8 +499,8 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                 donorEmail: finalDonorEmail,
                 contactPhone: finalContactPhone,
                 donorNote: payload.donorNote || (payload.condition ? `Condition: ${payload.condition}` : null),
-                donorId,
-                receivedById: shifterId,
+                donorId: donorId || null,
+                receivedById: shifterId || null,
                 receivedAt: new Date(),
                 status: donationStatus,
                 catalogedBookId,
@@ -500,7 +512,11 @@ const createPOSDonationInDB = (payload, shifterId) => __awaiter(void 0, void 0, 
                         name: true,
                         email: true,
                         phone: true,
-                        studentOrVoterId: true,
+                        academicProfile: {
+                            select: {
+                                studentOrVoterId: true,
+                            },
+                        },
                     },
                 },
                 receivedBy: {

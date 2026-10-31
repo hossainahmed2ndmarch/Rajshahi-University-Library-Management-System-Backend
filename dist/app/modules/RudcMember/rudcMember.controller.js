@@ -28,7 +28,7 @@ const applyForRudc = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, v
 }));
 const getMyRudcProfile = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    const userId = Number(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
+    const userId = String(((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id));
     const result = yield rudcMember_service_1.RudcMemberService.getMyRudcProfile(userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -58,7 +58,7 @@ const getAllRudcMembers = (0, catchAsync_1.default)((req, res) => __awaiter(void
 }));
 const getRudcMemberById = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const result = yield rudcMember_service_1.RudcMemberService.getRudcMemberById(Number(id));
+    const result = yield rudcMember_service_1.RudcMemberService.getRudcMemberById(String(id));
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -68,7 +68,7 @@ const getRudcMemberById = (0, catchAsync_1.default)((req, res) => __awaiter(void
 }));
 const updateRudcMember = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const result = yield rudcMember_service_1.RudcMemberService.updateRudcMember(Number(id), req.body);
+    const result = yield rudcMember_service_1.RudcMemberService.updateRudcMember(String(id), req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,
@@ -96,7 +96,7 @@ const getPublicRudcStats = (0, catchAsync_1.default)((req, res) => __awaiter(voi
 }));
 const deleteRudcMember = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const result = yield rudcMember_service_1.RudcMemberService.deleteRudcMember(Number(id));
+    const result = yield rudcMember_service_1.RudcMemberService.deleteRudcMember(String(id));
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
         success: true,

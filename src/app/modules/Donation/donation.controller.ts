@@ -5,7 +5,11 @@ import sendResponse from '../../utils/sendResponse';
 import { DonationService } from './donation.service';
 
 const createDonation = catchAsync(async (req: Request, res: Response) => {
-  const donorId = req.user?.userId ? Number(req.user.userId) : (req.user?.id ? Number(req.user.id) : undefined);
+  const donorId = req.user?.userId
+    ? String(req.user.userId)
+    : req.user?.id
+    ? String(req.user.id)
+    : undefined;
   const result = await DonationService.createDonationInDB(req.body, donorId);
 
   sendResponse(res, {
@@ -18,7 +22,7 @@ const createDonation = catchAsync(async (req: Request, res: Response) => {
 
 const approveDonation = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const adminId = Number(req.user?.userId || req.user?.id);
+  const adminId = String(req.user?.userId || req.user?.id);
   const result = await DonationService.approveDonationInDB(Number(id), adminId, req.body);
 
   sendResponse(res, {
@@ -43,7 +47,7 @@ const rejectDonation = catchAsync(async (req: Request, res: Response) => {
 
 const convertDonationToStock = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const adminId = Number(req.user?.userId || req.user?.id);
+  const adminId = String(req.user?.userId || req.user?.id);
   const result = await DonationService.convertDonationToStock(Number(id), req.body, adminId);
 
   sendResponse(res, {
@@ -57,7 +61,7 @@ const convertDonationToStock = catchAsync(async (req: Request, res: Response) =>
 const getAllDonations = catchAsync(async (req: Request, res: Response) => {
   const user = req.user
     ? {
-        userId: Number(req.user.userId || req.user.id),
+        userId: String(req.user.userId || req.user.id),
         role: req.user.role as string,
         email: req.user.email as string,
       }
@@ -74,7 +78,7 @@ const getAllDonations = catchAsync(async (req: Request, res: Response) => {
 });
 
 const createPOSDonation = catchAsync(async (req: Request, res: Response) => {
-  const shifterId = Number(req.user?.userId || req.user?.id);
+  const shifterId = String(req.user?.userId || req.user?.id);
   const result = await DonationService.createPOSDonationInDB(req.body, shifterId);
 
   sendResponse(res, {

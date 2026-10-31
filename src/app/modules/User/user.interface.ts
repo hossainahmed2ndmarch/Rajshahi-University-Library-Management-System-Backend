@@ -1,6 +1,7 @@
 import {
   AccommodationType,
   BloodGroup,
+  Gender,
   Organization,
   PaymentMethod,
   RudcApplicationStatus,
@@ -10,11 +11,13 @@ import {
 } from '@prisma/client';
 
 export type TRegisterMember = {
-  email: string;
-  phone: string;
-  password: string;
+  email?: string;
+  phone?: string;
+  password?: string;
   name: string;
-  studentOrVoterId: string;
+  gender?: Gender | null;
+  dateOfBirth?: Date | string | null;
+  studentOrVoterId?: string;
   institution?: string | null;
   department?: string | null;
   session?: string | null;
@@ -26,10 +29,15 @@ export type TRegisterMember = {
   accommodationName?: string | null;
   permanentAddress?: string | null;
   paymentMethod?: PaymentMethod;
+  paymentTrxId?: string | null;
   membershipStartedAt?: Date | string;
   membershipExpiresAt?: Date | string;
   isPaid?: boolean;
   status?: UserStatus;
+  role?: UserRole;
+  org?: Organization;
+  rudcMemberType?: RudcMemberType;
+  rudcStatus?: RudcApplicationStatus;
 };
 
 export type TUpdateUser = {
@@ -37,6 +45,8 @@ export type TUpdateUser = {
   phone?: string;
   email?: string;
   avatarUrl?: string;
+  gender?: Gender | null;
+  dateOfBirth?: Date | string | null;
   studentOrVoterId?: string;
   institution?: string;
   department?: string;
@@ -52,7 +62,7 @@ export type TUpdateUser = {
   isRudcMember?: boolean;
   rudcMemberType?: RudcMemberType | null;
   rudcStatus?: RudcApplicationStatus | null;
-  supervisorId?: number | null;
+  supervisorId?: string | null;
   status?: UserStatus;
   role?: UserRole;
   isPaid?: boolean;
@@ -73,6 +83,8 @@ export type TUserFilterRequest = {
 export type TUpdateMyProfile = {
   name?: string;
   avatarUrl?: string;
+  gender?: Gender | null;
+  dateOfBirth?: Date | string | null;
   department?: string;
   session?: string;
   institution?: string;
@@ -95,9 +107,32 @@ export type TRenewMembership = {
 };
 
 export type TConvertMembership = {
-  userIds: number[];
-  targetRoleOrOrg: 'MAKE_RUDC_MEMBER' | 'MAKE_RUDC_VOLUNTEER' | 'MAKE_RUIL_MEMBER';
+  userIds: string[];
+  targetRoleOrOrg: 'MAKE_RUDC_MEMBER' | 'MAKE_RUDC_VOLUNTEER' | 'MAKE_RUIL_MEMBER' | 'MAKE_GENERAL_USER';
   confirmPayment?: boolean;
   paymentMethod?: PaymentMethod;
   months?: number;
+  faculty?: string;
+  department?: string;
+  session?: string;
+  studentOrVoterId?: string;
+};
+
+export type TBulkUpdateUsers = {
+  userIds: string[];
+  status?: UserStatus;
+  role?: UserRole;
+  org?: Organization;
+};
+
+export type TBulkDeleteUsers = {
+  userIds: string[];
+};
+
+export type TCustomNotice = {
+  userIds?: string[];
+  recipients?: string[];
+  subject: string;
+  htmlContent: string;
+  noticeType?: 'INTERVIEW' | 'OVERDUE' | 'GENERAL';
 };

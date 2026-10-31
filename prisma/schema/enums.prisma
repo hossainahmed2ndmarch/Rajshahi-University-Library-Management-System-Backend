@@ -4,6 +4,12 @@ enum UserRole {
   ADMIN
   SHIFTER
   MEMBER
+  GENERAL_USER
+}
+
+enum Gender {
+  MALE
+  FEMALE
 }
 
 enum UserStatus {
@@ -180,6 +186,6 @@ enum AuthorRole {
 }
 
 enum CouponDiscountType {
-  PERCENTAGE   // e.g., 10.00% off
+  PERCENTAGE // e.g., 10.00% off
   FIXED_AMOUNT // e.g., ৳100.00 off
 }

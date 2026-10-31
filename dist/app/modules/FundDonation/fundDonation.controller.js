@@ -21,7 +21,7 @@ const fundDonation_service_1 = require("./fundDonation.service");
 const client_1 = require("@prisma/client");
 const initiateDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d;
-    const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) ? Number(((_c = req.user) === null || _c === void 0 ? void 0 : _c.userId) || ((_d = req.user) === null || _d === void 0 ? void 0 : _d.id)) : undefined;
+    const userId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) ? String(((_c = req.user) === null || _c === void 0 ? void 0 : _c.userId) || ((_d = req.user) === null || _d === void 0 ? void 0 : _d.id)) : undefined;
     const result = yield fundDonation_service_1.FundDonationService.initiateOnlineDonation(req.body, userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -82,7 +82,7 @@ const handleIPN = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void
 }));
 const createManualDonation = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     var _a, _b, _c, _d;
-    const actingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) ? Number(((_c = req.user) === null || _c === void 0 ? void 0 : _c.userId) || ((_d = req.user) === null || _d === void 0 ? void 0 : _d.id)) : undefined;
+    const actingUserId = ((_a = req.user) === null || _a === void 0 ? void 0 : _a.userId) || ((_b = req.user) === null || _b === void 0 ? void 0 : _b.id) ? String(((_c = req.user) === null || _c === void 0 ? void 0 : _c.userId) || ((_d = req.user) === null || _d === void 0 ? void 0 : _d.id)) : undefined;
     const result = yield fundDonation_service_1.FundDonationService.createManualDonation(req.body, actingUserId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.CREATED,

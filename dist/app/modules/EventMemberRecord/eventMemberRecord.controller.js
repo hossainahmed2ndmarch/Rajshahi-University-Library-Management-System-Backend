@@ -27,7 +27,7 @@ const bulkMarkAttendance = (0, catchAsync_1.default)((req, res) => __awaiter(voi
     });
 }));
 const submitFeedback = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = Number(req.user.userId);
+    const userId = String(req.user.userId || req.user.id);
     const result = yield eventMemberRecord_service_1.EventMemberRecordService.submitFeedbackIntoDB(userId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -37,7 +37,7 @@ const submitFeedback = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
     });
 }));
 const selfAttendance = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = Number(req.user.userId);
+    const userId = String(req.user.userId || req.user.id);
     const result = yield eventMemberRecord_service_1.EventMemberRecordService.recordSelfAttendanceIntoDB(userId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -69,7 +69,7 @@ const getRecordsByEvent = (0, catchAsync_1.default)((req, res) => __awaiter(void
     });
 }));
 const getMyRecords = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = Number(req.user.userId);
+    const userId = String(req.user.userId || req.user.id);
     const eventId = req.query.eventId ? Number(req.query.eventId) : undefined;
     const result = yield eventMemberRecord_service_1.EventMemberRecordService.getMyRecordsFromDB(userId, eventId);
     (0, sendResponse_1.default)(res, {
@@ -90,7 +90,7 @@ const getEventStats = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, 
     });
 }));
 const submitCampaign = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const userId = req.user ? Number(req.user.userId) : null;
+    const userId = req.user ? String(req.user.userId || req.user.id) : null;
     const result = yield eventMemberRecord_service_1.EventMemberRecordService.submitCampaignIntoDB(req.body, userId);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,
@@ -101,7 +101,7 @@ const submitCampaign = (0, catchAsync_1.default)((req, res) => __awaiter(void 0,
 }));
 const publishRecordAsArticle = (0, catchAsync_1.default)((req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { id } = req.params;
-    const requestingUserId = Number(req.user.userId);
+    const requestingUserId = String(req.user.userId || req.user.id);
     const result = yield eventMemberRecord_service_1.EventMemberRecordService.publishRecordAsArticleInDB(Number(id), requestingUserId, req.body);
     (0, sendResponse_1.default)(res, {
         statusCode: http_status_1.default.OK,

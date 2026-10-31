@@ -1,0 +1,28 @@
+// RUIL Library Specific Member Profile
+
+model RuilMemberProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Subscription & Fee Verification
+  membershipStatus    UserStatus     @default(PENDING_PAYMENT)
+  isPaid              Boolean        @default(false)
+  paymentMethod       PaymentMethod?
+  paymentTrxId        String?
+  membershipStartedAt DateTime?
+  membershipExpiresAt DateTime?
+
+  // Library Privileges
+  maxBorrowLimit Int @default(2)
+
+  // Administration
+  approvedByAdminId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([membershipStatus])
+  @@index([membershipExpiresAt])
+  @@map("ruil_member_profiles")
+}

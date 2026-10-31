@@ -7,9 +7,10 @@ import { OrderValidation } from './order.validation';
 
 const router = Router();
 
-// 1. Create order (Public / Authenticated guests & patrons)
+// 1. Create order (Authenticated users only - no guest buy)
 router.post(
   '/',
+  auth(UserRole.GENERAL_USER, UserRole.MEMBER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SHIFTER),
   validateRequest(OrderValidation.createOrderValidationSchema),
   OrderController.createOrder
 );
@@ -18,17 +19,16 @@ router.post(
 router.get('/track/:orderCode', OrderController.trackOrderByCode);
 
 // 3. Public Courier Delivery OTP Verification
-// (Courier rider scans QR or visits /delivery/verify with tracking code + customer's OTP)
 router.post(
   '/verify-delivery-otp',
   validateRequest(OrderValidation.verifyDeliveryOtpValidationSchema),
   OrderController.verifyDeliveryOtp
 );
 
-// 4. Authenticated: Patron personal orders
+// 4. Authenticated: Customer personal orders
 router.get(
   '/my-orders',
-  auth(UserRole.MEMBER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SHIFTER),
+  auth(UserRole.GENERAL_USER, UserRole.MEMBER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SHIFTER),
   OrderController.getMyOrders
 );
 
@@ -80,7 +80,7 @@ router.post(
 // 11. Customer or Staff: Cancel order
 router.patch(
   '/:id/cancel',
-  auth(UserRole.MEMBER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SHIFTER),
+  auth(UserRole.GENERAL_USER, UserRole.MEMBER, UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.SHIFTER),
   OrderController.cancelOrder
 );
 

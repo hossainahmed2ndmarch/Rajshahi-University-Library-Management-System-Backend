@@ -6,7 +6,7 @@ import sendResponse from '../../utils/sendResponse';
 import { ShiftLogService } from './shiftLog.service';
 
 const checkInShift = catchAsync(async (req: Request, res: Response) => {
-  const shifterId = Number(req.user?.userId || req.user?.id);
+  const shifterId = String(req.user?.userId || req.user?.id);
   const result = await ShiftLogService.checkInShiftInDB(shifterId, req.body);
 
   sendResponse(res, {
@@ -18,7 +18,7 @@ const checkInShift = catchAsync(async (req: Request, res: Response) => {
 });
 
 const checkOutShift = catchAsync(async (req: Request, res: Response) => {
-  const shifterId = Number(req.user?.userId || req.user?.id);
+  const shifterId = String(req.user?.userId || req.user?.id);
   const result = await ShiftLogService.checkOutShiftInDB(shifterId, req.body);
 
   sendResponse(res, {
@@ -30,7 +30,7 @@ const checkOutShift = catchAsync(async (req: Request, res: Response) => {
 });
 
 const scheduleShift = catchAsync(async (req: Request, res: Response) => {
-  const shifterId = Number(req.user?.userId || req.user?.id);
+  const shifterId = String(req.user?.userId || req.user?.id);
   const result = await ShiftLogService.scheduleShiftInDB(shifterId, req.body);
 
   sendResponse(res, {
@@ -43,7 +43,7 @@ const scheduleShift = catchAsync(async (req: Request, res: Response) => {
 
 const cancelShift = catchAsync(async (req: Request, res: Response) => {
   const currentUser = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as UserRole,
   };
   const shiftId = Number(req.params.id);
@@ -94,7 +94,7 @@ const getActiveShift = catchAsync(async (req: Request, res: Response) => {
 
 const rescheduleShift = catchAsync(async (req: Request, res: Response) => {
   const currentUser = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as UserRole,
   };
   const shiftId = Number(req.params.id);
@@ -110,7 +110,7 @@ const rescheduleShift = catchAsync(async (req: Request, res: Response) => {
 
 const completeOfflineShift = catchAsync(async (req: Request, res: Response) => {
   const currentUser = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as UserRole,
   };
   const shiftId = Number(req.params.id);
@@ -137,7 +137,7 @@ const emailAction = catchAsync(async (req: Request, res: Response) => {
 
 const verifyShift = catchAsync(async (req: Request, res: Response) => {
   const currentUser = {
-    userId: Number(req.user?.userId || req.user?.id),
+    userId: String(req.user?.userId || req.user?.id),
     role: req.user?.role as UserRole,
   };
   const shiftId = Number(req.params.id);

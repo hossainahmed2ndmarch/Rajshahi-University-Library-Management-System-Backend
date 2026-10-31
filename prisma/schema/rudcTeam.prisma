@@ -13,7 +13,7 @@ model RudcTeam {
 
 model UserRudcTeam {
   id     Int      @id @default(autoincrement())
-  userId Int
+  userId String
   teamId Int
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   team   RudcTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)

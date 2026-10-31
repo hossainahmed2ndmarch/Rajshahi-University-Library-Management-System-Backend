@@ -1,21 +1,21 @@
 model Author {
-  id          Int          @id @default(autoincrement())
-  
+  id Int @id @default(autoincrement())
+
   // Optional link to internal platform User
-  userId      Int?         @unique
-  user        User?        @relation("UserAuthorProfile", fields: [userId], references: [id], onDelete: SetNull)
+  userId String? @unique
+  user   User?   @relation("UserAuthorProfile", fields: [userId], references: [id], onDelete: SetNull)
 
-  name        String       // Display Name
-  avatar      String?      // Avatar Image
-  bio         String?      @db.Text
+  name              String // Display Name
+  avatar            String? // Avatar Image
+  bio               String? @db.Text
   authorDesignation String?
-  socialLinks Json?        // { facebook?: string, twitter?: string, website?: string }
+  socialLinks       Json? // { facebook?: string, twitter?: string, website?: string }
 
-  books       BookAuthor[]
-  articles    Article[]
+  books    BookAuthor[]
+  articles Article[]
 
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([userId])
   @@map("authors")

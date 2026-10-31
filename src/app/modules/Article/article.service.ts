@@ -48,7 +48,7 @@ export const formatArticleResponse = (article: any) => {
   };
 };
 
-const createArticleIntoDB = async (payload: TCreateArticle, requestingUserId?: number) => {
+const createArticleIntoDB = async (payload: TCreateArticle, requestingUserId?: string) => {
   const baseSlug = payload.slug ? createSlug(payload.slug) : createSlug(payload.title);
   const uniqueSlug = await ensureUniqueSlug(baseSlug);
 
@@ -104,7 +104,7 @@ const createArticleIntoDB = async (payload: TCreateArticle, requestingUserId?: n
   return formatArticleResponse(article);
 };
 
-const submitArticleIntoDB = async (payload: TSubmitArticle, requestingUserId?: number) => {
+const submitArticleIntoDB = async (payload: TSubmitArticle, requestingUserId?: string) => {
   const baseSlug = createSlug(payload.title);
   const uniqueSlug = await ensureUniqueSlug(baseSlug);
   const readTime = calculateReadTime(payload.content);

@@ -26,16 +26,29 @@ import {
 export const formatUserWithRudcProfile = (user: any) => {
   if (!user) return user;
   const rudc = user.rudcProfile;
+  const ruil = user.ruilProfile;
+  const academic = user.academicProfile;
+
   return {
     ...user,
     rudcProfile: rudc || null,
-    // Flattened aliases for backward compatibility with frontend
-    faculty: rudc?.faculty ?? user.faculty ?? null,
+    ruilProfile: ruil || null,
+    academicProfile: academic || null,
+    // Flattened aliases for 100% backward compatibility with frontend
+    institution: academic?.institution ?? user.institution ?? 'University of Rajshahi',
+    faculty: academic?.faculty ?? user.faculty ?? null,
+    department: academic?.department ?? user.department ?? null,
+    session: academic?.session ?? user.session ?? null,
+    studentOrVoterId: academic?.studentOrVoterId ?? user.studentOrVoterId ?? null,
+    bloodGroup: academic?.bloodGroup ?? user.bloodGroup ?? null,
+    accommodationType: academic?.accommodationType ?? user.accommodationType ?? null,
+    accommodationName: academic?.accommodationName ?? user.accommodationName ?? null,
+    isPaid: ruil?.isPaid ?? user.isPaid ?? false,
+    membershipStartedAt: ruil?.membershipStartedAt ?? user.membershipStartedAt ?? null,
+    membershipExpiresAt: ruil?.membershipExpiresAt ?? user.membershipExpiresAt ?? null,
+    paymentMethod: ruil?.paymentMethod ?? user.paymentMethod ?? null,
     whatsappNumber: rudc?.whatsappNumber ?? user.whatsappNumber ?? null,
-    bloodGroup: rudc?.bloodGroup ?? user.bloodGroup ?? null,
     skills: rudc?.skills ?? (Array.isArray(user.skills) ? user.skills : []),
-    accommodationType: rudc?.accommodationType ?? user.accommodationType ?? null,
-    accommodationName: rudc?.accommodationName ?? user.accommodationName ?? null,
     permanentAddress: rudc?.permanentAddress ?? user.permanentAddress ?? null,
     isAffiliatedWithOther: rudc?.isAffiliatedWithOther ?? user.isAffiliatedWithOther ?? false,
     otherOrgName: rudc?.otherOrgName ?? user.otherOrgName ?? null,
@@ -74,13 +87,13 @@ const applyForRudc = async (payload: TRudcApplyPayload) => {
       OR: [
         { email: payload.email },
         { phone: payload.phone },
-        { studentOrVoterId: payload.studentOrVoterId },
+        { academicProfile: { studentOrVoterId: payload.studentOrVoterId } },
       ],
     },
   });
 
   if (existingUser) {
-    if (existingUser.email.toLowerCase() === payload.email.toLowerCase()) {
+    if (existingUser.email?.toLowerCase() === payload.email.toLowerCase()) {
       throw new AppError(
         httpStatus.CONFLICT,
         'An account with this email address already exists. Please use a different email or log in.'
@@ -107,26 +120,28 @@ const applyForRudc = async (payload: TRudcApplyPayload) => {
       email: payload.email,
       phone: payload.phone,
       password: hashedPassword,
-      studentOrVoterId: payload.studentOrVoterId,
-      department: payload.department,
       org: Organization.RUDC,
       role: UserRole.MEMBER,
       // RUDC-only applicants start as INACTIVE — they are NOT RUIL members.
       // They can still log in and view their RUDC application status in the dashboard.
       // Admin approval makes them a RUDC volunteer/member, but does NOT grant RUIL library access.
       status: UserStatus.INACTIVE,
-      isPaid: false,
-      membershipStartedAt: null,
-      membershipExpiresAt: null,
-      paymentMethod: null,
-      rudcProfile: {
+      academicProfile: {
         create: {
+          institution: 'University of Rajshahi',
           faculty: payload.faculty,
-          whatsappNumber: payload.whatsappNumber,
+          department: payload.department,
+          session: '2024-2025',
+          studentOrVoterId: payload.studentOrVoterId,
           bloodGroup: payload.bloodGroup,
-          skills: payload.skills,
           accommodationType: payload.accommodationType,
           accommodationName: payload.accommodationName,
+        },
+      },
+      rudcProfile: {
+        create: {
+          whatsappNumber: payload.whatsappNumber,
+          skills: payload.skills,
           permanentAddress: payload.permanentAddress,
           isAffiliatedWithOther: payload.isAffiliatedWithOther,
           otherOrgName: payload.isAffiliatedWithOther ? payload.otherOrgName : null,
@@ -140,6 +155,7 @@ const applyForRudc = async (payload: TRudcApplyPayload) => {
     },
     include: {
       rudcProfile: true,
+      academicProfile: true,
     },
   });
 
@@ -147,10 +163,11 @@ const applyForRudc = async (payload: TRudcApplyPayload) => {
 };
 
 // 2. Fetch logged-in user's RUDC profile
-const getMyRudcProfile = async (userId: number) => {
+const getMyRudcProfile = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
+      academicProfile: true,
       rudcProfile: {
         include: {
           supervisor: {
@@ -179,7 +196,11 @@ const getMyRudcProfile = async (userId: number) => {
               email: true,
               phone: true,
               avatarUrl: true,
-              department: true,
+              academicProfile: {
+                select: {
+                  department: true,
+                },
+              },
               rudcProfile: {
                 select: {
                   whatsappNumber: true,
@@ -204,13 +225,17 @@ const getMyRudcProfile = async (userId: number) => {
                       name: true,
                       email: true,
                       phone: true,
-                      department: true,
-                      session: true,
+                      academicProfile: {
+                        select: {
+                          department: true,
+                          session: true,
+                          faculty: true,
+                        },
+                      },
                       avatarUrl: true,
                       rudcProfile: {
                         select: {
                           whatsappNumber: true,
-                          faculty: true,
                           skills: true,
                           rudcMemberType: true,
                         },
@@ -466,10 +491,11 @@ const getAllRudcMembers = async (query: Record<string, unknown>) => {
 };
 
 // 5. Get Single RUDC Member By ID
-const getRudcMemberById = async (id: number) => {
+const getRudcMemberById = async (id: string) => {
   const member = await prisma.user.findUnique({
     where: { id },
     include: {
+      academicProfile: true,
       rudcProfile: {
         include: {
           supervisor: {
@@ -492,7 +518,11 @@ const getRudcMemberById = async (id: number) => {
               email: true,
               phone: true,
               avatarUrl: true,
-              department: true,
+              academicProfile: {
+                select: {
+                  department: true,
+                },
+              },
             },
           },
         },
@@ -518,10 +548,10 @@ const getRudcMemberById = async (id: number) => {
 };
 
 // 6. Update Member Profile / Role / Supervisor
-const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) => {
+const updateRudcMember = async (id: string, payload: TUpdateRudcMemberPayload) => {
   const existing = await prisma.user.findUnique({
     where: { id },
-    include: { rudcProfile: true },
+    include: { rudcProfile: true, academicProfile: true },
   });
 
   if (!existing) {
@@ -557,7 +587,7 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
         data: {
           org: Organization.RUIL,
         },
-        include: { rudcProfile: true },
+        include: { rudcProfile: true, academicProfile: true },
       });
       return formatUserWithRudcProfile(updated);
     }
@@ -567,16 +597,19 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
     throw new AppError(httpStatus.BAD_REQUEST, 'A member cannot be their own supervisor!');
   }
 
+  const academicUpdateData: Record<string, any> = {};
+  if (payload.faculty !== undefined) academicUpdateData.faculty = payload.faculty;
+  if (payload.department !== undefined) academicUpdateData.department = payload.department;
+  if (payload.bloodGroup !== undefined) academicUpdateData.bloodGroup = payload.bloodGroup;
+  if (payload.accommodationType !== undefined) academicUpdateData.accommodationType = payload.accommodationType;
+  if (payload.accommodationName !== undefined) academicUpdateData.accommodationName = payload.accommodationName;
+
   const rudcUpdateData: Record<string, any> = {};
   if (payload.rudcMemberType !== undefined) rudcUpdateData.rudcMemberType = payload.rudcMemberType;
   if (payload.rudcStatus !== undefined) rudcUpdateData.rudcStatus = payload.rudcStatus;
   if (payload.supervisorId !== undefined) rudcUpdateData.supervisorId = payload.supervisorId;
-  if (payload.faculty !== undefined) rudcUpdateData.faculty = payload.faculty;
   if (payload.whatsappNumber !== undefined) rudcUpdateData.whatsappNumber = payload.whatsappNumber;
-  if (payload.bloodGroup !== undefined) rudcUpdateData.bloodGroup = payload.bloodGroup;
   if (payload.skills !== undefined) rudcUpdateData.skills = payload.skills;
-  if (payload.accommodationType !== undefined) rudcUpdateData.accommodationType = payload.accommodationType;
-  if (payload.accommodationName !== undefined) rudcUpdateData.accommodationName = payload.accommodationName;
   if (payload.permanentAddress !== undefined) rudcUpdateData.permanentAddress = payload.permanentAddress;
   if (payload.isAffiliatedWithOther !== undefined) rudcUpdateData.isAffiliatedWithOther = payload.isAffiliatedWithOther;
   if (payload.otherOrgName !== undefined) rudcUpdateData.otherOrgName = payload.isAffiliatedWithOther ? payload.otherOrgName : null;
@@ -586,7 +619,6 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
   await prisma.user.update({
     where: { id },
     data: {
-      ...(payload.department ? { department: payload.department } : {}),
       rudcProfile: {
         upsert: {
           create: {
@@ -599,6 +631,23 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
           update: rudcUpdateData,
         },
       },
+      ...(Object.keys(academicUpdateData).length > 0
+        ? {
+            academicProfile: {
+              upsert: {
+                create: {
+                  institution: 'University of Rajshahi',
+                  faculty: payload.faculty || 'General',
+                  department: payload.department || 'General',
+                  session: '2024-2025',
+                  studentOrVoterId: `RUDC-${id.slice(-6)}`,
+                  ...academicUpdateData,
+                },
+                update: academicUpdateData,
+              },
+            },
+          }
+        : {}),
     },
   });
 
@@ -606,7 +655,7 @@ const updateRudcMember = async (id: number, payload: TUpdateRudcMemberPayload) =
 };
 
 // Dedicated delete / reject applicant endpoint
-const deleteRudcMember = async (id: number) => {
+const deleteRudcMember = async (id: string) => {
   const existing = await prisma.user.findUnique({
     where: { id },
     include: { rudcProfile: true },
@@ -656,22 +705,18 @@ const createPreExistedRudcMember = async (payload: TCreatePreExistedRudcMemberPa
       OR: [
         { email: payload.email },
         { phone: payload.phone },
-        { studentOrVoterId: payload.studentOrVoterId },
+        { academicProfile: { studentOrVoterId: payload.studentOrVoterId } },
       ],
     },
-    include: { rudcProfile: true },
+    include: { rudcProfile: true, academicProfile: true },
   });
 
-  let userId: number;
+  let userId: string;
   const targetOrg = payload.org || Organization.RUDC;
 
   const rudcProfileData = {
-    faculty: payload.faculty,
     whatsappNumber: payload.whatsappNumber,
-    bloodGroup: payload.bloodGroup,
     skills: payload.skills || [],
-    accommodationType: payload.accommodationType,
-    accommodationName: payload.accommodationName,
     permanentAddress: payload.permanentAddress,
     isAffiliatedWithOther: payload.isAffiliatedWithOther || false,
     otherOrgName: payload.otherOrgName || null,
@@ -694,10 +739,31 @@ const createPreExistedRudcMember = async (payload: TCreatePreExistedRudcMemberPa
       where: { id: userId },
       data: {
         name: payload.name || existingUser.name,
-        department: payload.department || existingUser.department,
-        session: payload.session || existingUser.session,
-        institution: payload.institution || existingUser.institution,
         org: combinedOrg,
+        academicProfile: {
+          upsert: {
+            create: {
+              institution: payload.institution || 'University of Rajshahi',
+              faculty: payload.faculty || 'General',
+              department: payload.department || 'General',
+              session: payload.session || '2024-2025',
+              studentOrVoterId: payload.studentOrVoterId,
+              bloodGroup: payload.bloodGroup,
+              accommodationType: payload.accommodationType,
+              accommodationName: payload.accommodationName,
+            },
+            update: {
+              ...(payload.institution ? { institution: payload.institution } : {}),
+              ...(payload.faculty ? { faculty: payload.faculty } : {}),
+              ...(payload.department ? { department: payload.department } : {}),
+              ...(payload.session ? { session: payload.session } : {}),
+              ...(payload.studentOrVoterId ? { studentOrVoterId: payload.studentOrVoterId } : {}),
+              ...(payload.bloodGroup ? { bloodGroup: payload.bloodGroup } : {}),
+              ...(payload.accommodationType ? { accommodationType: payload.accommodationType } : {}),
+              ...(payload.accommodationName ? { accommodationName: payload.accommodationName } : {}),
+            },
+          },
+        },
         rudcProfile: {
           upsert: {
             create: rudcProfileData,
@@ -716,13 +782,21 @@ const createPreExistedRudcMember = async (payload: TCreatePreExistedRudcMemberPa
         email: payload.email,
         phone: payload.phone,
         password: hashedPassword,
-        studentOrVoterId: payload.studentOrVoterId,
-        department: payload.department,
-        session: payload.session,
-        institution: payload.institution,
         org: targetOrg,
         role: UserRole.MEMBER,
         status: UserStatus.ACTIVE,
+        academicProfile: {
+          create: {
+            institution: payload.institution || 'University of Rajshahi',
+            faculty: payload.faculty || 'General',
+            department: payload.department || 'General',
+            session: payload.session || '2024-2025',
+            studentOrVoterId: payload.studentOrVoterId,
+            bloodGroup: payload.bloodGroup,
+            accommodationType: payload.accommodationType,
+            accommodationName: payload.accommodationName,
+          },
+        },
         rudcProfile: {
           create: rudcProfileData,
         },

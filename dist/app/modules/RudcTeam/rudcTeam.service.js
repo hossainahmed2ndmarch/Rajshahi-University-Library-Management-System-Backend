@@ -28,8 +28,12 @@ const getAllRudcTeams = () => __awaiter(void 0, void 0, void 0, function* () {
                             email: true,
                             phone: true,
                             avatarUrl: true,
-                            department: true,
-                            session: true,
+                            academicProfile: {
+                                select: {
+                                    department: true,
+                                    session: true,
+                                },
+                            },
                             rudcProfile: {
                                 select: {
                                     whatsappNumber: true,

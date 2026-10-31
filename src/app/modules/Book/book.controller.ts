@@ -5,7 +5,7 @@ import sendResponse from '../../utils/sendResponse';
 import { BookService } from './book.service';
 
 const createBook = catchAsync(async (req: Request, res: Response) => {
-  const adminId = req.user?.userId ? Number(req.user.userId) : undefined;
+  const adminId = req.user?.userId ? String(req.user.userId) : undefined;
   const result = await BookService.createBookIntoDB(req.body, adminId);
 
   sendResponse(res, {
@@ -175,6 +175,39 @@ const uploadBookImages = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const bulkUpdateBooks = catchAsync(async (req: Request, res: Response) => {
+  const result = await BookService.bulkUpdateBooksInDB(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Books updated in bulk successfully!',
+    data: result,
+  });
+});
+
+const bulkArchiveBooks = catchAsync(async (req: Request, res: Response) => {
+  const result = await BookService.bulkArchiveBooksInDB(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Books archived/unarchived in bulk successfully!',
+    data: result,
+  });
+});
+
+const bulkDeleteBooks = catchAsync(async (req: Request, res: Response) => {
+  const result = await BookService.bulkDeleteBooksInDB(req.body);
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Books deleted in bulk successfully!',
+    data: result,
+  });
+});
+
 export const BookController = {
   createBook,
   getAllBooks,
@@ -185,4 +218,7 @@ export const BookController = {
   deleteBook,
   uploadBookCover,
   uploadBookImages,
+  bulkUpdateBooks,
+  bulkArchiveBooks,
+  bulkDeleteBooks,
 };

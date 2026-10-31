@@ -17,6 +17,6 @@ export type TForgotPassword = {
 };
 
 export type TResetPassword = {
-  id: number;
+  id: string;
   newPassword: string;
 };

@@ -1,6 +1,11 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 const express_1 = require("express");
+const node_1 = require("better-auth/node");
+const auth_1 = __importDefault(require("../../lib/auth"));
 const auth_routes_1 = require("../modules/Auth/auth.routes");
 const user_routes_1 = require("../modules/User/user.routes");
 const book_routes_1 = require("../modules/Book/book.routes");
@@ -29,6 +34,8 @@ const coupon_routes_1 = require("../modules/Coupon/coupon.routes");
 const order_routes_1 = require("../modules/Order/order.routes");
 const bkash_routes_1 = require("../modules/Bkash/bkash.routes");
 const router = (0, express_1.Router)();
+// Better Auth Master Handler (Express 5 wildcard syntax)
+router.all('/auth/better{/*splat}', (0, node_1.toNodeHandler)(auth_1.default));
 const moduleRoutes = [
     {
         path: '/auth',

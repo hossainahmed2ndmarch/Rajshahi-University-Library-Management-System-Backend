@@ -13,16 +13,23 @@ import { createSteadfastOrder } from '../../../lib/steadfast';
 import { sendSMS, SMSTemplates } from '../../../lib/sms';
 import { emitOrderStatusUpdate } from '../../../lib/socket';
 
-const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: number) => {
-  const userId = authUserId || payload.userId || null;
+const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: string) => {
+  const userId = authUserId || payload.userId;
+  if (!userId) {
+    throw new AppError(
+      httpStatus.UNAUTHORIZED,
+      'You must be logged in to place an order! Guest buy is no longer supported.'
+    );
+  }
+
   const customerName = payload.customerName?.trim();
   const customerEmail = payload.customerEmail?.trim();
   const customerPhone = payload.customerPhone?.trim();
   const shippingAddress = payload.shippingAddress?.trim() || 'Counter Pickup (RUIL Central Library)';
   const paymentMethod = payload.paymentMethod || PaymentMethod.CASH;
 
-  if (!customerName || !customerEmail || !customerPhone) {
-    throw new AppError(httpStatus.BAD_REQUEST, 'Customer name, email, and phone are required!');
+  if (!customerName || !customerPhone) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Customer name and phone number are required!');
   }
 
   if (!payload.items || payload.items.length === 0) {
@@ -99,9 +106,32 @@ const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: number) 
     }
   }
 
-  const rawDelivery = payload.deliveryCharge ?? (payload.deliveryMethod === 'PICKUP' || payload.isPOSSale ? 0 : 60);
-  const deliveryCharge = Math.round(rawDelivery);
-  const totalAmount = Math.round(Math.max(0, subtotal - discountAmount + deliveryCharge));
+  // 3. Gift Wrapping (Rokomari style)
+  const isGiftWrap = Boolean(payload.isGiftWrap);
+  const giftWrapCharge = isGiftWrap ? (payload.giftWrapCharge || 30) : 0;
+  const giftMessage = payload.giftMessage || null;
+
+  // 4. Dynamic Delivery calculation & Free delivery threshold (Rokomari style)
+  let deliveryCharge = payload.deliveryCharge;
+  if (deliveryCharge === undefined) {
+    if (payload.deliveryMethod === 'PICKUP' || payload.isPOSSale) {
+      deliveryCharge = 0;
+    } else if (subtotal >= 1000) {
+      deliveryCharge = 0; // Free delivery for orders 1000 BDT or more
+    } else if (
+      shippingAddress.toLowerCase().includes('university') ||
+      shippingAddress.toLowerCase().includes('campus') ||
+      shippingAddress.toLowerCase().includes('hall')
+    ) {
+      deliveryCharge = 30; // On-campus delivery rate
+    } else {
+      deliveryCharge = 60; // Standard courier delivery
+    }
+  }
+
+  const totalAmount = Math.round(
+    Math.max(0, subtotal - discountAmount) + deliveryCharge + giftWrapCharge
+  );
 
   // Generate unique human-readable Order Code and Transaction Reference
   const now = new Date();
@@ -110,7 +140,7 @@ const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: number) 
   const orderCode = `ORD-${dateStr}-${randomSuffix}`;
   const transactionId = payload.customerTrxId || `TXN-${Date.now()}-${randomSuffix}`;
 
-  // 3. Transactionally create normalized Order and OrderItems, and update inventory
+  // 5. Transactionally create normalized Order and OrderItems, and update inventory
   const createdOrder = await prisma.$transaction(
     async (tx) => {
       // Re-check inventory inside TX to prevent race conditions
@@ -145,7 +175,6 @@ const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: number) 
         });
       }
 
-      // Create Order
       const isMfs = ['BKASH', 'NAGAD', 'ROCKET'].includes(paymentMethod);
       const isOnlinePaid = paymentMethod === PaymentMethod.ONLINE;
 
@@ -154,10 +183,14 @@ const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: number) 
           orderCode,
           transactionId,
           userId,
+          addressId: payload.addressId || null,
           customerName,
-          customerEmail,
+          customerEmail: customerEmail || null,
           customerPhone,
           shippingAddress,
+          isGiftWrap,
+          giftWrapCharge,
+          giftMessage,
           deliveryMethod: payload.deliveryMethod || 'COURIER',
           deliveryCharge,
           subtotal,
@@ -229,12 +262,11 @@ const createOrderInDB = async (payload: TCreateOrderInput, authUserId?: number) 
 
 const getAllOrdersFromDB = async (query: Record<string, unknown>) => {
   const queryObj = { ...query };
-  const excludeFields = ['page', 'limit', 'sortBy', 'sortOrder', 'searchTerm', 'buyerType'];
+  const excludeFields = ['page', 'limit', 'sortBy', 'sortOrder', 'searchTerm'];
   excludeFields.forEach((field) => delete queryObj[field]);
 
   const conditions: any[] = [];
 
-  // Search filter
   if (query.searchTerm) {
     const search = String(query.searchTerm).trim();
     conditions.push({
@@ -248,13 +280,6 @@ const getAllOrdersFromDB = async (query: Record<string, unknown>) => {
         { trackingNumber: { contains: search, mode: 'insensitive' } },
       ],
     });
-  }
-
-  // Buyer type filter (MEMBER vs GUEST)
-  if (query.buyerType === 'MEMBER') {
-    conditions.push({ userId: { not: null } });
-  } else if (query.buyerType === 'GUEST') {
-    conditions.push({ userId: null });
   }
 
   if (Object.keys(queryObj).length > 0) {
@@ -306,7 +331,7 @@ const getAllOrdersFromDB = async (query: Record<string, unknown>) => {
   };
 };
 
-const getOrderByIdFromDB = async (id: number) => {
+const getOrderByIdFromDB = async (id: string) => {
   const order = await prisma.order.findUnique({
     where: { id },
     include: {
@@ -369,7 +394,7 @@ const trackOrderByCodeFromDB = async (orderCodeOrTxn: string) => {
   return order;
 };
 
-const getMyOrdersFromDB = async (userId: number) => {
+const getMyOrdersFromDB = async (userId: string) => {
   return await prisma.order.findMany({
     where: { userId },
     include: {
@@ -384,7 +409,7 @@ const getMyOrdersFromDB = async (userId: number) => {
   });
 };
 
-const updateOrderStatusInDB = async (orderId: number, payload: TUpdateOrderStatusInput) => {
+const updateOrderStatusInDB = async (orderId: string, payload: TUpdateOrderStatusInput) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -394,7 +419,6 @@ const updateOrderStatusInDB = async (orderId: number, payload: TUpdateOrderStatu
     throw new AppError(httpStatus.NOT_FOUND, 'Order not found!');
   }
 
-  // If transitioning to CANCELLED and was not previously cancelled, restock books
   if (payload.orderStatus === OrderStatus.CANCELLED && order.orderStatus !== OrderStatus.CANCELLED) {
     return await prisma.$transaction(async (tx) => {
       for (const item of order.items) {
@@ -449,7 +473,7 @@ const updateOrderStatusInDB = async (orderId: number, payload: TUpdateOrderStatu
   return updated;
 };
 
-const verifyPaymentInDB = async (orderId: number, payload: TVerifyOrderPaymentInput) => {
+const verifyPaymentInDB = async (orderId: string, payload: TVerifyOrderPaymentInput) => {
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) {
     throw new AppError(httpStatus.NOT_FOUND, 'Order not found!');
@@ -500,7 +524,7 @@ const verifyPaymentInDB = async (orderId: number, payload: TVerifyOrderPaymentIn
   }
 };
 
-const dispatchCourierInDB = async (orderId: number, payload?: TDispatchCourierInput) => {
+const dispatchCourierInDB = async (orderId: string, payload?: TDispatchCourierInput) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: { include: { book: true } } },
@@ -510,14 +534,12 @@ const dispatchCourierInDB = async (orderId: number, payload?: TDispatchCourierIn
     throw new AppError(httpStatus.NOT_FOUND, 'Order not found!');
   }
 
-  // Generate 6-digit OTP code for customer delivery confirmation
   const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
   const otpExpiresAt = new Date();
   otpExpiresAt.setDate(otpExpiresAt.getDate() + 7);
 
   const courierName = payload?.courierName || 'Steadfast Courier';
 
-  // Book with Steadfast API
   const codAmount = order.paymentStatus === PaymentStatus.PAID ? 0 : order.totalAmount;
   const steadfastResult = await createSteadfastOrder({
     invoice: order.orderCode,
@@ -545,7 +567,6 @@ const dispatchCourierInDB = async (orderId: number, payload?: TDispatchCourierIn
     include: { items: { include: { book: true } }, user: true },
   });
 
-  // SMS Customer with tracking number and OTP
   if (updated.customerPhone) {
     sendSMS(
       updated.customerPhone,
@@ -573,12 +594,8 @@ const dispatchCourierInDB = async (orderId: number, payload?: TDispatchCourierIn
   };
 };
 
-/**
- * Public or authenticated OTP verification:
- * Can be called by delivery riders via public delivery confirmation page!
- */
 const verifyDeliveryOtpInDB = async (
-  identifier: { orderId?: number; trackingNumber?: string },
+  identifier: { orderId?: string; trackingNumber?: string },
   otp: string
 ) => {
   const cleanOtp = otp.trim();
@@ -639,7 +656,7 @@ const verifyDeliveryOtpInDB = async (
   return updated;
 };
 
-const cancelOrderInDB = async (orderId: number, userId?: number, isStaff?: boolean) => {
+const cancelOrderInDB = async (orderId: string, userId?: string, isStaff?: boolean) => {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { items: true },
@@ -690,13 +707,12 @@ const cancelOrderInDB = async (orderId: number, userId?: number, isStaff?: boole
   });
 };
 
-const deleteOrderInDB = async (orderId: number) => {
+const deleteOrderInDB = async (orderId: string) => {
   const order = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
   if (!order) {
     throw new AppError(httpStatus.NOT_FOUND, 'Order not found!');
   }
 
-  // If pending or processing, restore inventory
   if (order.orderStatus === OrderStatus.PENDING || order.orderStatus === OrderStatus.PROCESSING) {
     await prisma.$transaction(async (tx) => {
       for (const item of order.items) {

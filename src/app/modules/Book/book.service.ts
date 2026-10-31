@@ -3,7 +3,17 @@ import { AuthorRole, BookType } from '@prisma/client';
 import AppError from '../../errors/AppError';
 import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
-import { TAuthorItem, TCreateBook, TUpdateBook } from './book.interface';
+import { TAuthorItem, TCreateBook, TUpdateBook, TBulkUpdateBooks, TBulkArchiveBooks, TBulkDeleteBooks } from './book.interface';
+
+const generateSlug = (title: string): string => {
+  const base = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${base || 'book'}-${Date.now().toString(36)}`;
+};
 
 export const formatBookResponse = (book: any) => {
   if (!book) return book;
@@ -78,7 +88,7 @@ const resolveAuthorItems = async (
   return result;
 };
 
-const createBookIntoDB = async (payload: TCreateBook, adminId?: number) => {
+const createBookIntoDB = async (payload: TCreateBook, adminId?: string) => {
   const existingIsbn = await prisma.book.findUnique({
     where: { isbn: payload.isbn },
   });
@@ -97,7 +107,6 @@ const createBookIntoDB = async (payload: TCreateBook, adminId?: number) => {
       .map((c) => c.trim())
       .filter(Boolean);
   }
-  const categoryStr = categories.length > 0 ? categories.join(', ') : payload.category || 'General';
 
   const publisherId = await resolvePublisherId(payload.publisherId, payload.publisher);
   const resolvedAuthors = await resolveAuthorItems(payload.authors, payload.author);
@@ -112,9 +121,9 @@ const createBookIntoDB = async (payload: TCreateBook, adminId?: number) => {
   const book = await prisma.book.create({
     data: {
       title: payload.title,
+      slug: payload.slug || generateSlug(payload.title),
       isbn: payload.isbn,
       locationCell: payload.locationCell,
-      category: categoryStr,
       categories,
       pages: payload.pages !== undefined ? Number(payload.pages) : null,
       type: payload.type,
@@ -171,7 +180,7 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
   } = query;
 
   const bookQuery = new QueryBuilder(prisma.book, { ...queryParams, isArchived: isArchived ?? false }, {
-    searchableFields: ['title', 'isbn', 'category', 'locationCell', 'description'],
+    searchableFields: ['title', 'isbn', 'locationCell', 'description'],
     filterableFields: ['isArchived'],
   })
     .search()
@@ -187,8 +196,8 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
         { title: { contains: term, mode: 'insensitive' } },
         { isbn: { contains: term, mode: 'insensitive' } },
         { locationCell: { contains: term, mode: 'insensitive' } },
-        { category: { contains: term, mode: 'insensitive' } },
         { description: { contains: term, mode: 'insensitive' } },
+        { categories: { has: term } },
         {
           authors: {
             some: {
@@ -216,19 +225,9 @@ const getAllBooksFromDB = async (query: Record<string, unknown>) => {
       ? rawCategory.split(',').map((c) => c.trim()).filter(Boolean)
       : [];
 
-    if (categoryValues.length === 1) {
+    if (categoryValues.length > 0) {
       bookQuery.where({
-        OR: [
-          { categories: { has: categoryValues[0] } },
-          { category: { contains: categoryValues[0], mode: 'insensitive' } },
-        ],
-      });
-    } else if (categoryValues.length > 1) {
-      bookQuery.where({
-        OR: categoryValues.flatMap((cat) => [
-          { categories: { has: cat } },
-          { category: { contains: cat, mode: 'insensitive' } },
-        ]),
+        categories: { hasSome: categoryValues },
       });
     }
   }
@@ -478,11 +477,8 @@ const updateBookInDB = async (id: number, payload: TUpdateBook) => {
 
   // Handle categories
   if (payload.categories !== undefined) {
-    const cats = Array.from(new Set(payload.categories.map((c) => c.trim()).filter(Boolean)));
-    updateData.categories = cats;
-    updateData.category = cats.join(', ');
+    updateData.categories = Array.from(new Set(payload.categories.map((c) => c.trim()).filter(Boolean)));
   } else if (payload.category !== undefined) {
-    updateData.category = payload.category;
     updateData.categories = payload.category.split(',').map((c) => c.trim()).filter(Boolean);
   }
 
@@ -559,6 +555,79 @@ const deleteBookFromDB = async (id: number) => {
   });
 };
 
+// Bulk Update Books
+const bulkUpdateBooksInDB = async (payload: TBulkUpdateBooks) => {
+  const { bookIds, categories, customDiscount, locationCell, borrowStock, sellStock, isArchived } = payload;
+  if (!bookIds || bookIds.length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Please provide at least one bookId!');
+  }
+
+  const updateData: Record<string, any> = {};
+  if (categories !== undefined) {
+    updateData.categories = Array.from(new Set(categories.map((c) => c.trim()).filter(Boolean)));
+  }
+  if (customDiscount !== undefined) {
+    updateData.customDiscount = customDiscount !== null ? Number(customDiscount) : null;
+  }
+  if (locationCell !== undefined) {
+    updateData.locationCell = locationCell;
+  }
+  if (borrowStock !== undefined) {
+    updateData.borrowStock = Number(borrowStock);
+  }
+  if (sellStock !== undefined) {
+    updateData.sellStock = Number(sellStock);
+  }
+  if (isArchived !== undefined) {
+    updateData.isArchived = Boolean(isArchived);
+  }
+
+  const result = await prisma.book.updateMany({
+    where: { id: { in: bookIds } },
+    data: updateData,
+  });
+
+  return {
+    updatedCount: result.count,
+    message: `${result.count} books updated successfully!`,
+  };
+};
+
+// Bulk Archive Books
+const bulkArchiveBooksInDB = async (payload: TBulkArchiveBooks) => {
+  const { bookIds, isArchived } = payload;
+  if (!bookIds || bookIds.length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Please provide at least one bookId!');
+  }
+
+  const result = await prisma.book.updateMany({
+    where: { id: { in: bookIds } },
+    data: { isArchived: Boolean(isArchived) },
+  });
+
+  return {
+    updatedCount: result.count,
+    message: `${result.count} books ${isArchived ? 'archived' : 'unarchived'} successfully!`,
+  };
+};
+
+// Bulk Delete Books
+const bulkDeleteBooksInDB = async (payload: TBulkDeleteBooks) => {
+  const { bookIds } = payload;
+  if (!bookIds || bookIds.length === 0) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Please provide at least one bookId!');
+  }
+
+  const result = await prisma.book.deleteMany({
+    where: { id: { in: bookIds } },
+  });
+
+  return {
+    deletedCount: result.count,
+    message: `${result.count} books deleted permanently!`,
+  };
+};
+
 const getBookCategoriesFromDB = async () => {
   const books = await prisma.book.findMany({
     where: { isArchived: false },
@@ -566,7 +635,6 @@ const getBookCategoriesFromDB = async () => {
       id: true,
       title: true,
       coverImage: true,
-      category: true,
       categories: true,
       authors: {
         include: {
@@ -592,12 +660,6 @@ const getBookCategoriesFromDB = async () => {
     const cats = new Set<string>();
     if (Array.isArray(book.categories) && book.categories.length > 0) {
       book.categories.forEach((c) => {
-        const trimmed = c?.trim();
-        if (trimmed) cats.add(trimmed);
-      });
-    }
-    if (book.category) {
-      book.category.split(',').forEach((c) => {
         const trimmed = c?.trim();
         if (trimmed) cats.add(trimmed);
       });
@@ -632,7 +694,7 @@ const getBookOptionsFromDB = async () => {
   const [categoriesRaw, locationCellsRaw, publishers, authors] = await Promise.all([
     prisma.book.findMany({
       where: { isArchived: false },
-      select: { category: true, categories: true },
+      select: { categories: true },
     }),
     prisma.book.findMany({
       where: { isArchived: false },
@@ -651,7 +713,6 @@ const getBookOptionsFromDB = async () => {
   const categoriesSet = new Set<string>();
   categoriesRaw.forEach((b) => {
     if (Array.isArray(b.categories)) b.categories.forEach((c) => c && categoriesSet.add(c.trim()));
-    if (b.category) b.category.split(',').forEach((c) => c && categoriesSet.add(c.trim()));
   });
 
   const locationCellsSet = new Set<string>();
@@ -679,4 +740,7 @@ export const BookService = {
   getBookOptionsFromDB,
   updateBookInDB,
   deleteBookFromDB,
+  bulkUpdateBooksInDB,
+  bulkArchiveBooksInDB,
+  bulkDeleteBooksInDB,
 };

@@ -19,8 +19,10 @@ const AppError_1 = __importDefault(require("../../errors/AppError"));
 const db_1 = __importDefault(require("../../../lib/db"));
 const sslcommerz_1 = __importDefault(require("../../../lib/sslcommerz"));
 const initiateMembershipPayment = (userId, amount) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     const user = yield db_1.default.user.findUnique({
         where: { id: userId },
+        include: { academicProfile: true },
     });
     if (!user) {
         throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'User not found!');
@@ -38,7 +40,7 @@ const initiateMembershipPayment = (userId, amount) => __awaiter(void 0, void 0, 
         cus_name: user.name,
         cus_email: user.email,
         cus_phone: user.phone,
-        cus_add1: user.institution || 'Rajshahi University',
+        cus_add1: ((_a = user.academicProfile) === null || _a === void 0 ? void 0 : _a.institution) || 'Rajshahi University',
         product_name: 'RUIL Library Membership Subscription',
         product_category: 'Membership',
         value_a: user.id.toString(),
@@ -84,11 +86,12 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
         throw new AppError_1.default(http_status_1.default.BAD_REQUEST, 'Payment was not marked as valid by gateway!');
     }
     // Handle membership payment transaction
+    // tran_id format: MEM-<userId>-<timestamp>
     const isMembership = payload.value_b === 'MEMBERSHIP' || (tran_id && tran_id.startsWith('MEM-'));
     const userId = payload.value_a
-        ? Number(payload.value_a)
+        ? String(payload.value_a)
         : tran_id && tran_id.startsWith('MEM-')
-            ? Number(tran_id.split('-')[1])
+            ? tran_id.split('-')[1] // e.g. "MEM-clxxx123-1234567890" → "clxxx123"
             : null;
     if (isMembership && userId) {
         const now = new Date();
@@ -105,24 +108,36 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
             if (existingInTx && existingInTx.status === client_1.PaymentStatus.COMPLETED) {
                 return { alreadyProcessed: true, payment: existingInTx };
             }
+            // Activate the user account status
             const updatedUser = yield tx.user.update({
                 where: { id: userId },
                 data: {
                     status: client_1.UserStatus.ACTIVE,
-                    isPaid: true,
-                    paymentMethod: client_1.PaymentMethod.ONLINE,
-                    membershipStartedAt: now,
-                    membershipExpiresAt: expiresAt,
                 },
                 select: {
                     id: true,
                     name: true,
                     email: true,
                     status: true,
+                },
+            });
+            // Update the RuilMemberProfile with payment details
+            yield tx.ruilMemberProfile.upsert({
+                where: { userId },
+                create: {
+                    userId,
                     isPaid: true,
-                    paymentMethod: true,
-                    membershipStartedAt: true,
-                    membershipExpiresAt: true,
+                    paymentMethod: client_1.PaymentMethod.ONLINE,
+                    membershipStartedAt: now,
+                    membershipExpiresAt: expiresAt,
+                    membershipStatus: client_1.UserStatus.ACTIVE,
+                },
+                update: {
+                    isPaid: true,
+                    paymentMethod: client_1.PaymentMethod.ONLINE,
+                    membershipStartedAt: now,
+                    membershipExpiresAt: expiresAt,
+                    membershipStatus: client_1.UserStatus.ACTIVE,
                 },
             });
             const paymentRecord = yield tx.payment.create({
@@ -151,37 +166,37 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
             message: 'Membership activated successfully for 1 year!',
         };
     }
-    // Handle purchase order transaction
-    if (tran_id && tran_id.startsWith('TXN-')) {
+    // Handle purchase/order transaction (tran_id starts with 'TXN-' or 'ORD-')
+    if (tran_id && (tran_id.startsWith('TXN-') || tran_id.startsWith('ORD-'))) {
         // Idempotency: if already PAID, skip re-processing
-        const existingPurchase = yield db_1.default.purchase.findUnique({
+        const existingOrder = yield db_1.default.order.findFirst({
             where: { transactionId: tran_id },
-            include: { book: true },
+            include: { items: { include: { book: true } } },
         });
-        if (!existingPurchase) {
-            return { message: 'Purchase order not found for this transaction.', tran_id };
+        if (!existingOrder) {
+            return { message: 'Order not found for this transaction.', tran_id };
         }
-        if (existingPurchase.paymentStatus === client_1.PaymentStatus.PAID) {
+        if (existingOrder.paymentStatus === client_1.PaymentStatus.PAID) {
             return {
                 type: 'ALREADY_PROCESSED',
-                purchase: existingPurchase,
-                message: 'Purchase payment was already marked as paid.',
+                order: existingOrder,
+                message: 'Order payment was already marked as paid.',
             };
         }
-        const updatedPurchase = yield db_1.default.purchase.update({
-            where: { transactionId: tran_id },
+        const updatedOrder = yield db_1.default.order.update({
+            where: { id: existingOrder.id },
             data: {
                 paymentStatus: client_1.PaymentStatus.PAID,
                 orderStatus: client_1.OrderStatus.PROCESSING,
             },
             include: {
-                book: true,
+                items: { include: { book: true } },
             },
         });
         return {
-            type: 'PURCHASE',
-            purchase: updatedPurchase,
-            message: 'Purchase payment completed successfully!',
+            type: 'ORDER',
+            order: updatedOrder,
+            message: 'Order payment completed successfully!',
         };
     }
     return {
@@ -191,22 +206,22 @@ const validatePaymentAndActivate = (payload) => __awaiter(void 0, void 0, void 0
 });
 const handleFailedPayment = (payload) => __awaiter(void 0, void 0, void 0, function* () {
     const tran_id = payload.tran_id;
-    if (tran_id && tran_id.startsWith('TXN-')) {
-        const existing = yield db_1.default.purchase.findUnique({
+    if (tran_id && (tran_id.startsWith('TXN-') || tran_id.startsWith('ORD-'))) {
+        const existing = yield db_1.default.order.findFirst({
             where: { transactionId: tran_id },
         });
         if (existing) {
-            const updatedPurchase = yield db_1.default.purchase.update({
-                where: { transactionId: tran_id },
+            const updatedOrder = yield db_1.default.order.update({
+                where: { id: existing.id },
                 data: {
                     paymentStatus: client_1.PaymentStatus.FAILED,
                     orderStatus: client_1.OrderStatus.CANCELLED,
                 },
             });
             return {
-                type: 'PURCHASE',
-                purchase: updatedPurchase,
-                message: 'Purchase payment failed and order was cancelled.',
+                type: 'ORDER',
+                order: updatedOrder,
+                message: 'Order payment failed and order was cancelled.',
             };
         }
     }

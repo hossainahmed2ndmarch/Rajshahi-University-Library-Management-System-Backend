@@ -5,7 +5,7 @@ import sendResponse from '../../utils/sendResponse';
 import { OrderService } from './order.service';
 
 const createOrder = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user ? Number((req.user as any).userId) : undefined;
+  const userId = req.user ? String((req.user as any).userId) : undefined;
   const result = await OrderService.createOrderInDB(req.body, userId);
 
   sendResponse(res, {
@@ -29,8 +29,8 @@ const getAllOrders = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getOrderById = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const result = await OrderService.getOrderByIdFromDB(Number(id));
+  const id = req.params.id as string;
+  const result = await OrderService.getOrderByIdFromDB(id);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -41,7 +41,7 @@ const getOrderById = catchAsync(async (req: Request, res: Response) => {
 });
 
 const trackOrderByCode = catchAsync(async (req: Request, res: Response) => {
-  const { orderCode } = req.params;
+  const orderCode = req.params.orderCode as string;
   const result = await OrderService.trackOrderByCodeFromDB(String(orderCode));
 
   sendResponse(res, {
@@ -53,7 +53,7 @@ const trackOrderByCode = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyOrders = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number((req.user as any).userId);
+  const userId = String((req.user as any).userId);
   const result = await OrderService.getMyOrdersFromDB(userId);
 
   sendResponse(res, {
@@ -65,8 +65,8 @@ const getMyOrders = catchAsync(async (req: Request, res: Response) => {
 });
 
 const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const result = await OrderService.updateOrderStatusInDB(Number(id), req.body);
+  const id = req.params.id as string;
+  const result = await OrderService.updateOrderStatusInDB(id, req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -77,8 +77,8 @@ const updateOrderStatus = catchAsync(async (req: Request, res: Response) => {
 });
 
 const verifyOrderPayment = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const result = await OrderService.verifyPaymentInDB(Number(id), req.body);
+  const id = req.params.id as string;
+  const result = await OrderService.verifyPaymentInDB(id, req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -89,8 +89,8 @@ const verifyOrderPayment = catchAsync(async (req: Request, res: Response) => {
 });
 
 const dispatchCourier = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const result = await OrderService.dispatchCourierInDB(Number(id), req.body);
+  const id = req.params.id as string;
+  const result = await OrderService.dispatchCourierInDB(id, req.body);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -102,10 +102,10 @@ const dispatchCourier = catchAsync(async (req: Request, res: Response) => {
 
 const verifyDeliveryOtp = catchAsync(async (req: Request, res: Response) => {
   const { otp, orderId, trackingNumber } = req.body;
-  const paramId = req.params.id ? Number(req.params.id) : undefined;
+  const paramId = req.params.id ? String(req.params.id) : undefined;
 
   const result = await OrderService.verifyDeliveryOtpInDB(
-    { orderId: paramId || (orderId ? Number(orderId) : undefined), trackingNumber },
+    { orderId: paramId || (orderId ? String(orderId) : undefined), trackingNumber },
     otp
   );
 
@@ -118,12 +118,12 @@ const verifyDeliveryOtp = catchAsync(async (req: Request, res: Response) => {
 });
 
 const cancelOrder = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  const userId = req.user ? Number((req.user as any).userId) : undefined;
+  const id = req.params.id as string;
+  const userId = req.user ? String((req.user as any).userId) : undefined;
   const userRole = req.user ? (req.user as any).role : undefined;
   const isStaff = ['SUPER_ADMIN', 'ADMIN', 'SHIFTER'].includes(userRole);
 
-  const result = await OrderService.cancelOrderInDB(Number(id), userId, isStaff);
+  const result = await OrderService.cancelOrderInDB(id, userId, isStaff);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,
@@ -134,8 +134,8 @@ const cancelOrder = catchAsync(async (req: Request, res: Response) => {
 });
 
 const deleteOrder = catchAsync(async (req: Request, res: Response) => {
-  const { id } = req.params;
-  await OrderService.deleteOrderInDB(Number(id));
+  const id = req.params.id as string;
+  await OrderService.deleteOrderInDB(id);
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

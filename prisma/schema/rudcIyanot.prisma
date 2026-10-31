@@ -1,17 +1,17 @@
 model RudcIyanot {
-  id     Int  @id @default(autoincrement())
-  userId Int
-  user   User @relation("UserIyanot", fields: [userId], references: [id], onDelete: Cascade)
+  id     Int    @id @default(autoincrement())
+  userId String
+  user   User   @relation("UserIyanot", fields: [userId], references: [id], onDelete: Cascade)
 
   month         Int // 1 - 12
   year          Int // e.g. 2026
-  amount        Decimal            @default(50.00) @db.Decimal(12, 2) // 50 BDT
+  amount        Decimal             @default(50.00) @db.Decimal(12, 2) // 50 BDT
   status        IyanotStatus        @default(PENDING)
   paymentMethod IyanotPaymentMethod @default(ONLINE)
 
   // Tracking who collected offline cash (Admin / Super Admin / Supervisor)
-  collectedById Int?
-  collectedBy   User? @relation("IyanotCollector", fields: [collectedById], references: [id])
+  collectedById String?
+  collectedBy   User?   @relation("IyanotCollector", fields: [collectedById], references: [id])
 
   transactionId String?
   receiptNo     String?   @unique

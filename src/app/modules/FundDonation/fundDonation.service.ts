@@ -12,7 +12,7 @@ import {
 
 const initiateOnlineDonation = async (
   payload: TInitiateDonationPayload,
-  userId?: number
+  userId?: string
 ) => {
   if (payload.amount <= 0) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Donation amount must be greater than zero!');
@@ -205,7 +205,7 @@ const handleFailedPayment = async (payload: Record<string, any>, status: Payment
 
 const createManualDonation = async (
   payload: TCreateManualDonationPayload,
-  actingUserId?: number
+  actingUserId?: string
 ) => {
   if (payload.amount <= 0) {
     throw new AppError(httpStatus.BAD_REQUEST, 'Donation amount must be greater than zero!');

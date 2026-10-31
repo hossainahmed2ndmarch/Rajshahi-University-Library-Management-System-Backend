@@ -5,9 +5,10 @@ import prisma from '../../../lib/db';
 import sslcommerz from '../../../lib/sslcommerz';
 import { TSSLCommerzIPN } from './payment.interface';
 
-const initiateMembershipPayment = async (userId: number, amount?: number) => {
+const initiateMembershipPayment = async (userId: string, amount?: number) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
+    include: { academicProfile: true },
   });
 
   if (!user) {
@@ -28,7 +29,7 @@ const initiateMembershipPayment = async (userId: number, amount?: number) => {
     cus_name: user.name,
     cus_email: user.email,
     cus_phone: user.phone,
-    cus_add1: user.institution || 'Rajshahi University',
+    cus_add1: user.academicProfile?.institution || 'Rajshahi University',
     product_name: 'RUIL Library Membership Subscription',
     product_category: 'Membership',
     value_a: user.id.toString(),
@@ -83,11 +84,12 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
   }
 
   // Handle membership payment transaction
+  // tran_id format: MEM-<userId>-<timestamp>
   const isMembership = payload.value_b === 'MEMBERSHIP' || (tran_id && tran_id.startsWith('MEM-'));
-  const userId = payload.value_a
-    ? Number(payload.value_a)
+  const userId: string | null = payload.value_a
+    ? String(payload.value_a)
     : tran_id && tran_id.startsWith('MEM-')
-    ? Number(tran_id.split('-')[1])
+    ? tran_id.split('-')[1] // e.g. "MEM-clxxx123-1234567890" → "clxxx123"
     : null;
 
   if (isMembership && userId) {
@@ -109,24 +111,37 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
           return { alreadyProcessed: true, payment: existingInTx };
         }
 
+        // Activate the user account status
         const updatedUser = await tx.user.update({
           where: { id: userId },
           data: {
             status: UserStatus.ACTIVE,
-            isPaid: true,
-            paymentMethod: PaymentMethod.ONLINE,
-            membershipStartedAt: now,
-            membershipExpiresAt: expiresAt,
           },
           select: {
             id: true,
             name: true,
             email: true,
             status: true,
+          },
+        });
+
+        // Update the RuilMemberProfile with payment details
+        await tx.ruilMemberProfile.upsert({
+          where: { userId },
+          create: {
+            userId,
             isPaid: true,
-            paymentMethod: true,
-            membershipStartedAt: true,
-            membershipExpiresAt: true,
+            paymentMethod: PaymentMethod.ONLINE,
+            membershipStartedAt: now,
+            membershipExpiresAt: expiresAt,
+            membershipStatus: UserStatus.ACTIVE,
+          },
+          update: {
+            isPaid: true,
+            paymentMethod: PaymentMethod.ONLINE,
+            membershipStartedAt: now,
+            membershipExpiresAt: expiresAt,
+            membershipStatus: UserStatus.ACTIVE,
           },
         });
 
@@ -162,41 +177,41 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
     };
   }
 
-  // Handle purchase order transaction
-  if (tran_id && tran_id.startsWith('TXN-')) {
+  // Handle purchase/order transaction (tran_id starts with 'TXN-' or 'ORD-')
+  if (tran_id && (tran_id.startsWith('TXN-') || tran_id.startsWith('ORD-'))) {
     // Idempotency: if already PAID, skip re-processing
-    const existingPurchase = await prisma.purchase.findUnique({
+    const existingOrder = await prisma.order.findFirst({
       where: { transactionId: tran_id },
-      include: { book: true },
+      include: { items: { include: { book: true } } },
     });
 
-    if (!existingPurchase) {
-      return { message: 'Purchase order not found for this transaction.', tran_id };
+    if (!existingOrder) {
+      return { message: 'Order not found for this transaction.', tran_id };
     }
 
-    if (existingPurchase.paymentStatus === PaymentStatus.PAID) {
+    if (existingOrder.paymentStatus === PaymentStatus.PAID) {
       return {
         type: 'ALREADY_PROCESSED',
-        purchase: existingPurchase,
-        message: 'Purchase payment was already marked as paid.',
+        order: existingOrder,
+        message: 'Order payment was already marked as paid.',
       };
     }
 
-    const updatedPurchase = await prisma.purchase.update({
-      where: { transactionId: tran_id },
+    const updatedOrder = await prisma.order.update({
+      where: { id: existingOrder.id },
       data: {
         paymentStatus: PaymentStatus.PAID,
         orderStatus: OrderStatus.PROCESSING,
       },
       include: {
-        book: true,
+        items: { include: { book: true } },
       },
     });
 
     return {
-      type: 'PURCHASE',
-      purchase: updatedPurchase,
-      message: 'Purchase payment completed successfully!',
+      type: 'ORDER',
+      order: updatedOrder,
+      message: 'Order payment completed successfully!',
     };
   }
 
@@ -209,14 +224,14 @@ const validatePaymentAndActivate = async (payload: TSSLCommerzIPN) => {
 const handleFailedPayment = async (payload: TSSLCommerzIPN) => {
   const tran_id = payload.tran_id;
 
-  if (tran_id && tran_id.startsWith('TXN-')) {
-    const existing = await prisma.purchase.findUnique({
+  if (tran_id && (tran_id.startsWith('TXN-') || tran_id.startsWith('ORD-'))) {
+    const existing = await prisma.order.findFirst({
       where: { transactionId: tran_id },
     });
 
     if (existing) {
-      const updatedPurchase = await prisma.purchase.update({
-        where: { transactionId: tran_id },
+      const updatedOrder = await prisma.order.update({
+        where: { id: existing.id },
         data: {
           paymentStatus: PaymentStatus.FAILED,
           orderStatus: OrderStatus.CANCELLED,
@@ -224,9 +239,9 @@ const handleFailedPayment = async (payload: TSSLCommerzIPN) => {
       });
 
       return {
-        type: 'PURCHASE',
-        purchase: updatedPurchase,
-        message: 'Purchase payment failed and order was cancelled.',
+        type: 'ORDER',
+        order: updatedOrder,
+        message: 'Order payment failed and order was cancelled.',
       };
     }
   }

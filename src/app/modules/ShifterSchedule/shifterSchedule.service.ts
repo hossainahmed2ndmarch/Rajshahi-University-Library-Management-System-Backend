@@ -80,7 +80,7 @@ const getTodayScheduleFromDB = async () => {
   });
 };
 
-const getMyScheduleFromDB = async (shifterId: number) => {
+const getMyScheduleFromDB = async (shifterId: string) => {
   return await prisma.shifterSchedule.findMany({
     where: { shifterId },
     include: {

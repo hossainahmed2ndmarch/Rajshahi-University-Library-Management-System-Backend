@@ -58,7 +58,7 @@ const bulkMarkAttendanceIntoDB = async (items: TBulkAttendanceItem[]) => {
   return results;
 };
 
-const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) => {
+const submitFeedbackIntoDB = async (userId: string, payload: TSubmitFeedback) => {
   const sessionDate = normalizeDate(payload.sessionDate);
 
   // Check event configuration
@@ -170,7 +170,7 @@ const submitFeedbackIntoDB = async (userId: number, payload: TSubmitFeedback) =>
   });
 };
 
-const recordSelfAttendanceIntoDB = async (userId: number, payload: TSelfAttendance) => {
+const recordSelfAttendanceIntoDB = async (userId: string, payload: TSelfAttendance) => {
   const sessionDate = normalizeDate(payload.sessionDate);
 
   const existing = await prisma.eventMemberRecord.findFirst({
@@ -292,7 +292,7 @@ const getRecordsByEventFromDB = async (eventId: number, query: Record<string, un
   };
 };
 
-const getMyRecordsFromDB = async (userId: number, eventId?: number) => {
+const getMyRecordsFromDB = async (userId: string, eventId?: number) => {
   const where: any = { userId };
   if (eventId) {
     where.eventId = eventId;
@@ -378,7 +378,7 @@ const getEventAttendanceStatsFromDB = async (eventId: number) => {
 
 const submitCampaignIntoDB = async (
   payload: TCampaignSubmission,
-  userId?: number | null,
+  userId?: string | null,
 ) => {
   const sessionDate = normalizeDate(payload.sessionDate);
 
@@ -524,7 +524,7 @@ const deleteRecordFromDB = async (recordId: number) => {
 
 const publishRecordAsArticleInDB = async (
   recordId: number,
-  requestingUserId: number,
+  requestingUserId: string,
   payload?: { title?: string; authorDesignation?: string; category?: string; coverImage?: string },
 ) => {
   const record = await prisma.eventMemberRecord.findUnique({

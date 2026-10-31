@@ -2,7 +2,7 @@ import { BorrowStatus } from '@prisma/client';
 
 export type TBorrowBook = {
   bookId: number;
-  userId?: number;
+  userId?: string;
   dueDate?: string | Date;
 };
 

@@ -5,7 +5,17 @@ import prisma from '../../../lib/db';
 import QueryBuilder from '../../builder/queryBuilder';
 import { TApproveDonationPayload, TConvertDonationToStock, TGuestDonation } from './donation.interface';
 
-const createDonationInDB = async (payload: TGuestDonation, donorId?: number) => {
+const generateSlug = (title: string): string => {
+  const base = title
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `${base || 'book'}-${Date.now().toString(36)}`;
+};
+
+const createDonationInDB = async (payload: TGuestDonation, donorId?: string) => {
   const {
     bookTitle,
     author,
@@ -51,7 +61,7 @@ const createDonationInDB = async (payload: TGuestDonation, donorId?: number) => 
 
 const approveDonationInDB = async (
   donationId: number,
-  adminId: number,
+  adminId?: string,
   payload?: TApproveDonationPayload
 ) => {
   const donation = await prisma.donation.findUnique({
@@ -155,9 +165,10 @@ const approveDonationInDB = async (
         const newBook = await tx.book.create({
           data: {
             title: donation.bookTitle || 'Donated Book',
+            slug: generateSlug(donation.bookTitle || 'Donated Book'),
             isbn: generatedIsbn,
             locationCell: initialLocation,
-            category: assignedCat,
+            categories: [assignedCat],
             pages: initialPages,
             type: BookType.BORROW_ONLY,
             sellPrice: null,
@@ -166,7 +177,7 @@ const approveDonationInDB = async (
             description:
               donation.donorNote ||
               'Donated book added into library catalog collection as borrowable. Further details can be updated by admin/shifter.',
-            addedById: adminId,
+            addedById: adminId || null,
             donatedById: donation.donorId || null,
             authors: authorRecord
               ? {
@@ -191,7 +202,7 @@ const approveDonationInDB = async (
       data: {
         status: DonationStatus.APPROVED,
         catalogedBookId: bookId,
-        receivedById: adminId,
+        receivedById: adminId || null,
         receivedAt: new Date(),
       },
       include: {
@@ -241,7 +252,7 @@ const rejectDonationInDB = async (donationId: number) => {
 const convertDonationToStock = async (
   donationId: number,
   payload: TConvertDonationToStock,
-  adminId: number
+  adminId?: string
 ) => {
   const donation = await prisma.donation.findUnique({
     where: { id: donationId },
@@ -325,9 +336,10 @@ const convertDonationToStock = async (
       const book = await tx.book.create({
         data: {
           title: donation.bookTitle || 'Donated Book',
+          slug: generateSlug(donation.bookTitle || 'Donated Book'),
           isbn: payload.isbn,
           locationCell: payload.locationCell,
-          category: donation.category || 'General',
+          categories: [donation.category || 'General'],
           pages: payload.pages,
           type: payload.type as BookType,
           sellPrice: payload.sellPrice || null,
@@ -335,7 +347,7 @@ const convertDonationToStock = async (
           sellStock: payload.sellStock ?? (payload.type !== 'BORROW_ONLY' ? donation.quantity : 0),
           coverImage: payload.coverImage || null,
           description: payload.description || donation.donorNote || null,
-          addedById: adminId,
+          addedById: adminId || null,
           donatedById: donation.donorId || null,
           authors: authorRecord
             ? {
@@ -357,7 +369,7 @@ const convertDonationToStock = async (
       data: {
         status: DonationStatus.CATALOGED,
         catalogedBookId: bookId,
-        receivedById: adminId,
+        receivedById: adminId || null,
         receivedAt: donation.receivedAt || new Date(),
       },
       include: {
@@ -373,7 +385,7 @@ const convertDonationToStock = async (
 
 const getAllDonationsFromDB = async (
   query: Record<string, unknown>,
-  user?: { userId: number; role: string; email?: string }
+  user?: { userId: string; role: string; email?: string }
 ) => {
   const queryParams = { ...query };
   queryParams.limit = queryParams.limit ? Number(queryParams.limit) : 100;
@@ -445,17 +457,17 @@ const createPOSDonationInDB = async (
     isbn?: string;
     pages?: number;
   },
-  shifterId: number
+  shifterId?: string
 ) => {
   const donorType = payload.donorType || 'GUEST';
-  let donorId: number | null = null;
+  let donorId: string | null = null;
   let finalDonorName = payload.donorName?.trim() || 'Walk-in Donor';
   let finalDonorEmail = payload.donorEmail?.trim() || null;
   let finalContactPhone = payload.contactPhone?.trim() || null;
 
   if (donorType === 'MEMBER' && payload.memberId) {
     const member = await prisma.user.findUnique({
-      where: { id: Number(payload.memberId) },
+      where: { id: String(payload.memberId) },
     });
     if (member) {
       donorId = member.id;
@@ -542,9 +554,10 @@ const createPOSDonationInDB = async (
         const newBook = await tx.book.create({
           data: {
             title: bookTitle,
+            slug: generateSlug(bookTitle),
             isbn: generatedIsbn,
             locationCell: initialLocation,
-            category,
+            categories: [category],
             pages: initialPages,
             type: BookType.BORROW_ONLY,
             sellPrice: null,
@@ -553,8 +566,8 @@ const createPOSDonationInDB = async (
             description:
               payload.donorNote ||
               `In-person donation received at POS Desk by staff. Condition: ${payload.condition || 'GOOD'}.`,
-            addedById: shifterId,
-            donatedById: donorId,
+            addedById: shifterId || null,
+            donatedById: donorId || null,
             authors: authorRecord
               ? {
                   create: [
@@ -585,8 +598,8 @@ const createPOSDonationInDB = async (
         donorEmail: finalDonorEmail,
         contactPhone: finalContactPhone,
         donorNote: payload.donorNote || (payload.condition ? `Condition: ${payload.condition}` : null),
-        donorId,
-        receivedById: shifterId,
+        donorId: donorId || null,
+        receivedById: shifterId || null,
         receivedAt: new Date(),
         status: donationStatus,
         catalogedBookId,
@@ -598,7 +611,11 @@ const createPOSDonationInDB = async (
             name: true,
             email: true,
             phone: true,
-            studentOrVoterId: true,
+            academicProfile: {
+              select: {
+                studentOrVoterId: true,
+              },
+            },
           },
         },
         receivedBy: {

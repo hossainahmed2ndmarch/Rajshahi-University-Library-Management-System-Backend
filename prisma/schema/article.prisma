@@ -1,31 +1,36 @@
 model Article {
-  id                Int          @id @default(autoincrement())
-  org               Organization @default(RUIL)
-  title             String
-  slug              String       @unique
-  content           String       @db.Text
-  coverImage        String?
-  category          String
+  id         Int          @id @default(autoincrement())
+  org        Organization @default(RUIL)
+  title      String
+  slug       String       @unique
+  content    String       @db.Text
+  coverImage String?
+  category   String
 
-  // Relational Author Link (Normalized)
-  authorId          Int?
-  author            Author?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  // Submitter User Link (For logged-in users who submit articles/writings)
+  submitterUserId String?
+  submitterUser   User?   @relation("UserSubmittedArticles", fields: [submitterUserId], references: [id], onDelete: SetNull)
 
-  // Submitter Author Details (saved before admin review/approval)
+  // Relational Author Link (Normalized Author profile)
+  authorId Int?
+  author   Author? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  // Submitter Author Display Details (Fallback or snapshot for display)
   authorName        String?
   authorDesignation String?
-  authorBio         String?      @db.Text
+  authorBio         String? @db.Text
 
   // Link to existing Book/Deyalika
-  relatedBookId     Int?
-  relatedBook       Book?        @relation(fields: [relatedBookId], references: [id], onDelete: SetNull)
+  relatedBookId Int?
+  relatedBook   Book? @relation(fields: [relatedBookId], references: [id], onDelete: SetNull)
 
-  totalViews        Int          @default(0)
-  totalReadTime     Int          @default(0)
-  isPublished       Boolean      @default(false)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  totalViews    Int      @default(0)
+  totalReadTime Int      @default(0)
+  isPublished   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
+  @@index([submitterUserId])
   @@index([authorId])
   @@index([category, isPublished])
   @@index([org])

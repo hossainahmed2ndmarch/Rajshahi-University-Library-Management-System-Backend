@@ -16,10 +16,11 @@ const MAX_ACTIVE_BORROWS_LIMIT = 5;
  * - Checks book availability & type
  * - Creates a Borrow record with status 'PENDING'
  */
-const createBorrowInDB = async (payload: TBorrowBook, userId: number) => {
+const createBorrowInDB = async (payload: TBorrowBook, userId: string) => {
   // Validate user exists
   const user = await prisma.user.findUnique({
     where: { id: userId },
+    include: { ruilProfile: true },
   });
 
   if (!user) {
@@ -40,7 +41,7 @@ const createBorrowInDB = async (payload: TBorrowBook, userId: number) => {
     if (
       user.status === UserStatus.PENDING_APPROVAL ||
       user.status === UserStatus.PENDING_PAYMENT ||
-      (user.membershipExpiresAt && user.membershipExpiresAt <= now)
+      (user.ruilProfile?.membershipExpiresAt && user.ruilProfile.membershipExpiresAt <= now)
     ) {
       throw new AppError(
         httpStatus.FORBIDDEN,
@@ -153,12 +154,16 @@ const createBorrowInDB = async (payload: TBorrowBook, userId: number) => {
  * - Automatically calculates Due Date based on book pages (15 pages = 1 day max) starting from approval time
  * - Sets status to APPROVED, approvedAt to now, and records approvedById
  */
-const approveBorrowInDB = async (borrowId: number, approvedById?: number) => {
+const approveBorrowInDB = async (borrowId: number, approvedById?: string) => {
   const borrow = await prisma.borrow.findUnique({
     where: { id: borrowId },
     include: {
       book: true,
-      user: true,
+      user: {
+        include: {
+          ruilProfile: true,
+        },
+      },
     },
   });
 
@@ -183,10 +188,10 @@ const approveBorrowInDB = async (borrowId: number, approvedById?: number) => {
 
   // Check membership status at the time of approval for MEMBER role
   const now = new Date();
-  if (borrow.user.role === UserRole.MEMBER && borrow.user.membershipExpiresAt && borrow.user.membershipExpiresAt <= now) {
+  if (borrow.user.role === UserRole.MEMBER && borrow.user.ruilProfile?.membershipExpiresAt && borrow.user.ruilProfile.membershipExpiresAt <= now) {
     throw new AppError(
       httpStatus.FORBIDDEN,
-      `Cannot approve borrow: Member's membership expired on ${borrow.user.membershipExpiresAt.toLocaleDateString()}. Member must renew first.`
+      `Cannot approve borrow: Member's membership expired on ${borrow.user.ruilProfile.membershipExpiresAt.toLocaleDateString()}. Member must renew first.`
     );
   }
 
@@ -340,7 +345,7 @@ const rejectBorrowInDB = async (borrowId: number) => {
 /**
  * 4. Return Borrowed Book
  */
-const returnBookInDB = async (borrowId: number, returnedById: number, payload?: TReturnBook) => {
+const returnBookInDB = async (borrowId: number, returnedById: string, payload?: TReturnBook) => {
   const borrow = await prisma.borrow.findUnique({
     where: { id: borrowId },
   });
@@ -408,20 +413,20 @@ const returnBookInDB = async (borrowId: number, returnedById: number, payload?: 
 const issueBookDirectlyInDB = async (
   payload: {
     bookId: number;
-    memberId?: number;
+    memberId?: string;
     studentOrVoterId?: string;
     memberPhone?: string;
     memberEmail?: string;
     dueDate?: string;
     notes?: string;
   },
-  shifterId: number
+  shifterId: string
 ) => {
   let user = null;
 
-  if (payload.memberId && !isNaN(Number(payload.memberId))) {
+  if (payload.memberId) {
     user = await prisma.user.findUnique({
-      where: { id: Number(payload.memberId) },
+      where: { id: String(payload.memberId) },
     });
   }
 
@@ -437,7 +442,7 @@ const issueBookDirectlyInDB = async (
       user = await prisma.user.findFirst({
         where: {
           OR: [
-            { studentOrVoterId: identifier },
+            { academicProfile: { studentOrVoterId: identifier } },
             { phone: identifier },
             { email: identifier },
           ],
@@ -563,8 +568,12 @@ const issueBookDirectlyInDB = async (
               name: true,
               email: true,
               phone: true,
-              studentOrVoterId: true,
-              department: true,
+              academicProfile: {
+                select: {
+                  studentOrVoterId: true,
+                  department: true,
+                },
+              },
             },
           },
           approvedBy: {
@@ -590,13 +599,13 @@ const issueBookDirectlyInDB = async (
  */
 const getAllBorrowsFromDB = async (
   query: Record<string, unknown>,
-  user: { userId: number; role: string }
+  user: { userId: string; role: string }
 ) => {
   const { overdue, ...queryParams } = query;
   queryParams.limit = queryParams.limit ? Number(queryParams.limit) : 100;
 
   if (user.role === UserRole.MEMBER || queryParams.userId) {
-    queryParams.userId = queryParams.userId ? Number(queryParams.userId) : user.userId;
+    queryParams.userId = queryParams.userId ? String(queryParams.userId) : user.userId;
   }
 
   const borrowQuery = new QueryBuilder(prisma.borrow, queryParams, {

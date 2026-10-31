@@ -1,0 +1,13 @@
+// Better Auth Verification Model (Email verification / OTP codes)
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String // e.g. email or phone number
+  value      String // token or OTP
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verifications")
+}

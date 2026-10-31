@@ -1,5 +1,5 @@
 export type TCreateSchedule = {
-  shifterId: number;
+  shifterId: string;
   dayOfWeek: number; // 0=Sun, 1=Mon ... 6=Sat
   dayName: string; // Bengali: শনিবার
   dayEn: string; // English: Saturday

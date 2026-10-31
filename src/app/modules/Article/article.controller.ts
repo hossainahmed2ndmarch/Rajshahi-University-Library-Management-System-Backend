@@ -7,7 +7,7 @@ import { ArticleService } from './article.service';
 const createArticle = catchAsync(async (req: Request, res: Response) => {
   const requestingUserId =
     req.user?.userId || req.user?.id
-      ? Number(req.user.userId || req.user.id)
+      ? String(req.user.userId || req.user.id)
       : undefined;
   const result = await ArticleService.createArticleIntoDB(req.body, requestingUserId);
 
@@ -22,7 +22,7 @@ const createArticle = catchAsync(async (req: Request, res: Response) => {
 const submitArticle = catchAsync(async (req: Request, res: Response) => {
   const requestingUserId =
     req.user?.userId || req.user?.id
-      ? Number(req.user.userId || req.user.id)
+      ? String(req.user.userId || req.user.id)
       : undefined;
   const result = await ArticleService.submitArticleIntoDB(req.body, requestingUserId);
 

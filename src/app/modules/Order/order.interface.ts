@@ -6,12 +6,17 @@ export type TOrderItemInput = {
 };
 
 export type TCreateOrderInput = {
-  // Optional if registered user
-  userId?: number;
+  userId?: string;
+  addressId?: string;
   customerName: string;
-  customerEmail: string;
+  customerEmail?: string;
   customerPhone: string;
-  shippingAddress?: string;
+  shippingAddress: string;
+
+  // Gift Wrapping
+  isGiftWrap?: boolean;
+  giftMessage?: string;
+  giftWrapCharge?: number;
 
   items: TOrderItemInput[];
 

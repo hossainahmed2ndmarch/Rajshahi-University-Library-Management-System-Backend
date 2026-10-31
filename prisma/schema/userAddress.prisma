@@ -1,0 +1,30 @@
+// Customer Shipping & Delivery Address Book (Dedicated Bangladesh Geo Columns)
+
+model UserAddress {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  recipientName String
+  phoneNumber   String
+
+  // Bangladesh Geo Breakdown
+  division      String // e.g. "Rajshahi"
+  district      String // e.g. "Rajshahi" (Zilla)
+  upazila       String // e.g. "Motihar" (Thana/Upazila)
+  union         String? // Union / Ward / Village
+  streetAddress String  @db.Text
+  postalCode    String?
+
+  deliveryMethod DeliveryMethod @default(COURIER)
+  isDefault      Boolean        @default(false)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([district, upazila])
+  @@map("user_addresses")
+}

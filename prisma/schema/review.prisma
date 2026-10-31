@@ -4,11 +4,10 @@ model BookReview {
   rating  Int
   comment String? @db.Text
 
-  // User Relation (Optional for buyable/hybrid books reviewed by guests)
-  userId Int?
-  user   User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // User Relation
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // Guest Reviewer Info (Populated if user is not logged in)
   reviewerName  String?
   reviewerEmail String?
   isAnonymous   Boolean @default(false)
@@ -20,7 +19,6 @@ model BookReview {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Key Indexes & Constraints
   @@index([bookId])
   @@index([userId])
   @@map("book_reviews")
@@ -36,10 +34,9 @@ model ServiceReview {
   // Anonymous Feature
   isAnonymous Boolean @default(false)
 
-  userId Int?
-  user   User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  // Optional Guest Contact Info (Populated if user is not logged in)
   reviewerName  String?
   reviewerEmail String?
 

@@ -63,7 +63,7 @@ const assignTeamMembers = catchAsync(async (req: Request, res: Response) => {
 
 const removeTeamMember = catchAsync(async (req: Request, res: Response) => {
   const { teamId, userId } = req.params;
-  const result = await RudcTeamService.removeTeamMember(Number(teamId), Number(userId));
+  const result = await RudcTeamService.removeTeamMember(Number(teamId), String(userId));
 
   sendResponse(res, {
     statusCode: httpStatus.OK,

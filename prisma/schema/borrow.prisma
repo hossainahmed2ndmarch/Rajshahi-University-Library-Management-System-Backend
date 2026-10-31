@@ -4,20 +4,20 @@ model Borrow {
   id Int @id @default(autoincrement())
 
   // Borrower Relation
-  userId Int
-  user   User @relation("UserBorrows", fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation("UserBorrows", fields: [userId], references: [id], onDelete: Cascade)
 
   // Book Relation
   bookId Int
   book   Book @relation(fields: [bookId], references: [id])
 
   // Approval Relation 
-  approvedById Int?
-  approvedBy   User? @relation("ApprovedBorrows", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedById String?
+  approvedBy   User?   @relation("ApprovedBorrows", fields: [approvedById], references: [id], onDelete: SetNull)
 
   // Return Processed By Relation (which staff member was present during return)
-  returnedById Int?
-  returnedBy   User? @relation("ReturnedBorrows", fields: [returnedById], references: [id], onDelete: SetNull)
+  returnedById String?
+  returnedBy   User?   @relation("ReturnedBorrows", fields: [returnedById], references: [id], onDelete: SetNull)
 
   // Status & Timestamps Pipeline
   requestedAt DateTime  @default(now())

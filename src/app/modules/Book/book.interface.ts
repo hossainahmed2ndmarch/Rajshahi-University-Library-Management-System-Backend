@@ -8,6 +8,7 @@ export type TAuthorItem = {
 
 export type TCreateBook = {
   title: string;
+  slug?: string;
   author?: string;
   authors?: TAuthorItem[];
   isbn: string;
@@ -27,12 +28,31 @@ export type TCreateBook = {
   coverImage?: string | null;
   images?: string[];
   description?: string | null;
-  addedById?: number | null;
-  donatedById?: number | null;
+  addedById?: string | null;
+  donatedById?: string | null;
 };
 
 export type TUpdateBook = Partial<TCreateBook> & {
   isArchived?: boolean;
+};
+
+export type TBulkUpdateBooks = {
+  bookIds: number[];
+  categories?: string[];
+  customDiscount?: number | null;
+  locationCell?: string;
+  borrowStock?: number;
+  sellStock?: number;
+  isArchived?: boolean;
+};
+
+export type TBulkArchiveBooks = {
+  bookIds: number[];
+  isArchived: boolean;
+};
+
+export type TBulkDeleteBooks = {
+  bookIds: number[];
 };
 
 export type TBookFilterRequest = {

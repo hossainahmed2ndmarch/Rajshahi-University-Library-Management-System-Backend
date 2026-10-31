@@ -16,7 +16,7 @@ const bulkMarkAttendance = catchAsync(async (req: Request, res: Response) => {
 });
 
 const submitFeedback = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number(req.user.userId);
+  const userId = String(req.user.userId || req.user.id);
   const result = await EventMemberRecordService.submitFeedbackIntoDB(userId, req.body);
 
   sendResponse(res, {
@@ -28,7 +28,7 @@ const submitFeedback = catchAsync(async (req: Request, res: Response) => {
 });
 
 const selfAttendance = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number(req.user.userId);
+  const userId = String(req.user.userId || req.user.id);
   const result = await EventMemberRecordService.recordSelfAttendanceIntoDB(userId, req.body);
 
   sendResponse(res, {
@@ -66,7 +66,7 @@ const getRecordsByEvent = catchAsync(async (req: Request, res: Response) => {
 });
 
 const getMyRecords = catchAsync(async (req: Request, res: Response) => {
-  const userId = Number(req.user.userId);
+  const userId = String(req.user.userId || req.user.id);
   const eventId = req.query.eventId ? Number(req.query.eventId) : undefined;
   const result = await EventMemberRecordService.getMyRecordsFromDB(userId, eventId);
 
@@ -91,7 +91,7 @@ const getEventStats = catchAsync(async (req: Request, res: Response) => {
 });
 
 const submitCampaign = catchAsync(async (req: Request, res: Response) => {
-  const userId = req.user ? Number(req.user.userId) : null;
+  const userId = req.user ? String(req.user.userId || req.user.id) : null;
   const result = await EventMemberRecordService.submitCampaignIntoDB(req.body, userId);
 
   sendResponse(res, {
@@ -104,7 +104,7 @@ const submitCampaign = catchAsync(async (req: Request, res: Response) => {
 
 const publishRecordAsArticle = catchAsync(async (req: Request, res: Response) => {
   const { id } = req.params;
-  const requestingUserId = Number(req.user.userId);
+  const requestingUserId = String(req.user.userId || req.user.id);
   const result = await EventMemberRecordService.publishRecordAsArticleInDB(
     Number(id),
     requestingUserId,

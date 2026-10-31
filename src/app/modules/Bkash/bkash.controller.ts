@@ -82,7 +82,7 @@ const completePayment = catchAsync(async (req: Request, res: Response) => {
   if (purpose === 'ORDER' && referenceId) {
     const order = await prisma.order.findFirst({
       where: {
-        OR: [{ id: Number(referenceId) || 0 }, { orderCode: String(referenceId) }],
+        OR: [{ id: String(referenceId) }, { orderCode: String(referenceId) }],
       },
     });
 
@@ -106,7 +106,7 @@ const completePayment = catchAsync(async (req: Request, res: Response) => {
     }
   } else if (purpose === 'MEMBERSHIP' && referenceId) {
     const user = await prisma.user.findUnique({
-      where: { id: Number(referenceId) },
+      where: { id: String(referenceId) },
     });
 
     if (user) {
@@ -119,6 +119,19 @@ const completePayment = catchAsync(async (req: Request, res: Response) => {
           where: { id: user.id },
           data: {
             status: UserStatus.ACTIVE,
+          },
+        }),
+        prisma.ruilMemberProfile.upsert({
+          where: { userId: user.id },
+          create: {
+            userId: user.id,
+            membershipStatus: UserStatus.ACTIVE,
+            isPaid: true,
+            membershipStartedAt: now,
+            membershipExpiresAt: expires,
+          },
+          update: {
+            membershipStatus: UserStatus.ACTIVE,
             isPaid: true,
             membershipStartedAt: now,
             membershipExpiresAt: expires,
@@ -184,7 +197,7 @@ const submitPersonalPayment = catchAsync(async (req: Request, res: Response) => 
   if (purpose === 'ORDER' && referenceId) {
     const order = await prisma.order.findFirst({
       where: {
-        OR: [{ id: Number(referenceId) || 0 }, { orderCode: String(referenceId) }],
+        OR: [{ id: String(referenceId) }, { orderCode: String(referenceId) }],
       },
     });
 
@@ -208,7 +221,7 @@ const submitPersonalPayment = catchAsync(async (req: Request, res: Response) => 
     });
   } else if (purpose === 'MEMBERSHIP' && referenceId) {
     const user = await prisma.user.findUnique({
-      where: { id: Number(referenceId) },
+      where: { id: String(referenceId) },
     });
 
     if (!user) {

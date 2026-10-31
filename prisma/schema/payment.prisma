@@ -3,7 +3,7 @@
 model Payment {
   id            Int           @id @default(autoincrement())
   transactionId String        @unique
-  userId        Int
+  userId        String
   user          User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount        Decimal       @db.Decimal(12, 2)
   paymentMethod PaymentMethod

@@ -1,0 +1,26 @@
+// Unified Academic Profile for University Students & Members (RUIL & RUDC)
+
+model AcademicProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // University Identity (Shared between RUIL and RUDC)
+  institution      String @default("University of Rajshahi")
+  faculty          String // e.g. "Faculty of Arts"
+  department       String // e.g. "Department of Arabic"
+  session          String // e.g. "2021-2022"
+  studentOrVoterId String @unique
+
+  // Biological & Campus Logistics
+  bloodGroup        BloodGroup?
+  accommodationType AccommodationType?
+  accommodationName String? // e.g. "Shaheed Ziaur Rahman Hall"
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([faculty, department])
+  @@index([session])
+  @@map("academic_profiles")
+}
