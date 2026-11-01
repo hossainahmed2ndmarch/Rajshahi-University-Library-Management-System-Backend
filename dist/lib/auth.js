@@ -19,13 +19,16 @@ const plugins_1 = require("better-auth/plugins");
 const db_1 = __importDefault(require("./db"));
 const config_1 = __importDefault(require("../app/config"));
 const sms_1 = require("./sms");
+const isProduction = process.env.NODE_ENV === 'production';
 exports.betterAuthInstance = (0, better_auth_1.betterAuth)({
     database: (0, prisma_1.prismaAdapter)(db_1.default, {
         provider: 'postgresql',
     }),
-    baseURL: process.env.BETTER_AUTH_URL || (config_1.default.backend_url ? config_1.default.backend_url.replace(/\/api\/v1\/?$/, '') : 'http://localhost:5000'),
+    // Must be the backend origin — no trailing slash
+    baseURL: process.env.BETTER_AUTH_URL || 'http://localhost:5000',
     basePath: '/api/auth',
-    secret: config_1.default.jwt.jwt_secret || 'super-secure-better-auth-secret-key-2026',
+    // Use BETTER_AUTH_SECRET from env — never fall back to JWT secret in production
+    secret: process.env.BETTER_AUTH_SECRET || config_1.default.jwt.jwt_secret || 'super-secure-better-auth-secret-key-2026',
     trustedOrigins: [
         'http://localhost:3000',
         'http://localhost:5000',
@@ -33,7 +36,22 @@ exports.betterAuthInstance = (0, better_auth_1.betterAuth)({
         'https://www.rudclibrary.com',
         'https://rudclibrary.com',
         config_1.default.client_url,
+        process.env.BETTER_AUTH_URL,
     ].filter(Boolean),
+    advanced: {
+        // Required when running behind Render / Nginx reverse proxy (HTTPS)
+        useSecureCookies: isProduction,
+        // Fixes state_mismatch: ensures state cookie survives the Google → backend redirect
+        defaultCookieAttributes: {
+            secure: isProduction,
+            httpOnly: true,
+            sameSite: 'lax',
+            path: '/',
+        },
+        crossSubdomainCookies: {
+            enabled: false,
+        },
+    },
     emailAndPassword: {
         enabled: true,
     },

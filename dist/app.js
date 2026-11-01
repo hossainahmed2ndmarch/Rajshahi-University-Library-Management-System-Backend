@@ -15,6 +15,8 @@ const globalErrorHandler_1 = __importDefault(require("./app/errors/globalErrorHa
 const notFound_1 = __importDefault(require("./app/errors/notFound"));
 const routes_1 = __importDefault(require("./app/routes"));
 const app = (0, express_1.default)();
+// Trust Render's reverse proxy — required for secure cookies & correct protocol detection
+app.set('trust proxy', 1);
 // Allowed origins
 const allowedOrigins = [
     'http://localhost:5000',

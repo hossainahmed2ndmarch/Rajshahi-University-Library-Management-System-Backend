@@ -12,6 +12,9 @@ import router from './app/routes';
 
 const app: Application = express();
 
+// Trust Render's reverse proxy — required for secure cookies & correct protocol detection
+app.set('trust proxy', 1);
+
 // Allowed origins
 const allowedOrigins = [
   'http://localhost:5000',
