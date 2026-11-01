@@ -49,6 +49,6 @@ router.post('/pos', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.
 router.patch('/:id/approve', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), donation_controller_1.DonationController.approveDonation);
 router.patch('/:id/reject', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER), donation_controller_1.DonationController.rejectDonation);
 router.post('/:id/convert', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), (0, validateRequest_1.default)(donation_validation_1.DonationValidation.convertDonationValidationSchema), donation_controller_1.DonationController.convertDonationToStock);
-router.get('/', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER, client_1.UserRole.MEMBER), donation_controller_1.DonationController.getAllDonations);
+router.get('/', auth_1.optionalAuth, donation_controller_1.DonationController.getAllDonations);
 router.delete('/:id', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN), donation_controller_1.DonationController.deleteDonation);
 exports.DonationRoutes = router;

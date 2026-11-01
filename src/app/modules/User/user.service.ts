@@ -797,7 +797,7 @@ const getUserOptionsFromDB = async () => {
 
 // Public Member Counts for Landing Page (Unauthenticated)
 const getPublicStatsInDB = async () => {
-  const [activeRuilMembers, approvedRudcMembers, totalBooks, totalArticles] = await Promise.all([
+  const [activeRuilMembers, approvedRudcMembers, totalBooks, totalArticles, totalDonations] = await Promise.all([
     prisma.ruilMemberProfile.count({
       where: { membershipStatus: UserStatus.ACTIVE },
     }),
@@ -810,6 +810,7 @@ const getPublicStatsInDB = async () => {
     prisma.article.count({
       where: { isPublished: true },
     }),
+    prisma.donation.count(),
   ]);
 
   return {
@@ -817,6 +818,7 @@ const getPublicStatsInDB = async () => {
     rudcMembersCount: approvedRudcMembers,
     totalBooksCount: totalBooks,
     totalArticlesCount: totalArticles,
+    totalDonationsCount: totalDonations,
   };
 };
 

@@ -42,7 +42,7 @@ router.post(
 
 router.get(
   '/',
-  auth(UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.SHIFTER, UserRole.MEMBER),
+  optionalAuth,
   DonationController.getAllDonations
 );
 

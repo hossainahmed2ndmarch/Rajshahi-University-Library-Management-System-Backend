@@ -754,7 +754,7 @@ const getUserOptionsFromDB = () => __awaiter(void 0, void 0, void 0, function* (
 });
 // Public Member Counts for Landing Page (Unauthenticated)
 const getPublicStatsInDB = () => __awaiter(void 0, void 0, void 0, function* () {
-    const [activeRuilMembers, approvedRudcMembers, totalBooks, totalArticles] = yield Promise.all([
+    const [activeRuilMembers, approvedRudcMembers, totalBooks, totalArticles, totalDonations] = yield Promise.all([
         db_1.default.ruilMemberProfile.count({
             where: { membershipStatus: client_1.UserStatus.ACTIVE },
         }),
@@ -767,12 +767,14 @@ const getPublicStatsInDB = () => __awaiter(void 0, void 0, void 0, function* () 
         db_1.default.article.count({
             where: { isPublished: true },
         }),
+        db_1.default.donation.count(),
     ]);
     return {
         ruilMembersCount: activeRuilMembers,
         rudcMembersCount: approvedRudcMembers,
         totalBooksCount: totalBooks,
         totalArticlesCount: totalArticles,
+        totalDonationsCount: totalDonations,
     };
 });
 exports.UserService = {
