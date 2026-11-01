@@ -36,9 +36,16 @@ app.use(
 app.use(cookieParser());
 app.use(compression());
 
-// Better Auth Master Handler (/api/auth, /api/v1/auth & subroutes)
+// Better Auth Master Handler (/api/auth & /api/v1/auth alias)
+// Rewrite /api/v1/auth/* → /api/auth/* so Better Auth (basePath='/api/auth') recognises the path
+app.use(['/api/v1/auth', '/api/v1/auth/*'], (req, _res, next) => {
+  req.url = req.url.replace(/^\/api\/v1\/auth/, '/api/auth');
+  (req as any).originalUrl = (req as any).originalUrl?.replace(/^\/api\/v1\/auth/, '/api/auth');
+  next();
+});
+
 app.all(
-  ['/api/auth', '/api/auth{/*splat}', '/api/v1/auth', '/api/v1/auth{/*splat}'],
+  ['/api/auth', '/api/auth/*'],
   toNodeHandler(betterAuthInstance)
 );
 
