@@ -16,4 +16,5 @@ router.post('/refresh-token', (0, validateRequest_1.default)(auth_validation_1.A
 router.post('/change-password', (0, auth_1.default)(client_1.UserRole.SUPER_ADMIN, client_1.UserRole.ADMIN, client_1.UserRole.SHIFTER, client_1.UserRole.MEMBER), (0, validateRequest_1.default)(auth_validation_1.AuthValidation.changePasswordValidationSchema), auth_controller_1.AuthController.changePassword);
 router.post('/forgot-password', (0, validateRequest_1.default)(auth_validation_1.AuthValidation.forgotPasswordValidationSchema), auth_controller_1.AuthController.forgotPassword);
 router.post('/reset-password', (0, validateRequest_1.default)(auth_validation_1.AuthValidation.resetPasswordValidationSchema), auth_controller_1.AuthController.resetPassword);
+router.post('/social-token', auth_controller_1.AuthController.socialToken);
 exports.AuthRoutes = router;

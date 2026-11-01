@@ -83,10 +83,40 @@ const resetPassword = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
+const socialToken = catchAsync(async (req: Request, res: Response) => {
+  const { email } = req.body;
+
+  if (!email) {
+    throw new AppError(httpStatus.BAD_REQUEST, 'Email is required!');
+  }
+
+  const result = await AuthService.socialToken(email);
+  const { refreshToken, accessToken, user } = result;
+
+  const isProduction = config.env === 'production';
+  res.cookie('refreshToken', refreshToken, {
+    secure: isProduction,
+    httpOnly: true,
+    sameSite: isProduction ? 'none' : 'lax',
+    maxAge: 365 * 24 * 60 * 60 * 1000,
+  });
+
+  sendResponse(res, {
+    statusCode: httpStatus.OK,
+    success: true,
+    message: 'Social login token issued successfully!',
+    data: {
+      accessToken,
+      user,
+    },
+  });
+});
+
 export const AuthController = {
   loginUser,
   refreshToken,
   changePassword,
   forgotPassword,
   resetPassword,
+  socialToken,
 };

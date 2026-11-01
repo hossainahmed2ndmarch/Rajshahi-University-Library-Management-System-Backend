@@ -282,10 +282,67 @@ const resetPassword = async (
   };
 };
 
+/**
+ * Social token exchange:
+ * Called after a successful Better Auth OAuth flow.
+ * Finds the user by email (already created by Better Auth) and issues our custom JWT.
+ */
+const socialToken = async (email: string) => {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    include: {
+      rudcProfile: true,
+      ruilProfile: true,
+      academicProfile: true,
+    },
+  });
+
+  if (!user) {
+    throw new AppError(
+      httpStatus.NOT_FOUND,
+      'No account found for this Google account. Please register first.'
+    );
+  }
+
+  if (user.status === UserStatus.BLOCKED) {
+    throw new AppError(
+      httpStatus.FORBIDDEN,
+      'Your account has been blocked by administration. Please contact the desk.'
+    );
+  }
+
+  const jwtPayload = {
+    userId: user.id,
+    email: user.email || '',
+    role: user.role,
+    status: user.status,
+  };
+
+  const accessToken = createToken(
+    jwtPayload,
+    config.jwt.jwt_secret,
+    config.jwt.jwt_expires_in
+  );
+
+  const refreshToken = createToken(
+    jwtPayload,
+    config.jwt.refresh_token_secret,
+    config.jwt.refresh_token_expires_in
+  );
+
+  const { password: _, ...userData } = user;
+  return {
+    accessToken,
+    refreshToken,
+    user: formatUserWithRudcProfile(userData),
+  };
+};
+
 export const AuthService = {
   loginUser,
   refreshToken,
   changePassword,
   forgotPassword,
   resetPassword,
+  socialToken,
 };

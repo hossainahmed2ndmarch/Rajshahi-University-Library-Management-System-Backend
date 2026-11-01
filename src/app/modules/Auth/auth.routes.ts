@@ -38,4 +38,9 @@ router.post(
   AuthController.resetPassword
 );
 
+router.post(
+  '/social-token',
+  AuthController.socialToken
+);
+
 export const AuthRoutes = router;

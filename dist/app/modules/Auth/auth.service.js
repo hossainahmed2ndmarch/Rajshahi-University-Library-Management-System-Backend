@@ -269,10 +269,46 @@ const resetPassword = (token, payload) => __awaiter(void 0, void 0, void 0, func
         message: 'Password has been reset successfully!',
     };
 });
+/**
+ * Social token exchange:
+ * Called after a successful Better Auth OAuth flow.
+ * Finds the user by email (already created by Better Auth) and issues our custom JWT.
+ */
+const socialToken = (email) => __awaiter(void 0, void 0, void 0, function* () {
+    const user = yield db_1.default.user.findUnique({
+        where: { email },
+        include: {
+            rudcProfile: true,
+            ruilProfile: true,
+            academicProfile: true,
+        },
+    });
+    if (!user) {
+        throw new AppError_1.default(http_status_1.default.NOT_FOUND, 'No account found for this Google account. Please register first.');
+    }
+    if (user.status === client_1.UserStatus.BLOCKED) {
+        throw new AppError_1.default(http_status_1.default.FORBIDDEN, 'Your account has been blocked by administration. Please contact the desk.');
+    }
+    const jwtPayload = {
+        userId: user.id,
+        email: user.email || '',
+        role: user.role,
+        status: user.status,
+    };
+    const accessToken = (0, jwtHelpers_1.createToken)(jwtPayload, config_1.default.jwt.jwt_secret, config_1.default.jwt.jwt_expires_in);
+    const refreshToken = (0, jwtHelpers_1.createToken)(jwtPayload, config_1.default.jwt.refresh_token_secret, config_1.default.jwt.refresh_token_expires_in);
+    const { password: _ } = user, userData = __rest(user, ["password"]);
+    return {
+        accessToken,
+        refreshToken,
+        user: (0, rudcMember_service_1.formatUserWithRudcProfile)(userData),
+    };
+});
 exports.AuthService = {
     loginUser,
     refreshToken,
     changePassword,
     forgotPassword,
     resetPassword,
+    socialToken,
 };
