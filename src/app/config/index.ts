@@ -1,7 +1,12 @@
 import dotenvx from '@dotenvx/dotenvx';
 import path from 'path';
+import fs from 'fs';
 
-dotenvx.config({ path: path.join(process.cwd(), '.env') });
+// Only load .env file locally — on Render/production, env vars are injected by the platform
+const envPath = path.join(process.cwd(), '.env');
+if (fs.existsSync(envPath)) {
+  dotenvx.config({ path: envPath });
+}
 // Hello 
 const config = {
   env: process.env.NODE_ENV || 'development',

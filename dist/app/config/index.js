@@ -5,7 +5,12 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const dotenvx_1 = __importDefault(require("@dotenvx/dotenvx"));
 const path_1 = __importDefault(require("path"));
-dotenvx_1.default.config({ path: path_1.default.join(process.cwd(), '.env') });
+const fs_1 = __importDefault(require("fs"));
+// Only load .env file locally — on Render/production, env vars are injected by the platform
+const envPath = path_1.default.join(process.cwd(), '.env');
+if (fs_1.default.existsSync(envPath)) {
+    dotenvx_1.default.config({ path: envPath });
+}
 // Hello 
 const config = {
     env: process.env.NODE_ENV || 'development',
