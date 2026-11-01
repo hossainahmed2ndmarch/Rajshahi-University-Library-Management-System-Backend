@@ -139,7 +139,16 @@ const getAllEventsFromDB = (query) => __awaiter(void 0, void 0, void 0, function
             select: {
                 id: true,
                 title: true,
-                author: true,
+                authors: {
+                    include: {
+                        author: {
+                            select: {
+                                id: true,
+                                name: true,
+                            },
+                        },
+                    },
+                },
                 coverImage: true,
             },
         },

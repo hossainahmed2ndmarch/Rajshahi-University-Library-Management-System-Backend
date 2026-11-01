@@ -45,7 +45,7 @@ exports.betterAuthInstance = (0, better_auth_1.betterAuth)({
         defaultCookieAttributes: {
             secure: isProduction,
             httpOnly: true,
-            sameSite: 'lax',
+            sameSite: isProduction ? 'none' : 'lax',
             path: '/',
         },
         crossSubdomainCookies: {

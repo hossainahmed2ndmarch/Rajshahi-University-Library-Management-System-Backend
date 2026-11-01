@@ -22,6 +22,8 @@ const allowedOrigins = [
     'http://localhost:5000',
     'http://localhost:3000',
     'http://localhost:5173',
+    'https://www.rudclibrary.com',
+    'https://rudclibrary.com',
     config_1.default.client_url,
 ].filter(Boolean);
 // Middlewares

@@ -128,7 +128,16 @@ const getAllEventsFromDB = async (query: Record<string, unknown>) => {
       select: {
         id: true,
         title: true,
-        author: true,
+        authors: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
         coverImage: true,
       },
     },

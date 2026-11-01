@@ -20,6 +20,8 @@ const allowedOrigins = [
   'http://localhost:5000',
   'http://localhost:3000',
   'http://localhost:5173',
+  'https://www.rudclibrary.com',
+  'https://rudclibrary.com',
   config.client_url,
 ].filter(Boolean);
 
