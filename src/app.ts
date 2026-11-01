@@ -38,16 +38,14 @@ app.use(compression());
 
 // Better Auth Master Handler (/api/auth & /api/v1/auth alias)
 // Rewrite /api/v1/auth/* → /api/auth/* so Better Auth (basePath='/api/auth') recognises the path
-app.use(['/api/v1/auth', '/api/v1/auth/*'], (req, _res, next) => {
+// Note: Express 5 / path-to-regexp v8 requires named params — use regex-based route matching
+app.use(/^\/api\/v1\/auth(\/.*)?$/, (req, _res, next) => {
   req.url = req.url.replace(/^\/api\/v1\/auth/, '/api/auth');
-  (req as any).originalUrl = (req as any).originalUrl?.replace(/^\/api\/v1\/auth/, '/api/auth');
+  (req as any).originalUrl = ((req as any).originalUrl || '').replace(/^\/api\/v1\/auth/, '/api/auth');
   next();
 });
 
-app.all(
-  ['/api/auth', '/api/auth/*'],
-  toNodeHandler(betterAuthInstance)
-);
+app.all(/^\/api\/auth(\/.*)?$/, toNodeHandler(betterAuthInstance));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

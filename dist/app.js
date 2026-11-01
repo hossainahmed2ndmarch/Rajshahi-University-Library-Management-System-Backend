@@ -37,13 +37,13 @@ app.use((0, cookie_parser_1.default)());
 app.use((0, compression_1.default)());
 // Better Auth Master Handler (/api/auth & /api/v1/auth alias)
 // Rewrite /api/v1/auth/* → /api/auth/* so Better Auth (basePath='/api/auth') recognises the path
-app.use(['/api/v1/auth', '/api/v1/auth/*'], (req, _res, next) => {
-    var _a;
+// Note: Express 5 / path-to-regexp v8 requires named params — use regex-based route matching
+app.use(/^\/api\/v1\/auth(\/.*)?$/, (req, _res, next) => {
     req.url = req.url.replace(/^\/api\/v1\/auth/, '/api/auth');
-    req.originalUrl = (_a = req.originalUrl) === null || _a === void 0 ? void 0 : _a.replace(/^\/api\/v1\/auth/, '/api/auth');
+    req.originalUrl = (req.originalUrl || '').replace(/^\/api\/v1\/auth/, '/api/auth');
     next();
 });
-app.all(['/api/auth', '/api/auth/*'], (0, node_1.toNodeHandler)(auth_1.default));
+app.all(/^\/api\/auth(\/.*)?$/, (0, node_1.toNodeHandler)(auth_1.default));
 app.use(express_1.default.json());
 app.use(express_1.default.urlencoded({ extended: true }));
 // Serve static uploaded media files
